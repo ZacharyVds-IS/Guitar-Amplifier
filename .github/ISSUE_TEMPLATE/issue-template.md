@@ -12,3 +12,6 @@ assignees: ''
 # Tasks
 - [ ] task
 - [ ] ...
+
+# Definition of Done
+- [ ] ...

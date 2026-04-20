@@ -14,7 +14,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Linux dependencies required for Tauri
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
@@ -26,7 +25,6 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev
 
-      # Node
       - name: Install Node
         uses: actions/setup-node@v3
         with:
@@ -36,11 +34,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      # Rust
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # Tests
       - name: Run React/Vitest tests
         run: npm run test -- --run
 
@@ -48,16 +44,6 @@ jobs:
         working-directory: src-tauri
         run: cargo test --verbose
 
-      # Build check (no artifacts, no release)
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # Disable release creation
-          releaseDraft: false
-          prerelease: false
-          # No tag, no release, just build
-          tagName: ""
-          releaseName: ""
-          releaseBody: ""
+      - name: Build Tauri (compile only, no bundling)
+        working-directory: src-tauri
+        run: cargo tauri build --bundles none

@@ -45,4 +45,4 @@ jobs:
         run: cargo test --verbose
 
       - name: Build Tauri
-        run: npm run tauri build -- --bundles none
+        run: npm run tauri build  -- --no-bundle

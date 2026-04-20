@@ -14,15 +14,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Cache APT packages
-        id: cache-apt
-        uses: actions/cache@v3
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-tauri
-
+      # Linux dependencies required for Tauri
       - name: Install Linux dependencies
-        if: steps.cache-apt.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -33,6 +26,7 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev
 
+      # Node
       - name: Install Node
         uses: actions/setup-node@v3
         with:
@@ -42,34 +36,28 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Cache Cargo registry + build
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
+      # Rust
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Tests
       - name: Run React/Vitest tests
         run: npm run test -- --run
 
-      - name: Run Rust tests (src-tauri)
+      - name: Run Rust tests
         working-directory: src-tauri
         run: cargo test --verbose
 
+      # Build check (no artifacts, no release)
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
-          releaseName: "App v__VERSION__"
-          releaseBody: "Automated build"
+          # Disable release creation
           releaseDraft: false
           prerelease: false
+          # No tag, no release, just build
+          tagName: ""
+          releaseName: ""
+          releaseBody: ""

@@ -31,6 +31,16 @@ pub fn start_loopback() {
     });
 }
 
+pub fn push_input_samples(data: &[f32], producer: &mut HeapProd<f32>) {
+    for &sample in data {
+        let _ = producer.try_push(sample);
+    }
+}
+pub fn fill_output_buffer(consumer: &mut HeapCons<f32>, output: &mut [f32]) {
+    for sample in output.iter_mut() {
+        *sample = consumer.try_pop().unwrap_or(0.0);
+    }
+}
 fn handle_input(
     device: &cpal::Device,
     config: cpal::StreamConfig,
@@ -39,9 +49,7 @@ fn handle_input(
     device.build_input_stream(
         &config,
         move |data: &[f32], _| {
-            for &sample in data {
-                let _ = producer.try_push(sample);
-            }
+            push_input_samples(data, &mut producer);
         },
         move |err| eprintln!("Input error: {:?}", err),
         None,
@@ -56,18 +64,84 @@ fn process_and_output(
     device.build_output_stream(
         &config,
         move |output: &mut [f32], _| {
+            // Inline debug buffer (not extracted, not tested)
             let mut debug_buf = [0.0f32; 10];
             for i in 0..10 {
                 debug_buf[i] = consumer.try_pop().unwrap_or(0.0);
             }
             println!("Buffer: {:?}", debug_buf);
 
-            // Output audio
-            for sample in output.iter_mut() {
-                *sample = consumer.try_pop().unwrap_or(0.0);
-            }
+            // Pure, testable logic
+            fill_output_buffer(&mut consumer, output);
         },
         move |err| eprintln!("Output error: {:?}", err),
         None,
     ).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ringbuf::HeapRb;
+    mod happy_path {
+        use super::*;
+
+        #[test]
+        fn test_input_pushed_to_ringbuffer() {
+            let rb = HeapRb::<f32>::new(4);
+            let (mut prod, mut cons) = rb.split();
+            let input = [1.0, 2.0, 3.0];
+
+            push_input_samples(&input, &mut prod);
+
+            assert_eq!(cons.try_pop(), Some(1.0));
+            assert_eq!(cons.try_pop(), Some(2.0));
+            assert_eq!(cons.try_pop(), Some(3.0));
+        }
+
+        #[test]
+        fn test_fill_output_buffer_reads_samples() {
+            let rb = HeapRb::<f32>::new(20);
+            let (mut prod, mut cons) = rb.split();
+
+            for i in 0..10 {
+                prod.try_push(i as f32).unwrap();
+            }
+
+            let mut out = [0.0f32; 4];
+            fill_output_buffer(&mut cons, &mut out);
+
+            assert_eq!(out, [0.0, 1.0, 2.0, 3.0]);
+        }
+    }
+
+    mod failure_path {
+        use super::*;
+
+        #[test]
+        fn buffer_overflow_drops_extra_samples_silently() {
+            let rb = HeapRb::<f32>::new(4);
+            let (mut prod, mut cons) = rb.split();
+
+            let input = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0];
+            push_input_samples(&input, &mut prod);
+
+            assert_eq!(cons.try_pop(), Some(10.0));
+            assert_eq!(cons.try_pop(), Some(20.0));
+            assert_eq!(cons.try_pop(), Some(30.0));
+            assert_eq!(cons.try_pop(), Some(40.0));
+            assert_eq!(cons.try_pop(), None);
+        }
+
+        #[test]
+        fn output_buffer_fills_with_zero_when_empty() {
+            let rb = HeapRb::<f32>::new(4);
+            let (_prod, mut cons) = rb.split();
+
+            let mut out = [1.0f32; 4];
+            fill_output_buffer(&mut cons, &mut out);
+
+            assert_eq!(out, [0.0; 4]);
+        }
+    }
 }

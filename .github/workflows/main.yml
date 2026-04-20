@@ -44,6 +44,5 @@ jobs:
         working-directory: src-tauri
         run: cargo test --verbose
 
-      - name: Build Tauri (compile only, no bundling)
-        working-directory: src-tauri
-        run: cargo tauri build --bundles none
+      - name: Build Tauri
+        run: npm run tauri build -- --bundles none

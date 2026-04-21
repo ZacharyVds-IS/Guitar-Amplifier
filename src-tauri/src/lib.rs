@@ -5,7 +5,7 @@ pub mod infrastructure;
 
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
-use crate::commands::gain::set_gain;
+use crate::commands::default_controls::{set_gain, set_master_volume};
 use crate::commands::loopback::start_loopback;
 use crate::services::audio_service::AudioService;
 
@@ -20,7 +20,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AudioService::new(input,output,config))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![start_loopback, set_gain])
+        .invoke_handler(tauri::generate_handler![start_loopback, set_gain, set_master_volume])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

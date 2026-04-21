@@ -1,2 +1,2 @@
 pub mod loopback;
-pub mod gain;
+pub mod default_controls;

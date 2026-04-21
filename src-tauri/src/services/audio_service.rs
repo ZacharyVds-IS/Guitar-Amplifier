@@ -19,7 +19,7 @@ impl AudioService {
         let handler = AudioHandler::new(input_device, output_device, config);
         Self {
             audio_handler: Arc::new(handler),
-            channel: Channel::new("Main".to_string(), 1.0),
+            channel: Channel::new("Main".to_string(),None, None),
         }
     }
 
@@ -35,12 +35,16 @@ impl AudioService {
             let output_stream = handler.build_output_stream(o_consumer);
 
             thread::spawn(move || {
-                let mut gain = GainProcessor::new(channel.gain_handle());
+                let mut gain = GainProcessor::new(channel.gain());
+                let mut master_volume = GainProcessor::new(channel.master_volume());
 
                 loop {
                     if let Some(sample) = i_consumer.try_pop() {
-                        let processed = gain.process(sample);
-                        let _ = o_producer.try_push(processed);
+                        let sample = gain.process(sample);
+
+                        //Master volume should stay the last alteration to the signal
+                        let sample = master_volume.process(sample);
+                        let _ = o_producer.try_push(sample);
                     } else {
                         std::thread::yield_now();
                     }

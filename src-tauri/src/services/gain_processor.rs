@@ -23,7 +23,7 @@ impl AudioProcessor for GainProcessor {
         let target = self.gain.load(Ordering::Relaxed);
 
         // Simple one-pole smoothing
-        self.current += (target - self.current) * 0.001;
+        self.current += (target - self.current) * 0.01;
 
         sample * self.current
     }

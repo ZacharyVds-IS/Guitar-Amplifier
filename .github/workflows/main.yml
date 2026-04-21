@@ -23,7 +23,9 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libjavascriptcoregtk-4.1-dev \
             libappindicator3-dev \
-            librsvg2-dev
+            librsvg2-dev \
+            libasound2-dev \
+            libudev-dev
 
       - name: Install Node
         uses: actions/setup-node@v3

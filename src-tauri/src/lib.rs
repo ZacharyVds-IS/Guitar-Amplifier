@@ -6,8 +6,9 @@ pub mod infrastructure;
 use std::sync::Mutex;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
+use tracing_subscriber::EnvFilter;
 use crate::commands::loopback::start_loopback;
-use crate::commands::settings::{get_input_device_list, get_output_device_list};
+use crate::commands::settings::{get_input_device_list, get_output_device_list, set_input_device, set_output_device};
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
 
@@ -19,11 +20,18 @@ pub fn run() {
     let output = host.default_output_device().unwrap();
     let config = input.default_input_config().unwrap().config();
 
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info"))
+        )
+        .init();
+
     tauri::Builder::default()
         .manage(Mutex::new(AudioService::new(input,output,config)))
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![start_loopback,get_input_device_list,get_output_device_list])
+        .invoke_handler(tauri::generate_handler![start_loopback,get_input_device_list,get_output_device_list,set_input_device,set_output_device])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

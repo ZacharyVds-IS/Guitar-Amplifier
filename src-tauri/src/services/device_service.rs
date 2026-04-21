@@ -57,5 +57,31 @@ impl DeviceService {
         }
     }
 
+    pub fn find_input_device_by_id(&self, id: &str) -> Option<cpal::Device> {
+        let devices = self.host.input_devices().ok()?;
+
+        for device in devices {
+            let device_id = device.id().ok()?;
+            if format!("{:?}", device_id) == id {
+                return Some(device);
+            }
+        }
+
+        None
+    }
+
+    pub fn find_output_device_by_id(&self, id: &str) -> Option<cpal::Device> {
+        let devices = self.host.output_devices().ok()?;
+
+        for device in devices {
+            let device_id = device.id().ok()?;
+            if format!("{:?}", device_id) == id {
+                return Some(device);
+            }
+        }
+
+        None
+    }
+
 
 }

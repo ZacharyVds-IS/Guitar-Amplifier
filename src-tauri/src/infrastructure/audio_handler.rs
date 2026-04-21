@@ -9,6 +9,9 @@ use derive_getters::Getters;
 pub trait AudioHandlerTrait: Send + Sync{
     fn build_input_stream(&self, prod: HeapProd<f32>) -> Stream;
     fn build_output_stream(&self, cons: HeapCons<f32>) -> Stream;
+    fn input_device(&self) -> &Device;
+    fn output_device(&self) -> &Device;
+    fn config(&self) -> &StreamConfig;
 }
 
 #[derive(Clone, Getters)]
@@ -26,9 +29,18 @@ impl AudioHandler {
         }
     }
 
+
     pub fn create_ringbuffer(size: usize) -> (HeapProd<f32>, HeapCons<f32>) {
         let rb = HeapRb::<f32>::new(size);
         rb.split()
+    }
+
+    pub fn set_output_device(&mut self, output_device: Device) {
+        self.output_device = output_device;
+    }
+
+    pub fn set_input_device(&mut self, input_device: Device) {
+        self.input_device = input_device;
     }
 }
 
@@ -63,6 +75,19 @@ impl AudioHandlerTrait for AudioHandler {
             )
             .unwrap()
     }
+
+    fn input_device(&self) -> &Device {
+        &self.input_device
+    }
+
+    fn output_device(&self) -> &Device {
+        &self.output_device
+    }
+
+    fn config(&self) -> &StreamConfig {
+        &self.config
+    }
+
 }
 
 #[cfg(test)]

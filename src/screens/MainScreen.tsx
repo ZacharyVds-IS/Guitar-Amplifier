@@ -14,6 +14,9 @@ export function MainScreen() {
     async function greet() {
         setGreetMsg(await invoke("greet", { name }));
     }
+    async function startLoopback(){
+        await invoke("start_loopback");
+    }
 
     return (
         <Box sx={{ p: 4 }}>
@@ -45,7 +48,9 @@ export function MainScreen() {
                     Greet
                 </Button>
             </Box>
-
+            <Button variant="contained" onClick={startLoopback}>
+                Start Loopback
+            </Button>
             <Typography variant="h6">{greetMsg}</Typography>
         </Box>
     );

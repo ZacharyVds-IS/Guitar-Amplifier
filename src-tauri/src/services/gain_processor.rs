@@ -28,3 +28,48 @@ impl AudioProcessor for GainProcessor {
         sample * self.current
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use atomic_float::AtomicF32;
+    use std::sync::atomic::Ordering;
+
+    fn make_processor(initial_gain: f32) -> GainProcessor {
+        let gain = Arc::new(AtomicF32::new(initial_gain));
+        GainProcessor::new(gain)
+    }
+
+
+    #[cfg(test)]
+    mod success_path {
+        use super::*;
+        #[test]
+        fn transition_to_target_should_be_smooth() {
+            let gain = Arc::new(AtomicF32::new(0.0));
+            let mut processor = GainProcessor::new(gain.clone());
+
+            gain.store(1.0, Ordering::Relaxed);
+
+            for _ in 0..5_000 {
+                processor.process(1.0);
+            }
+
+            assert!(processor.current > 0.9);
+            assert!(processor.current < 1.0);
+        }
+
+        #[test]
+        fn steady_state_does_not_change_value() {
+            let mut processor = make_processor(1.0);
+
+            for _ in 0..1_000 {
+                processor.process(1.0);
+            }
+
+            assert!((processor.current - 1.0).abs() < 1e-6);
+        }
+    }
+    //This part of the code does not have a failure path
+}

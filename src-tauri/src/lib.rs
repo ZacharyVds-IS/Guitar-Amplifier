@@ -3,10 +3,15 @@ pub mod services;
 pub mod domain;
 pub mod infrastructure;
 
+use std::sync::Mutex;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
+use tracing_subscriber::EnvFilter;
+use crate::commands::gain::set_gain;
 use crate::commands::loopback::start_loopback;
+use crate::commands::settings::{get_input_device_list, get_output_device_list, set_input_device, set_output_device};
 use crate::services::audio_service::AudioService;
+use crate::services::device_service::DeviceService;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

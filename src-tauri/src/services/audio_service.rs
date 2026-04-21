@@ -1,15 +1,25 @@
 use std::sync::Arc;
 use std::thread;
+use std::thread::JoinHandle;
 use cpal::{Device, StreamConfig};
 use cpal::traits::StreamTrait;
+use derive_getters::Getters;
+use ringbuf::consumer::Consumer;
+use ringbuf::producer::Producer;
+use tracing::info;
+use std::sync::atomic::Ordering;
+
+use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::gain_processor::GainProcessor;
 
 #[derive(Getters)]
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
-    channel: Channel
+    channel: Channel,
 }
 
 impl AudioService {
@@ -19,25 +29,20 @@ impl AudioService {
             audio_handler: Arc::new(handler),
             loopback_thread: None,
             is_active: false,
-             channel: Channel::new("Main".to_string(), 1.0),
+            channel: Channel::new("Main".to_string(), 1.0),
         }
     }
 
-
-    ///Start loopback creates a new thread used for audio processing and keeps it alive until stopped by stop_loopback.
     pub fn start_loopback(&mut self) {
         info!("Starting audio loopback");
         self.is_active = true;
         let handler = self.audio_handler.clone();
         let channel = self.channel.clone();
-
-        thread::spawn(move || {
+        let thread = thread::spawn(move || {
             let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
             let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
-
             let input_stream = handler.build_input_stream(i_producer);
             let output_stream = handler.build_output_stream(o_consumer);
-
             thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain_handle());
 
@@ -50,17 +55,14 @@ impl AudioService {
                     }
                 }
             });
-
             input_stream.play().unwrap();
             output_stream.play().unwrap();
 
             thread::park();
         });
-
         self.loopback_thread = Some(thread);
     }
 
-    ///Stop loopback unparks the active thread and stops the loopback thread ready for re-creation.
     pub fn stop_loopback(&mut self) {
         info!("Stopping audio loopback");
         if let Some(handle) = self.loopback_thread.take() {
@@ -69,16 +71,20 @@ impl AudioService {
         }
         self.is_active = false;
     }
-pub fn set_input_device(&mut self, input: Device) {
+
+    pub fn set_input_device(&mut self, input: Device) {
         info!("Switching input device");
-        let was_active = self.is_active.clone();
+        let was_active = self.is_active;
         if was_active {
             self.stop_loopback();
-        };
+        }
         let old = self.audio_handler.clone();
         let new_handler =
             AudioHandler::new(input, old.output_device().clone(), old.config().clone());
         self.audio_handler = Arc::new(new_handler);
+        let gain = self.channel.gain().load(Ordering::Relaxed);
+        self.channel = Channel::new("Main".to_string(), gain);
+
         if was_active {
             self.start_loopback();
         }
@@ -86,14 +92,17 @@ pub fn set_input_device(&mut self, input: Device) {
 
     pub fn set_output_device(&mut self, output: Device) {
         info!("Switching output device");
-        let was_active = self.is_active.clone();
+        let was_active = self.is_active;
         if was_active {
             self.stop_loopback();
-        };
+        }
         let old = self.audio_handler.clone();
         let new_handler =
             AudioHandler::new(old.input_device().clone(), output, old.config().clone());
         self.audio_handler = Arc::new(new_handler);
+        let gain = self.channel.gain().load(Ordering::Relaxed);
+        self.channel = Channel::new("Main".to_string(), gain);
+
         if was_active {
             self.start_loopback();
         }

@@ -3,12 +3,13 @@ import {
     Alert,
     Box,
     Button,
-    CircularProgress
+    CircularProgress, Slider, Typography
 } from "@mui/material";
 import { DropdownSelector } from "../components/selection/DropdownSelector.tsx";
 import { useAudioDevices } from "../hooks/useAudioDevices.ts";
 import { useState } from "react";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
+import {setGain} from "../domain";
 
 export function MainScreen() {
     const { inputs, outputs, isLoading, error } = useAudioDevices();
@@ -35,6 +36,11 @@ export function MainScreen() {
     async function handleOutputChange(id: string) {
         setSelectedOutput(id);
         await updateOutputDevice(id);
+    }
+
+    const handleGainChange = async (_event: Event, value: number | number[]) => {
+        const gain = Array.isArray(value) ? value[0] : value;
+        setGain({gain});
     }
 
     if (isLoading) return <CircularProgress />;
@@ -71,7 +77,6 @@ export function MainScreen() {
                 <Typography>Gain</Typography>
                 <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
             </Box>
-            <Typography variant="h6">{greetMsg}</Typography>
         </Box>
     );
 }

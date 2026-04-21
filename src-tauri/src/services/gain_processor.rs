@@ -46,7 +46,7 @@ mod tests {
     mod success_path {
         use super::*;
         #[test]
-        fn transition_to_target_should_be_smooth() {
+        fn transition_to_target_should_be_smooth_up() {
             let gain = Arc::new(AtomicF32::new(0.0));
             let mut processor = GainProcessor::new(gain.clone());
 
@@ -58,6 +58,21 @@ mod tests {
 
             assert!(processor.current > 0.9);
             assert!(processor.current < 1.0);
+        }
+
+        #[test]
+        fn transition_to_target_should_be_smooth_down() {
+            let gain = Arc::new(AtomicF32::new(1.0));
+            let mut processor = GainProcessor::new(gain.clone());
+
+            gain.store(0.0, Ordering::Relaxed);
+
+            for _ in 0..5_000 {
+                processor.process(1.0);
+            }
+
+            assert!(processor.current < 0.1);
+            assert!(processor.current > 0.0);
         }
 
         #[test]

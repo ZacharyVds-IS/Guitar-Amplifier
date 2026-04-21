@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use atomic_float::AtomicF32;
+use tracing::info;
 use crate::domain::audio_processor::AudioProcessor;
 
 pub struct GainProcessor {
@@ -10,6 +11,7 @@ pub struct GainProcessor {
 
 impl GainProcessor {
     pub fn new(gain: Arc<AtomicF32>) -> Self {
+        info!("initi gain processor");
         let initial = gain.load(Ordering::Relaxed);
         Self {
             gain,

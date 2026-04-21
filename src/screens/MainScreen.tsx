@@ -1,65 +1,78 @@
-import {useState} from "react";
-import {invoke} from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import {
+    Alert,
     Box,
-    Button, Slider,
-    TextField,
-    Typography
+    Button,
+    CircularProgress, Slider, Typography
 } from "@mui/material";
+import { DropdownSelector } from "../components/selection/DropdownSelector.tsx";
+import { useAudioDevices } from "../hooks/useAudioDevices.ts";
+import { useState } from "react";
+import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
+import {setGain} from "../domain";
 
 export function MainScreen() {
-    const [greetMsg, setGreetMsg] = useState("");
-    const [name, setName] = useState("");
+    const { inputs, outputs, isLoading, error } = useAudioDevices();
+    const { updateInputDevice, updateOutputDevice, isSetting, error: routingError } = useUpdateAudioDevices();
 
-    async function greet() {
-        setGreetMsg(await invoke("greet", {name}));
-    }
+    const [selectedInput, setSelectedInput] = useState<string>("");
+    const [selectedOutput, setSelectedOutput] = useState<string>("");
+
+    const inputOptions = inputs.map(d => ({ label: d.name, value: d.id }));
+    const outputOptions = outputs.map(d => ({ label: d.name, value: d.id }));
 
     async function startLoopback() {
-        await invoke("start_loopback");
+        await invoke("start_loopback", {
+            inputId: selectedInput,
+            outputId: selectedOutput
+        });
+    }
+
+    async function handleInputChange(id: string) {
+        setSelectedInput(id);
+        await updateInputDevice(id);
+    }
+
+    async function handleOutputChange(id: string) {
+        setSelectedOutput(id);
+        await updateOutputDevice(id);
     }
 
     const handleGainChange = async (_event: Event, value: number | number[]) => {
-        await invoke("set_gain", {value});
+        const gain = Array.isArray(value) ? value[0] : value;
+        setGain({gain});
     }
 
-    const handleMVChange =async (_event: Event, value: number,)=> {
-        await invoke("set_master_volume", {value});
-    }
+    if (isLoading) return <CircularProgress />;
+    if (error) return <Alert severity="error">{error}</Alert>;
 
     return (
-        <Box sx={{p: 4}}>
-            <Typography variant="h4" gutterBottom>
-                Welcome to Tauri + React
-            </Typography>
+        <Box sx={{ p: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+            {(routingError) && <Alert severity="error">{routingError}</Alert>}
 
-            <Typography sx={{mb: 3}}>
-                Click on the Tauri, Vite, and React logos to learn more.
-            </Typography>
-
-            <Box
-                component="form"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    greet();
-                }}
-                sx={{display: "flex", gap: 2, alignItems: "center", mb: 3}}
+            <Button
+                variant="contained"
+                onClick={startLoopback}
+                disabled={!selectedInput || !selectedOutput || isSetting}
             >
-                <TextField
-                    id="greet-input"
-                    label="Enter a name..."
-                    variant="outlined"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                />
-
-                <Button variant="contained" type="submit">
-                    Greet
-                </Button>
-            </Box>
-            <Button variant="contained" onClick={startLoopback}>
-                Start Loopback
+                {isSetting ? "Applying..." : "Start Loopback"}
             </Button>
+
+            <DropdownSelector
+                title="Input Device"
+                label="Select input device"
+                options={inputOptions}
+                selectedValue={selectedInput}
+                onSelectionChange={handleInputChange}
+            />
+
+            <DropdownSelector
+                title="Output Device"
+                label="Select output device"
+                options={outputOptions}
+                selectedValue={selectedOutput}
+                onSelectionChange={handleOutputChange}
+            />
             <Box>
                 <Typography>Gain</Typography>
                 <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
@@ -68,7 +81,6 @@ export function MainScreen() {
                 <Typography>Master Volume</Typography>
                 <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleMVChange} valueLabelDisplay="auto"/>
             </Box>
-            <Typography variant="h6">{greetMsg}</Typography>
         </Box>
     );
 }

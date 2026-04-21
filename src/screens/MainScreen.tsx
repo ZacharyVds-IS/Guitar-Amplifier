@@ -19,7 +19,7 @@ export function MainScreen() {
         await invoke("start_loopback");
     }
 
-    const handleGainChange = async (_event: Event, value: number) => {
+    const handleGainChange = async (_event: Event, value: number | number[]) => {
         await invoke("set_gain", {value});
     }
 
@@ -62,11 +62,11 @@ export function MainScreen() {
             </Button>
             <Box>
                 <Typography>Gain</Typography>
-                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleMVChange} valueLabelDisplay="auto"/>
+                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
             </Box>
             <Box>
                 <Typography>Master Volume</Typography>
-                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
+                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleMVChange} valueLabelDisplay="auto"/>
             </Box>
             <Typography variant="h6">{greetMsg}</Typography>
         </Box>

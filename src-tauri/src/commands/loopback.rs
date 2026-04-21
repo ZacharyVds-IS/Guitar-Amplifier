@@ -1,6 +1,6 @@
-use crate::services::audioservice;
+use crate::services::audio_service::AudioService;
 
 #[tauri::command]
-pub(crate) fn start_loopback() {
-    audioservice::start_loopback();
+pub(crate) fn start_loopback(audio_service: tauri::State<AudioService>) {
+    audio_service.start_loopback();
 }

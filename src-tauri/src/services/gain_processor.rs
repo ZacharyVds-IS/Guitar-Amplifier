@@ -93,8 +93,7 @@ mod tests {
 
             gain.store(0.5, Ordering::Relaxed);
 
-            // Let it settle a bit
-            for _ in 0..2_000 {
+            for _ in 0..1_000 {
                 processor.process(1.0);
             }
 

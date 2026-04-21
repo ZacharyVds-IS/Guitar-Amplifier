@@ -85,6 +85,23 @@ mod tests {
 
             assert!((processor.current - 1.0).abs() < 1e-6);
         }
+
+        #[test]
+        fn output_is_scaled_by_current_gain() {
+            let gain = Arc::new(AtomicF32::new(1.0));
+            let mut processor = GainProcessor::new(gain.clone());
+
+            gain.store(0.5, Ordering::Relaxed);
+
+            // Let it settle a bit
+            for _ in 0..2_000 {
+                processor.process(1.0);
+            }
+
+            let output = processor.process(1.0);
+
+            assert!((output - processor.current).abs() < 1e-6);
+        }
     }
     //This part of the code does not have a failure path
 }

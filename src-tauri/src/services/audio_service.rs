@@ -1,17 +1,15 @@
-use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
-use cpal::traits::StreamTrait;
-use cpal::{Device, StreamConfig};
 use std::sync::Arc;
 use std::thread;
-use std::thread::JoinHandle;
-use derive_getters::Getters;
-use tracing::info;
+use cpal::{Device, StreamConfig};
+use cpal::traits::StreamTrait;
+use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 
 #[derive(Getters)]
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
+    channel: Channel
 }
 
 impl AudioService {
@@ -21,16 +19,7 @@ impl AudioService {
             audio_handler: Arc::new(handler),
             loopback_thread: None,
             is_active: false,
-        }
-    }
-
-    ///Constructor that can be within tests.
-    #[cfg(test)]
-    pub fn with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
-        Self {
-            audio_handler: handler,
-            loopback_thread: None,
-            is_active: false,
+             channel: Channel::new("Main".to_string(), 1.0),
         }
     }
 
@@ -40,12 +29,27 @@ impl AudioService {
         info!("Starting audio loopback");
         self.is_active = true;
         let handler = self.audio_handler.clone();
+        let channel = self.channel.clone();
 
-        let thread = thread::spawn(move || {
-            let (producer, consumer) = AudioHandler::create_ringbuffer(48000);
+        thread::spawn(move || {
+            let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
+            let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
 
-            let input_stream = handler.build_input_stream(producer);
-            let output_stream = handler.build_output_stream(consumer);
+            let input_stream = handler.build_input_stream(i_producer);
+            let output_stream = handler.build_output_stream(o_consumer);
+
+            thread::spawn(move || {
+                let mut gain = GainProcessor::new(channel.gain_handle());
+
+                loop {
+                    if let Some(sample) = i_consumer.try_pop() {
+                        let processed = gain.process(sample);
+                        let _ = o_producer.try_push(processed);
+                    } else {
+                        std::thread::yield_now();
+                    }
+                }
+            });
 
             input_stream.play().unwrap();
             output_stream.play().unwrap();
@@ -65,8 +69,7 @@ impl AudioService {
         }
         self.is_active = false;
     }
-
-    pub fn set_input_device(&mut self, input: Device) {
+pub fn set_input_device(&mut self, input: Device) {
         info!("Switching input device");
         let was_active = self.is_active.clone();
         if was_active {

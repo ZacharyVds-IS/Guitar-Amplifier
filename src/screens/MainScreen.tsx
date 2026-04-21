@@ -67,6 +67,11 @@ export function MainScreen() {
                 selectedValue={selectedOutput}
                 onSelectionChange={handleOutputChange}
             />
+            <Box>
+                <Typography>Gain</Typography>
+                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
+            </Box>
+            <Typography variant="h6">{greetMsg}</Typography>
         </Box>
     );
 }

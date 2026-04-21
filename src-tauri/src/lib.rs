@@ -3,6 +3,7 @@ pub mod services;
 pub mod domain;
 pub mod infrastructure;
 
+use std::sync::Mutex;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
 use crate::commands::loopback::start_loopback;
@@ -19,7 +20,7 @@ pub fn run() {
     let config = input.default_input_config().unwrap().config();
 
     tauri::Builder::default()
-        .manage(AudioService::new(input,output,config))
+        .manage(Mutex::new(AudioService::new(input,output,config)))
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![start_loopback,get_input_device_list,get_output_device_list])

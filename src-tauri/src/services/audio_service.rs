@@ -6,6 +6,7 @@ use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
+    is_active: bool
 }
 
 impl AudioService {
@@ -13,15 +14,17 @@ impl AudioService {
         let handler = AudioHandler::new(input_device, output_device, config);
         Self {
             audio_handler: Arc::new(handler),
+            is_active: false
         }
     }
 
     //constructor for tests
     pub fn with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
-        Self { audio_handler: handler }
+        Self { audio_handler: handler, is_active: false }
     }
 
-    pub fn start_loopback(&self) {
+    pub fn start_loopback(&mut self) {
+        self.is_active = true;
         let handler = self.audio_handler.clone();
 
         thread::spawn(move || {

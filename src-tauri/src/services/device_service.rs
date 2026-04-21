@@ -18,12 +18,13 @@ impl DeviceService {
         match self.host.input_devices() {
             Ok(devices) => devices
                 .filter_map(|device| {
-                    device.description().ok().map(|desc| {
-                        let name = desc.name();
-                        AudioDeviceDto {
-                            id: name.to_string(),
-                            name: name.to_string(),
-                        }
+                    let desc = device.description().ok()?;
+                    let name = desc.name().to_string();
+                    let device_id = device.id().ok()?;
+                    let id = format!("{:?}", device_id);
+                    Some(AudioDeviceDto {
+                        id,
+                        name,
                     })
                 })
                 .collect(),
@@ -38,12 +39,14 @@ impl DeviceService {
         match self.host.output_devices() {
             Ok(devices) => devices
                 .filter_map(|device| {
-                    device.description().ok().map(|desc| {
-                        let name = desc.name();
-                        AudioDeviceDto {
-                            id: name.to_string(),
-                            name: name.to_string(),
-                        }
+                    let desc = device.description().ok()?;
+                    let name = desc.name().to_string();
+                    let device_id = device.id().ok()?;
+                    let id = format!("{:?}", device_id);
+
+                    Some(AudioDeviceDto {
+                        id,
+                        name,
                     })
                 })
                 .collect(),
@@ -53,5 +56,6 @@ impl DeviceService {
             }
         }
     }
+
 
 }

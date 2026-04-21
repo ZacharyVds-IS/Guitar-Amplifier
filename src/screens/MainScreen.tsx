@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import {useState} from "react";
+import {invoke} from "@tauri-apps/api/core";
 import {
     Box,
-    Button,
+    Button, Slider,
     TextField,
     Typography
 } from "@mui/material";
@@ -12,19 +12,25 @@ export function MainScreen() {
     const [name, setName] = useState("");
 
     async function greet() {
-        setGreetMsg(await invoke("greet", { name }));
+        setGreetMsg(await invoke("greet", {name}));
     }
-    async function startLoopback(){
+
+    async function startLoopback() {
         await invoke("start_loopback");
     }
 
+    const handleGainChange = async (_event: Event, value: number | number[]) => {
+        const gain = Array.isArray(value) ? value[0] : value;
+        await invoke("set_gain", {gain});
+    }
+
     return (
-        <Box sx={{ p: 4 }}>
+        <Box sx={{p: 4}}>
             <Typography variant="h4" gutterBottom>
                 Welcome to Tauri + React
             </Typography>
 
-            <Typography sx={{ mb: 3 }}>
+            <Typography sx={{mb: 3}}>
                 Click on the Tauri, Vite, and React logos to learn more.
             </Typography>
 
@@ -34,7 +40,7 @@ export function MainScreen() {
                     e.preventDefault();
                     greet();
                 }}
-                sx={{ display: "flex", gap: 2, alignItems: "center", mb: 3 }}
+                sx={{display: "flex", gap: 2, alignItems: "center", mb: 3}}
             >
                 <TextField
                     id="greet-input"
@@ -51,6 +57,10 @@ export function MainScreen() {
             <Button variant="contained" onClick={startLoopback}>
                 Start Loopback
             </Button>
+            <Box>
+                <Typography>Gain</Typography>
+                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
+            </Box>
             <Typography variant="h6">{greetMsg}</Typography>
         </Box>
     );

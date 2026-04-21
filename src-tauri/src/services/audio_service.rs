@@ -53,4 +53,8 @@ impl AudioService {
             thread::park();
         });
     }
+
+    pub fn channel(&self) -> &Channel {
+        &self.channel
+    }
 }

@@ -1,6 +1,7 @@
 use atomic_float::AtomicF32;
 use derive_getters::Getters;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 #[derive(Getters, Clone)]
 pub struct Channel {
@@ -16,8 +17,8 @@ impl Channel {
         }
     }
 
-    pub fn set_gain(&mut self, gain: f32) {
-        self.gain.store(gain, std::sync::atomic::Ordering::Relaxed);
+    pub fn set_gain(&self, gain: f32) {
+        self.gain.store(gain, Ordering::Relaxed);
     }
 
     pub fn gain_handle(&self) -> Arc<AtomicF32> {

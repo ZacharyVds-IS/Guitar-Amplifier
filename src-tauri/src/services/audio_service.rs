@@ -3,6 +3,7 @@ use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -34,6 +35,10 @@ impl AudioService {
     }
 
     pub fn start_loopback(&mut self) {
+        if self.is_active {
+            return;
+        }
+
         info!("Starting audio loopback");
         self.is_active = true;
 
@@ -46,10 +51,18 @@ impl AudioService {
 
             let input_stream = handler.build_input_stream(i_producer);
             let output_stream = handler.build_output_stream(o_consumer);
-            thread::spawn(move || {
+
+            let shutdown = Arc::new(AtomicBool::new(false));
+            let worker_shutdown = shutdown.clone();
+
+            let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain_handle());
 
                 loop {
+                    if worker_shutdown.load(Ordering::SeqCst) {
+                        break;
+                    }
+
                     if let Some(sample) = i_consumer.try_pop() {
                         let processed = gain.process(sample);
                         let _ = o_producer.try_push(processed);
@@ -63,12 +76,20 @@ impl AudioService {
             output_stream.play().unwrap();
 
             thread::park();
+
+            shutdown.store(true, Ordering::SeqCst);
+            let _ = worker.join();
+
         });
 
         self.loopback_thread = Some(thread);
     }
 
     pub fn stop_loopback(&mut self) {
+        if !self.is_active {
+            return;
+        }
+
         info!("Stopping audio loopback");
 
         if let Some(handle) = self.loopback_thread.take() {
@@ -111,6 +132,7 @@ impl AudioService {
             AudioHandler::new(old.input_device().clone(), output, old.config().clone());
 
         self.audio_handler = Arc::new(new_handler);
+
         if was_active {
             self.start_loopback();
         }

@@ -84,35 +84,61 @@ mod tests {
     use super::*;
     use ringbuf::HeapRb;
     mod happy_path {
+        use proptest::prelude::prop;
+        use proptest::proptest;
         use super::*;
 
-        #[test]
-        fn test_input_pushed_to_ringbuffer() {
-            let rb = HeapRb::<f32>::new(4);
-            let (mut prod, mut cons) = rb.split();
-            let input = [1.0, 2.0, 3.0];
+        proptest! {
+            #[test]
+            fn test_push_input_samples_arbitrary_data(input in prop::collection::vec(-1.0f32..1.0f32, 0..100)) {
+                let rb = HeapRb::<f32>::new(1000);
+                let (mut prod, mut cons) = rb.split();
 
-            push_input_samples(&input, &mut prod);
+                push_input_samples(&input, &mut prod);
 
-            assert_eq!(cons.try_pop(), Some(1.0));
-            assert_eq!(cons.try_pop(), Some(2.0));
-            assert_eq!(cons.try_pop(), Some(3.0));
+                for &expected in &input {
+                    assert_eq!(cons.try_pop(), Some(expected));
+                }
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn test_fill_output_buffer(
+                samples in prop::collection::vec(-1.0f32..1.0f32, 0..50),
+                output_size in 1..100usize
+            ) {
+                let rb = HeapRb::<f32>::new(1000);
+                let (mut prod, mut cons) = rb.split();
+
+                for sample in &samples {
+                    prod.try_push(*sample).unwrap();
+                }
+
+                let mut output = vec![0.0f32; output_size];
+                fill_output_buffer(&mut cons, &mut output);
+
+                for (i, &val) in output.iter().enumerate() {
+                    if i < samples.len() {
+                        assert_eq!(val, samples[i]);
+                    } else {
+                        assert_eq!(val, 0.0);
+                    }
+                }
+            }
         }
 
         #[test]
-        fn test_fill_output_buffer_reads_samples() {
-            let rb = HeapRb::<f32>::new(20);
-            let (mut prod, mut cons) = rb.split();
+        fn output_buffer_fills_with_zero_input_is_empty() {
+            let rb = HeapRb::<f32>::new(4);
+            let (_prod, mut cons) = rb.split();
+            let mut out = [1.0f32; 4];
 
-            for i in 0..10 {
-                prod.try_push(i as f32).unwrap();
-            }
-
-            let mut out = [0.0f32; 4];
             fill_output_buffer(&mut cons, &mut out);
 
-            assert_eq!(out, [0.0, 1.0, 2.0, 3.0]);
+            assert_eq!(out, [0.0; 4]);
         }
+
     }
 
     mod failure_path {
@@ -122,8 +148,8 @@ mod tests {
         fn buffer_overflow_drops_extra_samples_silently() {
             let rb = HeapRb::<f32>::new(4);
             let (mut prod, mut cons) = rb.split();
-
             let input = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0];
+
             push_input_samples(&input, &mut prod);
 
             assert_eq!(cons.try_pop(), Some(10.0));
@@ -131,17 +157,6 @@ mod tests {
             assert_eq!(cons.try_pop(), Some(30.0));
             assert_eq!(cons.try_pop(), Some(40.0));
             assert_eq!(cons.try_pop(), None);
-        }
-
-        #[test]
-        fn output_buffer_fills_with_zero_when_empty() {
-            let rb = HeapRb::<f32>::new(4);
-            let (_prod, mut cons) = rb.split();
-
-            let mut out = [1.0f32; 4];
-            fill_output_buffer(&mut cons, &mut out);
-
-            assert_eq!(out, [0.0; 4]);
         }
     }
 }

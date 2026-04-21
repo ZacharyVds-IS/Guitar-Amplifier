@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "generate-types": "cargo tauri-typegen generate --output-path ./src/domain",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

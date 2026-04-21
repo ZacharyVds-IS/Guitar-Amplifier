@@ -6,7 +6,9 @@ pub mod infrastructure;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
 use crate::commands::loopback::start_loopback;
+use crate::commands::settings::{get_input_device_list, get_output_device_list};
 use crate::services::audio_service::AudioService;
+use crate::services::device_service::DeviceService;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,8 +20,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(AudioService::new(input,output,config))
+        .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![start_loopback])
+        .invoke_handler(tauri::generate_handler![start_loopback,get_input_device_list,get_output_device_list])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -1,57 +1,55 @@
-import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
+    Alert,
     Box,
-    Button,
-    TextField,
-    Typography
+    Button, CircularProgress
 } from "@mui/material";
+import {DropdownSelector} from "../components/selection/DropdownSelector.tsx";
+import {useAudioDevices} from "../hooks/useAudioDevices.ts";
+import {useState} from "react";
 
 export function MainScreen() {
-    const [greetMsg, setGreetMsg] = useState("");
-    const [name, setName] = useState("");
+    const { inputs, outputs, isLoading, error } = useAudioDevices();
+    const [selectedInput, setSelectedInput] = useState<string>("");
+    const [selectedOutput, setSelectedOutput] = useState<string>("");
+    const inputOptions = inputs.map(d => ({ label: d.name, value: d.id }));
+    const outputOptions = outputs.map(d => ({ label: d.name, value: d.id }));
 
-    async function greet() {
-        setGreetMsg(await invoke("greet", { name }));
+    async function startLoopback() {
+        await invoke("start_loopback", {
+            inputId: selectedInput,
+            outputId: selectedOutput
+        });
     }
-    async function startLoopback(){
-        await invoke("start_loopback");
-    }
+
+    if (isLoading) return <CircularProgress />;
+    if (error) return <Alert severity="error">{error}</Alert>;
 
     return (
-        <Box sx={{ p: 4 }}>
-            <Typography variant="h4" gutterBottom>
-                Welcome to Tauri + React
-            </Typography>
-
-            <Typography sx={{ mb: 3 }}>
-                Click on the Tauri, Vite, and React logos to learn more.
-            </Typography>
-
-            <Box
-                component="form"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    greet();
-                }}
-                sx={{ display: "flex", gap: 2, alignItems: "center", mb: 3 }}
+        <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Button
+                variant="contained"
+                onClick={startLoopback}
+                disabled={!selectedInput || !selectedOutput}
             >
-                <TextField
-                    id="greet-input"
-                    label="Enter a name..."
-                    variant="outlined"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                />
-
-                <Button variant="contained" type="submit">
-                    Greet
-                </Button>
-            </Box>
-            <Button variant="contained" onClick={startLoopback}>
                 Start Loopback
             </Button>
-            <Typography variant="h6">{greetMsg}</Typography>
+
+            <DropdownSelector
+                title={"Input Device"}
+                label={"Select input device"}
+                options={inputOptions}
+                selectedValue={selectedInput}
+                onSelectionChange={(val) => setSelectedInput(val)}
+            />
+
+            <DropdownSelector
+                title={"Output Device"}
+                label={"Select output device"}
+                options={outputOptions}
+                selectedValue={selectedOutput}
+                onSelectionChange={(val) => setSelectedOutput(val)}
+            />
         </Box>
     );
 }

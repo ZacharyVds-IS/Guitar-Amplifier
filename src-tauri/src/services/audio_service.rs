@@ -1,11 +1,17 @@
+use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::gain_processor::GainProcessor;
+use cpal::traits::StreamTrait;
+use cpal::{Device, StreamConfig};
 use std::sync::Arc;
 use std::thread;
-use cpal::{Device, StreamConfig};
-use cpal::traits::StreamTrait;
-use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use ringbuf::consumer::Consumer;
+use ringbuf::producer::Producer;
+use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::channel::Channel;
 
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
+    channel: Channel
 }
 
 impl AudioService {
@@ -13,27 +19,42 @@ impl AudioService {
         let handler = AudioHandler::new(input_device, output_device, config);
         Self {
             audio_handler: Arc::new(handler),
+            channel: Channel::new("Main".to_string(), 1.0),
         }
-    }
-
-    //constructor for tests
-    pub fn with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
-        Self { audio_handler: handler }
     }
 
     pub fn start_loopback(&self) {
         let handler = self.audio_handler.clone();
+        let channel = self.channel.clone();
 
         thread::spawn(move || {
-            let (producer, consumer) = AudioHandler::create_ringbuffer(48000);
+            let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
+            let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
 
-            let input_stream = handler.build_input_stream(producer);
-            let output_stream = handler.build_output_stream(consumer);
+            let input_stream = handler.build_input_stream(i_producer);
+            let output_stream = handler.build_output_stream(o_consumer);
+
+            thread::spawn(move || {
+                let mut gain = GainProcessor::new(channel.gain_handle());
+
+                loop {
+                    if let Some(sample) = i_consumer.try_pop() {
+                        let processed = gain.process(sample);
+                        let _ = o_producer.try_push(processed);
+                    } else {
+                        std::thread::yield_now();
+                    }
+                }
+            });
 
             input_stream.play().unwrap();
             output_stream.play().unwrap();
 
             thread::park();
         });
+    }
+
+    pub fn channel(&self) -> &Channel {
+        &self.channel
     }
 }

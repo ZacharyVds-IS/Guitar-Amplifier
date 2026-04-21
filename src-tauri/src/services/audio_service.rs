@@ -4,8 +4,10 @@ use cpal::{Device, StreamConfig};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use derive_getters::Getters;
 use tracing::info;
 
+#[derive(Getters)]
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
     loopback_thread: Option<JoinHandle<()>>,
@@ -22,7 +24,8 @@ impl AudioService {
         }
     }
 
-    //constructor for tests
+    ///Constructor that can be within tests.
+    #[cfg(test)]
     pub fn with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
         Self {
             audio_handler: handler,
@@ -30,6 +33,7 @@ impl AudioService {
             is_active: false,
         }
     }
+
 
     ///Start loopback creates a new thread used for audio processing and keeps it alive until stopped by stop_loopback.
     pub fn start_loopback(&mut self) {

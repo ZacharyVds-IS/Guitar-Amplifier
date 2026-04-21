@@ -5,7 +5,9 @@ use ringbuf::producer::Producer;
 use ringbuf::traits::Split;
 use ringbuf::{HeapCons, HeapProd, HeapRb};
 use derive_getters::Getters;
+use mockall::automock;
 
+#[automock]
 pub trait AudioHandlerTrait: Send + Sync{
     fn build_input_stream(&self, prod: HeapProd<f32>) -> Stream;
     fn build_output_stream(&self, cons: HeapCons<f32>) -> Stream;

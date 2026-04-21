@@ -2,6 +2,7 @@ pub mod commands;
 pub mod services;
 pub mod domain;
 pub mod infrastructure;
+mod tests;
 
 use std::sync::Mutex;
 use cpal::default_host;

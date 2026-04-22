@@ -10,5 +10,5 @@ pub(crate) fn set_gain(audio_service: tauri::State<Mutex<AudioService>>, gain: f
 #[tauri::command]
 pub(crate) fn set_master_volume(audio_service: tauri::State<Mutex<AudioService>>, master_volume: f32) {
     let service = audio_service.lock().unwrap();
-    service.channel().set_gain(master_volume);
+    service.channel().set_master_volume(master_volume);
 }

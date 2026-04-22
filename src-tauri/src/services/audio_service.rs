@@ -139,4 +139,17 @@ impl AudioService {
             self.start_loopback();
         }
     }
+
+    pub fn toggle_loopback(&mut self, is_on: bool){
+        if self.is_active == is_on{
+            return;
+        }
+        if(is_on == false){
+            self.stop_loopback();
+            return;
+        }
+        self.start_loopback();
+
+    }
+
 }

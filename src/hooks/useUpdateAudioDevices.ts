@@ -9,7 +9,7 @@ export function useUpdateAudioDevices() {
         try {
             setIsSetting(true);
             setError(null);
-            setInputDevice({deviceId});
+            await setInputDevice({ deviceId });
         } catch (err: any) {
             setError(err.toString());
         } finally {
@@ -21,13 +21,14 @@ export function useUpdateAudioDevices() {
         try {
             setIsSetting(true);
             setError(null);
-            setOutputDevice({deviceId});
+            await setOutputDevice({ deviceId });
         } catch (err: any) {
             setError(err.toString());
         } finally {
             setIsSetting(false);
         }
     }
+
 
     return {
         updateInputDevice,

@@ -1,17 +1,22 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::thread::JoinHandle;
+use std::ptr::eq;
+use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::channel::Channel;
+use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::gain_processor::GainProcessor;
 use cpal::traits::StreamTrait;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
+use spectrum_analyzer::windows::hann_window;
+use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
 use tracing::info;
-use crate::domain::audio_processor::AudioProcessor;
-use crate::domain::channel::Channel;
-use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
-use crate::services::gain_processor::GainProcessor;
+use crate::domain::tone_stack::ToneStack;
+use crate::services::tone_stack::tone_stack_processor::ToneStackProcessor;
 
 #[derive(Getters)]
 pub struct AudioService {
@@ -45,6 +50,9 @@ impl AudioService {
         let channel = self.channel.clone(); // shared Arc<AtomicF32>
 
         let thread = thread::spawn(move || {
+            const FFT_SIZE: usize = 2048;
+            let mut fft_buffer: Vec<f32> = Vec::with_capacity(FFT_SIZE);
+
             let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
             let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
 
@@ -57,6 +65,7 @@ impl AudioService {
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain());
                 let mut master_volume = GainProcessor::new(channel.master_volume());
+                let mut tone_stack = ToneStackProcessor::new();
 
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
@@ -66,7 +75,12 @@ impl AudioService {
                     if let Some(sample) = i_consumer.try_pop() {
                         let gain_sample = gain.process(sample);
 
-                        let processed = master_volume.process(gain_sample);
+                        let eq_sample = tone_stack.process(gain_sample);
+
+                        //for debugging: print the tone stack values every 2048 samples
+                        tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
+
+                        let processed = master_volume.process(eq_sample);
                         let _ = o_producer.try_push(processed);
                     } else {
                         std::thread::yield_now();
@@ -81,7 +95,6 @@ impl AudioService {
 
             shutdown.store(true, Ordering::SeqCst);
             let _ = worker.join();
-
         });
 
         self.loopback_thread = Some(thread);

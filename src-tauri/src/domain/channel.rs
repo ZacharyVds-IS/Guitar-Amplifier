@@ -1,5 +1,4 @@
 use atomic_float::AtomicF32;
-use derive_getters::Getters;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::error;

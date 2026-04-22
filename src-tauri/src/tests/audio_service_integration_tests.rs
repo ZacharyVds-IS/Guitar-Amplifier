@@ -1,19 +1,156 @@
-#[cfg(feature = "test-utils")]
-#[test]
-fn test_audio_service_toggle_logic() {
-    let mock_handler = Arc::new(MockAudioHandler::default());
-    let mut service = AudioService::new_with_handler(mock_handler.clone());
+#[cfg(test)]
+mod audio_service_integration_tests {
+    use std::sync::Arc;
 
-    assert!(!service.is_active());
+    use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
+    use crate::services::audio_service::AudioService;
+    use crate::tests::mock::{make_mock_handler, FakeStream};
 
-    service.toggle_loopback(true);
-    assert!(service.is_active());
-    assert!(service.loopback_thread().is_some());
+    fn build_service(handler: MockAudioHandlerTrait) -> AudioService {
+        AudioService::new_with_handler(Arc::new(handler))
+    }
 
-    service.start_loopback();
-    assert!(service.is_active());
+    fn is_active(service: &AudioService) -> bool {
+        *service.is_active()
+    }
 
-    service.toggle_loopback(false);
-    assert!(!service.is_active());
-    assert!(service.loopback_thread().is_none());
+    #[cfg(test)]
+    mod start_loopback_service {
+        use super::*;
+
+        #[test]
+        fn start_loopback_makes_service_active() {
+            let mut service = build_service(make_mock_handler());
+
+            service.start_loopback();
+
+            assert!(is_active(&service));
+            service.stop_loopback();
+        }
+
+        #[test]
+        fn start_loopback_twice_does_not_spawn_second_thread() {
+            let mut mock = MockAudioHandlerTrait::new();
+            mock.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
+            mock.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
+
+            let mut service = build_service(mock);
+
+            service.start_loopback();
+            service.start_loopback();
+
+            assert!(is_active(&service));
+            service.stop_loopback();
+        }
+    }
+
+    #[cfg(test)]
+    mod toggle_loopback_service {
+        use super::*;
+
+        #[test]
+        fn toggle_true_activates_service() {
+            let mut service = build_service(make_mock_handler());
+
+            service.toggle_loopback(true);
+
+            assert!(is_active(&service));
+            service.stop_loopback();
+        }
+
+        #[test]
+        fn toggle_false_deactivates_service() {
+            let mut service = build_service(make_mock_handler());
+
+            service.toggle_loopback(true);
+            service.toggle_loopback(false);
+
+            assert!(!is_active(&service));
+        }
+
+        #[test]
+        fn toggle_true_when_already_active_is_no_op() {
+            let mut mock = MockAudioHandlerTrait::new();
+            mock.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
+            mock.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
+
+            let mut service = build_service(mock);
+
+            service.toggle_loopback(true);
+            service.toggle_loopback(true);
+
+            assert!(is_active(&service));
+            service.stop_loopback();
+        }
+
+        #[test]
+        fn toggle_false_when_already_inactive_is_no_op() {
+            let mut mock = MockAudioHandlerTrait::new();
+            mock.expect_build_input_stream().times(0).returning(|_| Box::new(FakeStream));
+            mock.expect_build_output_stream().times(0).returning(|_| Box::new(FakeStream));
+
+            let mut service = build_service(mock);
+
+            service.toggle_loopback(false);
+
+            assert!(!is_active(&service));
+        }
+    }
+
+    #[cfg(test)]
+    mod set_audio_handler_service {
+        use super::*;
+        #[test]
+        fn swap_handler_while_inactive_leaves_service_inactive() {
+            let mut service = build_service(make_mock_handler());
+
+            service.set_audio_handler(Arc::new(make_mock_handler()));
+
+            assert!(!is_active(&service));
+        }
+
+        #[test]
+        fn swap_handler_while_inactive_does_not_build_streams() {
+            let mut service = build_service(make_mock_handler());
+            let mut new_handler = MockAudioHandlerTrait::new();
+            new_handler.expect_build_input_stream().times(0).returning(|_| Box::new(FakeStream));
+            new_handler.expect_build_output_stream().times(0).returning(|_| Box::new(FakeStream));
+
+            service.set_audio_handler(Arc::new(new_handler));
+        }
+
+        #[test]
+        fn swap_handler_while_active_keeps_service_active() {
+            let mut service = build_service(make_mock_handler());
+
+            service.toggle_loopback(true);
+
+            let mut new_handler = MockAudioHandlerTrait::new();
+            new_handler.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
+            new_handler.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
+
+            service.set_audio_handler(Arc::new(new_handler));
+
+            assert!(is_active(&service));
+            service.stop_loopback();
+        }
+
+        #[test]
+        fn swap_handler_while_active_restarts_with_new_handler_exactly_once() {
+            let mut service = build_service(make_mock_handler());
+
+            service.toggle_loopback(true);
+
+            let mut first = MockAudioHandlerTrait::new();
+            first.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
+            first.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
+
+            service.set_audio_handler(Arc::new(first));
+
+            service.set_audio_handler(Arc::new(make_mock_handler()));
+
+            assert!(is_active(&service));
+            service.stop_loopback();
+        }
+    }
 }

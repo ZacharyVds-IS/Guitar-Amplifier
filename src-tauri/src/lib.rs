@@ -3,6 +3,9 @@ pub mod services;
 pub mod domain;
 pub mod infrastructure;
 
+#[cfg(test)]
+pub mod tests;
+
 use std::sync::Mutex;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};

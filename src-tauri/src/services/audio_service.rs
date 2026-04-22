@@ -1,14 +1,13 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::thread::JoinHandle;
 use cpal::traits::StreamTrait;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
 use tracing::info;
-
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
@@ -30,7 +29,7 @@ impl AudioService {
             audio_handler: Arc::new(handler),
             loopback_thread: None,
             is_active: false,
-            channel: Channel::new("Main".to_string(), 1.0),
+            channel: Channel::new("Main".to_string(), None, None),
         }
     }
 
@@ -56,7 +55,8 @@ impl AudioService {
             let worker_shutdown = shutdown.clone();
 
             let worker = thread::spawn(move || {
-                let mut gain = GainProcessor::new(channel.gain_handle());
+                let mut gain = GainProcessor::new(channel.gain());
+                let mut master_volume = GainProcessor::new(channel.master_volume());
 
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
@@ -64,7 +64,9 @@ impl AudioService {
                     }
 
                     if let Some(sample) = i_consumer.try_pop() {
-                        let processed = gain.process(sample);
+                        let gain_sample = gain.process(sample);
+
+                        let processed = master_volume.process(gain_sample);
                         let _ = o_producer.try_push(processed);
                     } else {
                         std::thread::yield_now();

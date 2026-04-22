@@ -52,7 +52,6 @@ impl AudioHandlerTrait for AudioHandler {
             .build_input_stream(
                 &self.config,
                 move |data: &[f32], _| {
-                    println!("Input buffer: {:?}", &data[..10.min(data.len())]);
                     for &s in data {
                         let _ = producer.try_push(s);
                     }
@@ -68,6 +67,7 @@ impl AudioHandlerTrait for AudioHandler {
             .build_output_stream(
                 &self.config,
                 move |out: &mut [f32], _| {
+                    println!("Output buffer: {:?}", &out[..10.min(out.len())]);
                     for o in out.iter_mut() {
                         *o = consumer.try_pop().unwrap_or(0.0);
                     }

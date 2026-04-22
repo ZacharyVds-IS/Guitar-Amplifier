@@ -12,9 +12,10 @@
   "app": {
     "windows": [
       {
-        "title": "rustriff",
-        "width": 800,
-        "height": 600
+        "title": "RustRiff",
+        "width": 1280,
+        "height": 720,
+        "resizable": true
       }
     ],
     "security": {

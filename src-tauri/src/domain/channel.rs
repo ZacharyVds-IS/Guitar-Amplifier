@@ -104,9 +104,33 @@ mod tests {
         use super::*;
         #[test]
         fn gain_set_to_positive_value_should_succeed() {
-            let channel = Channel::new("Test".to_string(), Some(1.0), None);
+            let channel = Channel::new("Test".to_string(), None, None);
             channel.set_gain(0.5);
             assert_eq!(channel.gain().load(Ordering::Relaxed), 0.5);
+        }
+        #[test]
+        fn master_volume_set_to_positive_value_should_succeed() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_master_volume(0.5);
+            assert_eq!(channel.master_volume().load(Ordering::Relaxed), 0.5);
+        }
+        #[test]
+        fn bass_set_to_positive_value_within_range_should_succeed() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_bass(0.5);
+            assert_eq!(channel.bass().load(Ordering::Relaxed), 0.5);
+        }
+        #[test]
+        fn middle_set_to_positive_value_within_range_should_succeed() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_middle(0.5);
+            assert_eq!(channel.middle().load(Ordering::Relaxed), 0.5);
+        }
+        #[test]
+        fn treble_set_to_positive_value_within_range_should_succeed() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_treble(0.5);
+            assert_eq!(channel.treble().load(Ordering::Relaxed), 0.5);
         }
     }
 
@@ -117,8 +141,50 @@ mod tests {
         #[test]
         #[should_panic(expected = "Gain must be positive")]
         fn gain_set_to_negative_value_should_panic() {
-            let channel = Channel::new("Test".to_string(), Some(1.0), None);
+            let channel = Channel::new("Test".to_string(), None, None);
             channel.set_gain(-0.5);
+        }
+        #[test]
+        #[should_panic(expected = "Master volume must be positive")]
+        fn master_volume_set_to_negative_value_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_master_volume(-0.5);
+        }
+        #[test]
+        #[should_panic(expected = "Bass must be positive and between 0 and 1")]
+        fn bass_set_to_negative_value_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_bass(-0.5);
+        }
+        #[test]
+        #[should_panic(expected = "Bass must be positive and between 0 and 1")]
+        fn bass_set_to_value_greater_than_one_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_bass(1.5);
+        }
+        #[test]
+        #[should_panic(expected = "Middle must be positive and between 0 and 1")]
+        fn middle_set_to_negative_value_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_middle(-0.5);
+        }
+        #[test]
+        #[should_panic(expected = "Middle must be positive and between 0 and 1")]
+        fn middle_set_to_value_greater_than_one_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_middle(1.5);
+        }
+        #[test]
+        #[should_panic(expected = "Treble must be positive and between 0 and 1")]
+        fn treble_set_to_negative_value_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_treble(-0.5);
+        }
+        #[test]
+        #[should_panic(expected = "Treble must be positive and between 0 and 1")]
+        fn treble_set_to_value_greater_than_one_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_treble(1.5);
         }
     }
 }

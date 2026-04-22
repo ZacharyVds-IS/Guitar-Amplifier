@@ -6,9 +6,11 @@ import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 export function EffectControls() {
     const volume = useAmpStore((state) => state.master_volume);
     const gain = useAmpStore((state) => state.gain);
+    const isActive = useAmpStore((state) => state.is_active);
 
     const setVolume = useAmpStore((state) => state.setVolume);
     const setGain = useAmpStore((state) => state.setGain);
+    const setIsActive = useAmpStore((state) => state.setIsActive);
     return (
         <Box
             sx={{
@@ -22,7 +24,7 @@ export function EffectControls() {
             }}
         >
             <Stack direction="row" spacing={4} >
-                <FlipSwitch label={"On/Off"}/>
+                <FlipSwitch label={"On/Off"} value={isActive} onChange={setIsActive}/>
                 <Knob
                     label="Volume"
                     value={volume}

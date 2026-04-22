@@ -6,6 +6,7 @@ use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
+use tauri::{AppHandle, Emitter};
 use tracing::info;
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
@@ -138,16 +139,14 @@ impl AudioService {
         self.set_audio_handler(Arc::new(new_handler));
     }
 
-    pub fn toggle_loopback(&mut self, is_on: bool){
-        if self.is_active == is_on{
+    pub fn toggle_loopback(&mut self, is_on: bool) {
+        if self.is_active == is_on {
             return;
         }
-        if is_on == false{
+        if is_on == false {
             self.stop_loopback();
-            return;
+        } else {
+            self.start_loopback();
         }
-        self.start_loopback();
-
     }
-
 }

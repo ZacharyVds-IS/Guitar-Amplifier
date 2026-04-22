@@ -16,7 +16,7 @@ impl AmpConfigDto {
         Self {
             gain: channel.gain().load(Ordering::Relaxed),
             master_volume: channel.master_volume().load(Ordering::Relaxed),
-            is_active: *service.is_active(),
+            is_active: *service.is_active()
         }
     }
 }

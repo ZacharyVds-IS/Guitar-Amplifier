@@ -1,10 +1,11 @@
-import {AmpConfigDto, getAmpConfig, setGain, setMasterVolume} from "../domain";
+import {AmpConfigDto, getAmpConfig, setGain, setMasterVolume, toggleOnOff} from "../domain";
 import {create} from "zustand/react";
 
 interface AmpState extends AmpConfigDto {
     init:() => Promise<void>;
     setGain:(val:number) => void;
     setVolume: (val:number) => void;
+    setIsActive:(val:boolean) => void;
 }
 
 export const useAmpStore = create<AmpState>((set) => ({
@@ -33,5 +34,10 @@ export const useAmpStore = create<AmpState>((set) => ({
     setVolume: (val: number) => {
         set({ master_volume: val });
         setMasterVolume({masterVolume:val})
+    },
+
+    setIsActive:(val: boolean) => {
+        set({is_active: val});
+        toggleOnOff({isOn: val});
     }
 }));

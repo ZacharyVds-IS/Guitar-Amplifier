@@ -1,4 +1,4 @@
-use cpal::traits::DeviceTrait;
+use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{Device, Stream, StreamConfig};
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
@@ -7,10 +7,20 @@ use ringbuf::{HeapCons, HeapProd, HeapRb};
 use derive_getters::Getters;
 use mockall::automock;
 
+pub trait PlayableStream: Send {
+    fn play(&self);
+}
+
+impl PlayableStream for Stream {
+    fn play(&self) {
+        StreamTrait::play(self).unwrap();
+    }
+}
+
 #[automock]
-pub trait AudioHandlerTrait: Send + Sync{
-    fn build_input_stream(&self, prod: HeapProd<f32>) -> Stream;
-    fn build_output_stream(&self, cons: HeapCons<f32>) -> Stream;
+pub trait AudioHandlerTrait: Send + Sync {
+    fn build_input_stream(&self, prod: HeapProd<f32>) -> Box<dyn PlayableStream>;
+    fn build_output_stream(&self, cons: HeapCons<f32>) -> Box<dyn PlayableStream>;
     fn input_device(&self) -> &Device;
     fn output_device(&self) -> &Device;
     fn config(&self) -> &StreamConfig;
@@ -47,8 +57,8 @@ impl AudioHandler {
 }
 
 impl AudioHandlerTrait for AudioHandler {
-    fn build_input_stream(&self, mut producer: HeapProd<f32>) -> Stream {
-        self.input_device
+    fn build_input_stream(&self, mut producer: HeapProd<f32>) -> Box<dyn PlayableStream> {
+        let stream = self.input_device
             .build_input_stream(
                 &self.config,
                 move |data: &[f32], _| {
@@ -59,11 +69,12 @@ impl AudioHandlerTrait for AudioHandler {
                 move |err| eprintln!("Input error: {:?}", err),
                 None,
             )
-            .unwrap()
+            .unwrap();
+        Box::new(stream)
     }
 
-    fn build_output_stream(&self, mut consumer: HeapCons<f32>) -> cpal::Stream {
-        self.output_device
+    fn build_output_stream(&self, mut consumer: HeapCons<f32>) -> Box<dyn PlayableStream> {
+        let stream = self.output_device
             .build_output_stream(
                 &self.config,
                 move |out: &mut [f32], _| {
@@ -75,7 +86,8 @@ impl AudioHandlerTrait for AudioHandler {
                 move |err| eprintln!("Output error: {:?}", err),
                 None,
             )
-            .unwrap()
+            .unwrap();
+        Box::new(stream)
     }
 
     fn input_device(&self) -> &Device {

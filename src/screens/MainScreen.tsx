@@ -3,13 +3,13 @@ import {
     Alert,
     Box,
     Button,
-    CircularProgress, Slider, Typography
+    CircularProgress, FormControlLabel, Slider, Switch, Typography
 } from "@mui/material";
 import { DropdownSelector } from "../components/selection/DropdownSelector.tsx";
 import { useAudioDevices } from "../hooks/useAudioDevices.ts";
-import { useState } from "react";
+import {useState} from "react";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
-import {setBass, setGain, setMasterVolume, setMiddle, setTreble} from "../domain";
+import {setGain, setMasterVolume, toggleOnOff, setBass, setMiddle, setTreble} from "../domain";
 
 export function MainScreen() {
     const { inputs, outputs, isLoading, error } = useAudioDevices();
@@ -18,10 +18,14 @@ export function MainScreen() {
     const [selectedInput, setSelectedInput] = useState<string>("");
     const [selectedOutput, setSelectedOutput] = useState<string>("");
 
+    const [isOn, setIsOn] = useState(true);
+
     const inputOptions = inputs.map(d => ({ label: d.name, value: d.id }));
     const outputOptions = outputs.map(d => ({ label: d.name, value: d.id }));
 
-    async function startLoopback() {
+    async function startLoopBackHandler() {
+        await updateInputDevice(selectedInput);
+        await updateOutputDevice(selectedOutput);
         await invoke("start_loopback", {
             inputId: selectedInput,
             outputId: selectedOutput
@@ -48,6 +52,14 @@ export function MainScreen() {
         await setMasterVolume({masterVolume});
     }
 
+    const handleOnOffSwitch = async (
+        _event: React.ChangeEvent<HTMLInputElement>,
+        checked: boolean
+    ) => {
+        setIsOn(checked);
+        await toggleOnOff({ isOn: checked });
+    };
+
     const handleBassChange = async (_event: Event, value: number | number[]) => {
         const bass = Array.isArray(value) ? value[0] : value;
         console.log(`Setting bass to ${bass}`);
@@ -73,11 +85,18 @@ export function MainScreen() {
 
             <Button
                 variant="contained"
-                onClick={startLoopback}
+                onClick={startLoopBackHandler}
                 disabled={!selectedInput || !selectedOutput || isSetting}
             >
                 {isSetting ? "Applying..." : "Start Loopback"}
             </Button>
+
+            <FormControlLabel
+                control={
+                    <Switch checked={isOn} onChange={handleOnOffSwitch} />
+                }
+                label="On/Off"
+            />
 
             <DropdownSelector
                 title="Input Device"

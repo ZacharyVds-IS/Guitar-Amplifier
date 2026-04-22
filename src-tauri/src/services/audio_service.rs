@@ -1,3 +1,7 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::thread::JoinHandle;
 use std::ptr::eq;
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
@@ -26,9 +30,13 @@ pub struct AudioService {
 impl AudioService {
     pub fn new(input_device: Device, output_device: Device, config: StreamConfig) -> Self {
         let handler = AudioHandler::new(input_device, output_device, config);
+        Self::new_with_handler(Arc::new(handler))
+    }
 
+    /// Creates an `AudioService` with a custom handler. Useful for testing with mock handlers.
+    pub fn new_with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
         Self {
-            audio_handler: Arc::new(handler),
+            audio_handler: handler,
             loopback_thread: None,
             is_active: false,
             channel: Channel::new("Main".to_string(), None, None),
@@ -80,13 +88,13 @@ impl AudioService {
                         let processed = master_volume.process(eq_sample);
                         let _ = o_producer.try_push(processed);
                     } else {
-                        std::thread::yield_now();
+                        thread::yield_now();
                     }
                 }
             });
 
-            input_stream.play().unwrap();
-            output_stream.play().unwrap();
+            input_stream.play();
+            output_stream.play();
 
             thread::park();
 
@@ -112,41 +120,48 @@ impl AudioService {
         self.is_active = false;
     }
 
-    pub fn set_input_device(&mut self, input: Device) {
-        info!("Switching input device");
-
+    pub(crate) fn set_audio_handler(&mut self, new_handler: Arc<dyn AudioHandlerTrait>) {
         let was_active = self.is_active;
         if was_active {
             self.stop_loopback();
         }
 
-        let old = self.audio_handler.clone();
-        let new_handler =
-            AudioHandler::new(input, old.output_device().clone(), old.config().clone());
-
-        self.audio_handler = Arc::new(new_handler);
+        self.audio_handler = new_handler;
 
         if was_active {
             self.start_loopback();
         }
     }
 
+    pub fn set_input_device(&mut self, input: Device) {
+        info!("Switching input device");
+
+        let old = self.audio_handler.clone();
+        let new_handler =
+            AudioHandler::new(input, old.output_device().clone(), old.config().clone());
+
+        self.set_audio_handler(Arc::new(new_handler));
+    }
+
     pub fn set_output_device(&mut self, output: Device) {
         info!("Switching output device");
-
-        let was_active = self.is_active;
-        if was_active {
-            self.stop_loopback();
-        }
 
         let old = self.audio_handler.clone();
         let new_handler =
             AudioHandler::new(old.input_device().clone(), output, old.config().clone());
 
-        self.audio_handler = Arc::new(new_handler);
+        self.set_audio_handler(Arc::new(new_handler));
+    }
 
-        if was_active {
-            self.start_loopback();
+    pub fn toggle_loopback(&mut self, is_on: bool){
+        if self.is_active == is_on{
+            return;
         }
+        if is_on == false{
+            self.stop_loopback();
+            return;
+        }
+        self.start_loopback();
+
     }
 }

@@ -48,6 +48,18 @@ export function MainScreen() {
         await setMasterVolume({masterVolume});
     }
 
+    const handleBassChange = async (_event: Event, value: number | number[]) => {
+        console.log("Bass set to: ",value);
+    }
+
+    const handleMiddleChange = async (_event: Event, value: number | number[]) => {
+        console.log("Middle set to: ",value);
+    }
+
+    const handleTrebleChange = async (_event: Event, value: number | number[]) => {
+        console.log("Treble set to: ",value);
+    }
+
     if (isLoading) return <CircularProgress />;
     if (error) return <Alert severity="error">{error}</Alert>;
 
@@ -79,12 +91,29 @@ export function MainScreen() {
                 onSelectionChange={handleOutputChange}
             />
             <Box>
-                <Typography>Gain</Typography>
-                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
+                <Typography variant="h6">Gain</Typography>
+                <Slider aria-label="Gain" defaultValue={1.0} max={10} step={0.1} onChange={handleGainChange} valueLabelDisplay="auto"/>
             </Box>
             <Box>
-                <Typography>Master Volume</Typography>
-                <Slider defaultValue={1.0} max={10} step={0.1} onChange={handleMVChange} valueLabelDisplay="auto"/>
+                <Typography variant="h6">Master Volume</Typography>
+                <Slider aria-label="Master Volume" defaultValue={1.0} max={10} step={0.1} onChange={handleMVChange} valueLabelDisplay="auto"/>
+            </Box>
+            <Box>
+                <Typography variant="h6">Tone Stack</Typography>
+                <Box sx={{ display: "flex", flexDirection:"row", gap: 4, height: 200, paddingX:5}}>
+                    <Box sx={{ display: "flex", flexDirection:"column", gap: 2, height: "100%", alignItems:"center"}}>
+                        <Typography>Bass</Typography>
+                        <Slider aria-label="Bass" defaultValue={100} orientation="vertical" valueLabelDisplay="auto" onChange={handleBassChange}/>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection:"column", gap: 2, height: "100%", alignItems:"center" }}>
+                        <Typography>Middle</Typography>
+                        <Slider aria-label="Bass" defaultValue={100} orientation="vertical" valueLabelDisplay="auto" onChange={handleMiddleChange}/>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection:"column", gap: 2, height: "100%", alignItems:"center" }}>
+                        <Typography>Treble</Typography>
+                        <Slider aria-label="Bass" defaultValue={100} orientation="vertical" valueLabelDisplay="auto" onChange={handleTrebleChange}/>
+                    </Box>
+                </Box>
             </Box>
         </Box>
     );

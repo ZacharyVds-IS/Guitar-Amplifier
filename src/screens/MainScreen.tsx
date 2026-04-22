@@ -9,7 +9,7 @@ import { DropdownSelector } from "../components/selection/DropdownSelector.tsx";
 import { useAudioDevices } from "../hooks/useAudioDevices.ts";
 import { useState } from "react";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
-import {setGain, setMasterVolume} from "../domain";
+import {setBass, setGain, setMasterVolume, setMiddle, setTreble} from "../domain";
 
 export function MainScreen() {
     const { inputs, outputs, isLoading, error } = useAudioDevices();
@@ -49,15 +49,19 @@ export function MainScreen() {
     }
 
     const handleBassChange = async (_event: Event, value: number | number[]) => {
-        console.log("Bass set to: ",value);
+        const bass = Array.isArray(value) ? value[0] : value;
+        console.log(`Setting bass to ${bass}`);
+        await setBass({bass});
     }
 
     const handleMiddleChange = async (_event: Event, value: number | number[]) => {
-        console.log("Middle set to: ",value);
+        const middle = Array.isArray(value) ? value[0] : value;
+        await setMiddle({middle});
     }
 
     const handleTrebleChange = async (_event: Event, value: number | number[]) => {
-        console.log("Treble set to: ",value);
+        const treble = Array.isArray(value) ? value[0] : value;
+        await setTreble({treble});
     }
 
     if (isLoading) return <CircularProgress />;

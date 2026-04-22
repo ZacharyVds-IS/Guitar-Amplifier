@@ -61,6 +61,10 @@ impl RangeEQ {
 }
 
 fn percent_to_db(percent: f32) -> f32 {
-    let p = percent.clamp(0.0001, 1.0);
-    20.0 * p.log10()
+    if percent == 0.0 {
+        0.0
+    } else {
+        let p = percent.clamp(0.0001, 1.0);
+        20.0 * p.log10()
+    }
 }

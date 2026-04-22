@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::error;
 use crate::domain::tone_stack::ToneStack;
+use crate::domain::tone_stack_dto::ToneStackDto;
 
 #[derive(Clone)]
 pub struct Channel {
@@ -43,8 +44,22 @@ impl Channel {
             panic!("Master volume must be positive");
         }
     }
-    pub fn set_tone_stack(&mut self, tone_stack: Arc<ToneStack>) {
-        self.tone_stack = tone_stack;
+    pub fn set_tone_stack(&self, tone_stack: ToneStackDto) {
+        self.tone_stack.set_bass(tone_stack.bass);
+        self.tone_stack.set_middle(tone_stack.middle);
+        self.tone_stack.set_treble(tone_stack.treble);
+    }
+
+    pub fn set_bass(&self, bass: f32) {
+        self.tone_stack.set_bass(bass/100.0);
+    }
+
+    pub fn set_middle(&self, middle: f32) {
+        self.tone_stack.set_middle(middle/100.0);
+    }
+
+    pub fn set_treble(&self, treble: f32) {
+        self.tone_stack.set_treble(treble/100.0);
     }
 
     pub fn gain(&self) -> Arc<AtomicF32> {
@@ -55,8 +70,8 @@ impl Channel {
         Arc::clone(&self.master_volume)
     }
 
-    pub fn tone_stack(&self) -> &Arc<ToneStack> {
-        &self.tone_stack
+    pub fn tone_stack(&self) -> Arc<ToneStack> {
+        Arc::clone(&self.tone_stack)
     }
 }
 

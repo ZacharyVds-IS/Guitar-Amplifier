@@ -8,14 +8,11 @@ use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
-use spectrum_analyzer::windows::hann_window;
-use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use tracing::info;
-use crate::domain::tone_stack::ToneStack;
 use crate::services::tone_stack::tone_stack_processor::ToneStackProcessor;
 
 #[derive(Getters)]
@@ -65,7 +62,7 @@ impl AudioService {
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain());
                 let mut master_volume = GainProcessor::new(channel.master_volume());
-                let mut tone_stack = ToneStackProcessor::new();
+                let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
 
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
@@ -77,7 +74,7 @@ impl AudioService {
 
                         let eq_sample = tone_stack.process(gain_sample);
 
-                        //for debugging: print the tone stack values every 2048 samples
+                        //for debugging: print the tone stack values
                         tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
 
                         let processed = master_volume.process(eq_sample);

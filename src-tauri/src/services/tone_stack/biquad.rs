@@ -22,7 +22,7 @@ impl Biquad {
         let w0 = 2.0 * PI * freq / sample_rate;
         let cos = w0.cos();
         let sin = w0.sin();
-        let alpha = sin / 2.0 * (2.0_f32).sqrt();
+        let alpha = sin / 2.0 * (2.0 * (a + 1.0 / a)).sqrt();
         let sqrt_a = a.sqrt();
 
         let (b0, b1, b2, a0, a1, a2) = match shelf {

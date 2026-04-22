@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use atomic_float::AtomicF32;
-use tracing::error;
+use tracing::{error, info};
 
 pub struct ToneStack {
     bass: Arc<AtomicF32>,

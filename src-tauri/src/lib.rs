@@ -3,15 +3,15 @@ pub mod services;
 pub mod domain;
 pub mod infrastructure;
 
-use std::sync::Mutex;
-use cpal::default_host;
-use cpal::traits::{DeviceTrait, HostTrait};
-use tracing_subscriber::EnvFilter;
-use crate::commands::default_controls::{set_gain, set_master_volume};
+use crate::commands::default_controls::{set_bass, set_gain, set_master_volume, set_middle, set_treble};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_input_device_list, get_output_device_list, set_input_device, set_output_device};
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
+use cpal::default_host;
+use cpal::traits::{DeviceTrait, HostTrait};
+use std::sync::Mutex;
+use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,7 +32,7 @@ pub fn run() {
         .manage(Mutex::new(AudioService::new(input,output,config)))
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![start_loopback, set_gain,get_input_device_list,get_output_device_list,set_input_device,set_output_device, set_master_volume])
+        .invoke_handler(tauri::generate_handler![start_loopback, set_gain,get_input_device_list,get_output_device_list,set_input_device,set_output_device, set_master_volume, set_bass, set_middle, set_treble])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -39,19 +39,9 @@ impl RangeEQ {
 
     pub fn set_percent(&mut self, percent: f32) {
         let gain_db = percent_to_db(percent);
-
-        self.low_shelf = Biquad::new_shelf(
-            ShelfType::High,
-            self.sample_rate,
-            self.low_hz,
-            gain_db,
-        );
-        self.high_shelf = Biquad::new_shelf(
-            ShelfType::Low,
-            self.sample_rate,
-            self.high_hz,
-            gain_db,
-        );
+//todo: check here if shelves are reset to often which causes eq to not do anything
+        self.low_shelf.set_gain_db(gain_db);
+        self.high_shelf.set_gain_db(gain_db);
     }
 
     pub fn process(&mut self, sample: f32) -> f32 {

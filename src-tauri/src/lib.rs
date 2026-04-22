@@ -10,16 +10,12 @@ use std::sync::Mutex;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
 use tracing_subscriber::EnvFilter;
-use crate::commands::default_controls::{set_gain, set_master_volume, toggle_on_off};
-use crate::commands::default_controls::{set_bass, set_gain, set_master_volume, set_middle, set_treble};
+use crate::commands::default_controls::{set_gain, set_master_volume, toggle_on_off, set_bass, set_middle, set_treble};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_input_device_list, get_output_device_list, set_input_device, set_output_device};
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
-use cpal::default_host;
-use cpal::traits::{DeviceTrait, HostTrait};
-use std::sync::Mutex;
-use tracing_subscriber::EnvFilter;
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

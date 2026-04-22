@@ -9,10 +9,13 @@ pub struct Channel {
     name: String,
     gain: Arc<AtomicF32>,
     master_volume: Arc<AtomicF32>,
+    bass: Arc<AtomicF32>,
+    middle: Arc<AtomicF32>,
+    treble: Arc<AtomicF32>,
 }
 
 impl Channel {
-    pub fn new(name: String, gain: Option<f32>, master_volume: Option<f32> ) -> Self {
+    pub fn new(name: String, gain: Option<f32>, master_volume: Option<f32>) -> Self {
         let gain = gain.unwrap_or(1.0);
         let master_volume = master_volume.unwrap_or(1.0);
 
@@ -20,6 +23,9 @@ impl Channel {
             name,
             gain: Arc::new(AtomicF32::new(gain)),
             master_volume: Arc::new(AtomicF32::new(master_volume)),
+            bass: Arc::new(AtomicF32::new(1.0)),
+            middle: Arc::new(AtomicF32::new(1.0)),
+            treble: Arc::new(AtomicF32::new(1.0)),
         }
     }
 
@@ -41,12 +47,51 @@ impl Channel {
         }
     }
 
+    pub fn set_bass(&self, bass: f32) {
+        if bass.is_sign_positive() && bass <= 1.0 {
+            self.bass.store(bass, Ordering::Relaxed);
+        } else {
+            error!("Bass must be a positive number between 0 and 1");
+            panic!("Bass must be positive and between 0 and 1");
+        }
+    }
+
+    pub fn set_middle(&self, middle: f32) {
+        if middle.is_sign_positive() && middle <= 1.0 {
+            self.middle.store(middle, Ordering::Relaxed);
+        }else {
+            error!("Middle must be a positive number between 0 and 1");
+            panic!("Middle must be positive and between 0 and 1");
+        }
+    }
+
+    pub fn set_treble(&self, treble: f32) {
+    if treble.is_sign_positive() && treble <= 1.0{
+        self.treble.store(treble, Ordering::Relaxed);
+    } else {
+            error!("Treble must be a positive number between 0 and 1");
+            panic!("Treble must be positive and between 0 and 1");
+        }
+    }
+
     pub fn gain(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.gain)
     }
 
     pub fn master_volume(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.master_volume)
+    }
+
+    pub fn bass(&self) -> Arc<AtomicF32> {
+        Arc::clone(&self.bass)
+    }
+
+    pub fn middle(&self) -> Arc<AtomicF32> {
+        Arc::clone(&self.middle)
+    }
+
+    pub fn treble(&self) -> Arc<AtomicF32> {
+        Arc::clone(&self.treble)
     }
 }
 
@@ -57,7 +102,6 @@ mod tests {
     #[cfg(test)]
     mod success_path {
         use super::*;
-
         #[test]
         fn gain_set_to_positive_value_should_succeed() {
             let channel = Channel::new("Test".to_string(), Some(1.0), None);

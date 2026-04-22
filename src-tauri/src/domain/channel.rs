@@ -2,6 +2,7 @@ use atomic_float::AtomicF32;
 use derive_getters::Getters;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use tracing::error;
 
 #[derive(Clone)]
 pub struct Channel {
@@ -26,7 +27,7 @@ impl Channel {
         if gain.is_sign_positive() {
             self.gain.store(gain, Ordering::Relaxed);
         } else {
-            //TODO: Log error
+            error!("Gain must be a positive number");
             panic!("Gain must be positive");
         }
     }
@@ -35,7 +36,7 @@ impl Channel {
         if master_volume.is_sign_positive() {
             self.master_volume.store(master_volume, Ordering::Relaxed);
         } else {
-            //TODO: Log error
+            error!("Master volume must be a positive number");
             panic!("Master volume must be positive");
         }
     }

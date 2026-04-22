@@ -66,9 +66,8 @@ impl AudioService {
                     if let Some(sample) = i_consumer.try_pop() {
                         let gain_sample = gain.process(sample);
 
-                        //Master Volume should always be applied last
-                        let processed_sample = master_volume.process(sample);
-                        let _ = o_producer.try_push(processed_sample);
+                        let processed = master_volume.process(gain_sample);
+                        let _ = o_producer.try_push(processed);
                     } else {
                         std::thread::yield_now();
                     }

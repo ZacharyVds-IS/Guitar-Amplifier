@@ -1,5 +1,5 @@
-import { Box, Stack, Typography } from "@mui/material";
-import { Knob } from "./selection/Knob.tsx";
+import {Box, Stack, Typography} from "@mui/material";
+import {Knob} from "./selection/Knob.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 
@@ -29,14 +29,14 @@ export function EffectControls() {
                     label="Volume"
                     value={volume}
                     min={0}
-                    max={10}
+                    max={11}
                     step={1}
                     onChange={setVolume}
                 />
                 <Knob
                     label="Gain"
                     min={0}
-                    max={10}
+                    max={11}
                     step={0.1}
                     value={gain}
                     onChange={setGain}

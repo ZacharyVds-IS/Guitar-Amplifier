@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize,Clone)]
+#[derive(Serialize,Deserialize, Clone, Debug)]
 pub struct ToneStackDto{
     pub bass: f32,
     pub middle: f32,

@@ -1,4 +1,13 @@
-import {AmpConfigDto, getAmpConfig, setGain, setMasterVolume, toggleOnOff} from "../domain";
+import {
+    AmpConfigDto,
+    getAmpConfig,
+    setBass,
+    setGain,
+    setMasterVolume,
+    setMiddle,
+    setTreble,
+    toggleOnOff
+} from "../domain";
 import {create} from "zustand/react";
 
 interface AmpState extends AmpConfigDto {
@@ -6,6 +15,9 @@ interface AmpState extends AmpConfigDto {
     setGain:(val:number) => void;
     setVolume: (val:number) => void;
     setIsActive:(val:boolean) => void;
+    setBass:(val:number) => void;
+    setMiddle:(val:number) => void;
+    setTreble:(val:number) => void;
 }
 
 export const useAmpStore = create<AmpState>((set) => ({
@@ -13,6 +25,9 @@ export const useAmpStore = create<AmpState>((set) => ({
     master_volume: 0,
     is_active: false,
     isHydrated: false,
+    bass: 1.0,
+    middle: 1.0,
+    treble: 1.0,
 
     init: async () => {
         try {
@@ -39,5 +54,20 @@ export const useAmpStore = create<AmpState>((set) => ({
     setIsActive:(val: boolean) => {
         set({is_active: val});
         toggleOnOff({isOn: val});
-    }
+    },
+
+    setBase: (val: number) => {
+        set({ bass: val });
+        setBass({bass:val})
+    },
+
+    setMiddle: (val: number) => {
+        set({ middle: val });
+        setMiddle({middle:val})
+    },
+
+    setTreble: (val: number) => {
+        set({ treble: val });
+        setTreble({treble:val})
+    },
 }));

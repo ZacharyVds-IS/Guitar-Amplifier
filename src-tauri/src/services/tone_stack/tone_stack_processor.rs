@@ -1,6 +1,6 @@
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::tone_stack::ToneStack;
-use crate::services::tone_stack::range_eq::RangeEQ;
+use crate::services::tone_stack::range_eq::{RangeEQ, EQType};
 use spectrum_analyzer::windows::hann_window;
 use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
 use std::sync::atomic::Ordering;
@@ -12,23 +12,28 @@ pub struct ToneStackProcessor {
     mid_eq: RangeEQ,
     treble_eq: RangeEQ,
 }
-
-const BASS_MIN: f32 = 10.0;
-const BASS_MAX: f32 = 180.0;
-const MID_MAX: f32 = 2_400.0;
-const TREBLE_MAX: f32 = 20_000.0;
+const BASS_SHELF: f32 = 100.0;
+const MID_PEAK: f32 = 1_200.0;
+const TREBLE_SHELF: f32 = 5_000.0;
 
 impl ToneStackProcessor {
     pub fn new(tone_stack: Arc<ToneStack>) -> Self {
         Self {
             tone_stack,
-            bass_eq: RangeEQ::new(48000.0, BASS_MIN, BASS_MAX, 1.0),
-            mid_eq: RangeEQ::new(48000.0, BASS_MAX, MID_MAX, 1.0),
-            treble_eq: RangeEQ::new(48000.0, MID_MAX, TREBLE_MAX, 1.0),
+            bass_eq: RangeEQ::new(48000.0, BASS_SHELF, 0.0, 1.0, EQType::Low),
+            mid_eq: RangeEQ::new(48000.0, MID_PEAK, 0.0, 1.0, EQType::Peak),
+            treble_eq: RangeEQ::new(48000.0, 0.0, TREBLE_SHELF, 1.0, EQType::High),
         }
     }
 
     pub fn print_tone_stack(&self, gain_sample: f32, fft_buffer: &mut Vec<f32>, fft_size: usize) {
+        const PRINT_BASS_MIN: f32 = 0.0;
+        const PRINT_BASS_MAX: f32 = 180.0;
+        const PRINT_MID_MIN: f32 = 180.0;
+        const PRINT_MID_MAX: f32 = 2_400.0;
+        const PRINT_TREBLE_MIN: f32 = 2_400.0;
+        const PRINT_TREBLE_MAX: f32 = 20000.0;
+
         fft_buffer.push(gain_sample);
 
         if fft_buffer.len() == fft_size {
@@ -44,17 +49,17 @@ impl ToneStackProcessor {
             for (freq, magnitude) in spectrum.data().iter() {
                 let f = freq.val();
 
-                if f >= BASS_MIN && f <= BASS_MAX {
+                if f >= PRINT_BASS_MIN && f <= PRINT_BASS_MAX {
                     bass_energy += magnitude.val();
-                } else if f > BASS_MAX && f <= MID_MAX {
+                } else if f > PRINT_MID_MIN && f <= PRINT_MID_MAX {
                     mid_energy += magnitude.val();
-                } else if f > MID_MAX && f <= TREBLE_MAX {
+                } else if f > PRINT_TREBLE_MIN && f <= PRINT_TREBLE_MAX {
                     treble_energy += magnitude.val();
                 }
             }
 
             println!(
-                "Tone Stack: Bass: {:>8.5} | Mid: {:>8.5} | Treble: {:>8.5}",
+                "Tone Stack: Bass: {:>8.5}\t | Mid: {:>8.5}\t | Treble: {:>8.5}",
                 bass_energy, mid_energy, treble_energy
             );
 

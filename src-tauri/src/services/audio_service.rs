@@ -77,7 +77,7 @@ impl AudioService {
                         let eq_sample = tone_stack.process(gain_sample);
 
                         //for debugging: print the tone stack values
-                        tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
+                        //tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
 
                         let processed = master_volume.process(eq_sample);
                         let _ = o_producer.try_push(processed);

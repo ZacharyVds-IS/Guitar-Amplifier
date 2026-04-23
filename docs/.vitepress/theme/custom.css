@@ -1,0 +1,24 @@
+:root {
+  --vp-c-brand-1: #CC6B2C;
+  --vp-c-brand-2: #b85e26;
+  --vp-c-brand-3: #a35221;
+
+  --vp-button-brand-bg: #CC6B2C;
+  --vp-button-brand-hover-bg: #b85e26;
+  --vp-button-brand-active-bg: #a35221;
+  --vp-button-brand-border: #CC6B2C;
+  --vp-button-brand-hover-border: #b85e26;
+  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-hover-text: #ffffff;
+}
+
+.dark {
+  --vp-c-brand-1: #e07c38;
+  --vp-c-brand-2: #CC6B2C;
+  --vp-c-brand-3: #b85e26;
+
+  --vp-button-brand-bg: #CC6B2C;
+  --vp-button-brand-hover-bg: #e07c38;
+  --vp-button-brand-active-bg: #b85e26;
+}
+

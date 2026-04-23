@@ -1,3 +1,12 @@
+//! Tauri command handlers for the Guitar Amplifier application.
+//!
+//! This module contains all the command handlers that are exposed to the frontend
+//! via Tauri's IPC layer. Each submodule groups related commands:
+//!
+//! - [`loopback`] — Audio loopback control
+//! - [`default_controls`] — Gain, master volume, and amplifier configuration
+//! - [`settings`] — Input/output device selection and enumeration
+
 pub mod loopback;
 pub mod default_controls;
 pub mod settings;

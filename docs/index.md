@@ -1,0 +1,18 @@
+---
+layout: home
+
+hero:
+  name: "RustRiff documentation"
+  text: ""
+  tagline: From Rust to Rock in Milliseconds
+
+features:
+  - title: Frontend Documentation
+    details: Browse the TypeDoc generated API reference for all React components, hooks, and domain types.
+    link: /frontend/index.html
+    linkText: View API reference
+  - title: Backend Documentation
+    details: Browse the Rustdoc generated API reference for all Tauri commands, domain logic, and services.
+    link: /backend/doc/rustriff_lib/index.html
+    linkText: View API reference
+---

@@ -2,6 +2,7 @@ import { defineConfig } from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
+  base: '/Guitar-Amplifier/',
   title: "RustRiff documentation",
   description: "Documentation combining both frontend and backend docs for RustRiff",
   themeConfig: {

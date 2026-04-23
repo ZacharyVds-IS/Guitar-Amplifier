@@ -4,12 +4,31 @@ use atomic_float::AtomicF32;
 use tracing::info;
 use crate::domain::audio_processor::AudioProcessor;
 
+/// An audio processor that applies gain with smooth transitions.
+///
+/// `GainProcessor` implements the [`AudioProcessor`] trait and applies a gain factor
+/// to audio samples. When the gain value changes, it smoothly transitions from the
+/// current value to the new target using a simple one-pole low-pass filter, preventing
+/// audible clicks and pops.
+///
+/// The gain value is read from an [`Arc<AtomicF32>`] that can be safely updated
+/// from other threads (e.g., the UI thread) without requiring locks.
 pub struct GainProcessor {
     gain: Arc<AtomicF32>,
     current: f32
 }
 
 impl GainProcessor {
+    /// Creates a new `GainProcessor` with the given atomic gain value.
+    ///
+    /// Initializes the internal smoothing state (`current`) to the initial gain value
+    /// loaded from the atomic.
+    ///
+    /// # Arguments
+    ///
+    /// * `gain` - An [`Arc<AtomicF32>`] that holds the target gain value.
+    ///            This value can be updated from other threads, and changes
+    ///            will be smoothly transitioned.
     pub fn new(gain: Arc<AtomicF32>) -> Self {
         info!("initi gain processor");
         let initial = gain.load(Ordering::Relaxed);
@@ -21,6 +40,32 @@ impl GainProcessor {
 }
 
 impl AudioProcessor for GainProcessor {
+    #[cfg_attr(doc, aquamarine::aquamarine)]
+    /// Processes a single audio sample with the current gain factor.
+    ///
+    /// Reads the target gain value from the atomic and smoothly transitions the
+    /// internal state toward it using a one-pole smoothing algorithm.
+    ///
+    /// ### Gain Smoothing Visualization
+    /// The red line shows the instantaneous jump (Target), while the curve
+    /// shows the gradual adjustment of the multiplier (Current).
+    ///
+    /// ```mermaid
+    /// xychart-beta
+    ///     title "Instantaneous Jump vs. One-Pole Smoothing"
+    ///     x-axis "Time (Samples)" [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    ///     y-axis "Gain Factor" 0 --> 1.2
+    ///     line [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    ///     line [0.0, 0.4, 0.64, 0.78, 0.87, 0.92, 0.95, 0.97, 0.98, 0.99, 1.0]
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `sample` - The input audio sample to be scaled by the gain.
+    ///
+    /// # Returns
+    ///
+    /// The gain-scaled audio sample.
     fn process(&mut self, sample: f32) -> f32 {
         let target = self.gain.load(Ordering::Relaxed);
 

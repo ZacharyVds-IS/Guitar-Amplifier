@@ -2,18 +2,38 @@ use cpal::Host;
 use cpal::traits::HostTrait;
 use crate::domain::audio_device_dto::AudioDeviceDto;
 use cpal::traits::DeviceTrait;
+use tracing::error;
 
+/// Service for managing audio device enumeration and lookup.
+///
+/// `DeviceService` wraps a CPAL [`Host`] and provides convenient methods to:
+/// - List available input and output devices
+/// - Look up devices by their ID
+/// - Convert device information into [`AudioDeviceDto`] for frontend consumption
 pub struct DeviceService {
     host:Host
 }
 
 
 impl DeviceService {
-
+    /// Creates a new `DeviceService` with the given CPAL host.
+    ///
+    /// # Arguments
+    ///
+    /// * `host` - A CPAL [`Host`] instance.
     pub fn new(host: Host) -> Self {
         Self { host }
     }
 
+    /// Retrieves a list of all available input devices.
+    ///
+    /// Queries the CPAL host for input devices, converts them to [`AudioDeviceDto`],
+    /// and returns them. If device enumeration fails, an empty list is returned
+    /// and an error is added to the logs.
+    ///
+    /// # Returns
+    ///
+    /// A [`Vec`] of [`AudioDeviceDto`] representing available input devices.
     pub fn get_input_devices(&self) -> Vec<AudioDeviceDto> {
         match self.host.input_devices() {
             Ok(devices) => devices
@@ -29,12 +49,21 @@ impl DeviceService {
                 })
                 .collect(),
             Err(e) => {
-                eprintln!("Failed to get input devices: {}", e);
+                error!("Failed to get input devices: {}", e);
                 vec![]
             }
         }
     }
 
+    /// Retrieves a list of all available output devices.
+    ///
+    /// Queries the CPAL host for output devices, converts them to [`AudioDeviceDto`],
+    /// and returns them. If device enumeration fails, an empty list is returned
+    /// and an error is printed to stderr.
+    ///
+    /// # Returns
+    ///
+    /// A [`Vec`] of [`AudioDeviceDto`] representing available output devices.
     pub fn get_output_devices(&self) -> Vec<AudioDeviceDto> {
         match self.host.output_devices() {
             Ok(devices) => devices
@@ -57,6 +86,18 @@ impl DeviceService {
         }
     }
 
+    /// Finds an input device by its string ID.
+    ///
+    /// Searches through the host's input devices for one whose debug-formatted
+    /// ID matches the given string.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The device ID string to search for (debug-formatted CPAL device ID).
+    ///
+    /// # Returns
+    ///
+    /// `Some(device)` if a matching input device is found, `None` otherwise.
     pub fn find_input_device_by_id(&self, id: &str) -> Option<cpal::Device> {
         let devices = self.host.input_devices().ok()?;
 
@@ -70,6 +111,18 @@ impl DeviceService {
         None
     }
 
+    /// Finds an output device by its string ID.
+    ///
+    /// Searches through the host's output devices for one whose debug-formatted
+    /// ID matches the given string.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The device ID string to search for (debug-formatted CPAL device ID).
+    ///
+    /// # Returns
+    ///
+    /// `Some(device)` if a matching output device is found, `None` otherwise.
     pub fn find_output_device_by_id(&self, id: &str) -> Option<cpal::Device> {
         let devices = self.host.output_devices().ok()?;
 

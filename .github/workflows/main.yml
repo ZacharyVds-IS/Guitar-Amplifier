@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+# Expose the branch name so publish-docs.yml can filter on it
+run-name: "CI on ${{ github.ref_name }}"
+
 jobs:
   build:
     runs-on: ubuntu-latest

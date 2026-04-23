@@ -123,3 +123,225 @@ impl Biquad {
         (b0 / a0, b1 / a0, b2 / a0, a0 / a0, a1 / a0, a2 / a0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(test)]
+    mod success_path {
+        use super::*;
+
+        #[test]
+        fn test_process_single_sample() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 0.0);
+            let input = 0.5;
+            let output = biquad.process(input);
+            assert!(!output.is_nan());
+            assert!(!output.is_infinite());
+        }
+
+        #[test]
+        fn test_process_multiple_samples() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Low, 44100.0, 200.0, 6.0);
+            let samples = vec![0.1, 0.2, 0.3, -0.1, -0.2];
+
+            for sample in samples {
+                let output = biquad.process(sample);
+                assert!(!output.is_nan());
+                assert!(!output.is_infinite());
+                // Verify state is being updated
+                assert_eq!(biquad.x1, sample);
+            }
+        }
+
+        #[test]
+        fn test_set_gain_db() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 0.0);
+            let initial_b0 = biquad.b0;
+
+            biquad.set_gain_db(6.0);
+            assert_ne!(biquad.b0, initial_b0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+
+        #[test]
+        fn test_gain_zero_db_peak_filter() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 0.0);
+            let input = 1.0;
+            let output = biquad.process(input);
+            // With 0dB gain on first sample, should be close to input
+            assert!(output.abs() < 1.5);
+        }
+
+        #[test]
+        fn test_positive_gain_modification() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Low, 44100.0, 100.0, 0.0);
+            biquad.set_gain_db(12.0);
+            let input = 1.0;
+
+            let output = biquad.process(input);
+            assert!(!output.is_nan());
+            assert!(!output.is_infinite());
+            assert!(output.abs() > input);
+        }
+
+        #[test]
+        fn test_negative_gain_modification() {
+            let mut biquad = Biquad::new_shelf(ShelfType::High, 44100.0, 8000.0, 0.0);
+            biquad.set_gain_db(-12.0);
+            let input = 1.0;
+
+
+            let output = biquad.process(input);
+            assert!(!output.is_nan());
+            assert!(!output.is_infinite());
+            assert!(output.abs() < input);
+        }
+
+        #[test]
+        fn test_state_update_after_process() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 6.0);
+
+            biquad.process(0.5);
+            assert_eq!(biquad.x1, 0.5);
+            assert_eq!(biquad.x2, 0.0);
+
+            biquad.process(0.3);
+            assert_eq!(biquad.x1, 0.3);
+            assert_eq!(biquad.x2, 0.5);
+        }
+
+        #[test]
+        fn test_different_sample_rates() {
+            let sample_rates = vec![22050.0, 44100.0, 48000.0, 96000.0];
+
+            for sr in sample_rates {
+                let biquad = Biquad::new_shelf(ShelfType::Peak, sr, 1000.0, 6.0);
+                assert_eq!(biquad.sample_rate, sr);
+            }
+        }
+
+        #[test]
+        fn test_different_frequencies() {
+            let frequencies = vec![20.0, 100.0, 1000.0, 10000.0, 20000.0];
+
+            for freq in frequencies {
+                let biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, freq, 6.0);
+                assert_eq!(biquad.freq, freq);
+            }
+        }
+    }
+    #[cfg(test)]
+    mod failure_path {
+        use super::*;
+
+        #[test]
+        fn test_extreme_frequency_high() {
+            let biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 22000.0, 6.0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+
+        #[test]
+        fn test_extreme_frequency_low() {
+            let biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1.0, 6.0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+
+        #[test]
+        fn test_very_high_gain() {
+            let biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 48.0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+
+        #[test]
+        fn test_very_negative_gain() {
+            let biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, -48.0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+
+        #[test]
+        fn test_process_zero_input() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 6.0);
+            let output = biquad.process(0.0);
+            assert!(!output.is_nan());
+            assert!(!output.is_infinite());
+        }
+
+        #[test]
+        fn test_process_very_small_input() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 6.0);
+            let output = biquad.process(1e-6);
+            assert!(!output.is_nan());
+            assert!(!output.is_infinite());
+        }
+
+        #[test]
+        fn test_process_large_input() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 6.0);
+            let output = biquad.process(100.0);
+            assert!(!output.is_nan());
+            assert!(!output.is_infinite());
+        }
+
+        #[test]
+        fn test_all_shelf_types_with_extreme_values() {
+            let shelf_types = vec![ShelfType::Low, ShelfType::High, ShelfType::Peak];
+
+            for shelf_type in shelf_types {
+                let biquad = Biquad::new_shelf(shelf_type, 44100.0, 5000.0, 24.0);
+                assert!(!biquad.b0.is_nan());
+                assert!(!biquad.b1.is_nan());
+                assert!(!biquad.b2.is_nan());
+                assert!(!biquad.a1.is_nan());
+                assert!(!biquad.a2.is_nan());
+            }
+        }
+
+        #[test]
+        fn test_set_gain_with_extreme_values() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Peak, 44100.0, 1000.0, 0.0);
+
+            biquad.set_gain_db(36.0);
+            assert!(!biquad.b0.is_nan());
+
+            biquad.set_gain_db(-36.0);
+            assert!(!biquad.b0.is_nan());
+        }
+
+        #[test]
+        fn test_process_after_multiple_gain_changes() {
+            let mut biquad = Biquad::new_shelf(ShelfType::Low, 44100.0, 100.0, 0.0);
+
+            biquad.set_gain_db(6.0);
+            let out1 = biquad.process(0.1);
+
+            biquad.set_gain_db(-6.0);
+            let out2 = biquad.process(0.1);
+
+            biquad.set_gain_db(12.0);
+            let out3 = biquad.process(0.1);
+
+            assert!(!out1.is_nan() && !out2.is_nan() && !out3.is_nan());
+        }
+
+        #[test]
+        fn test_low_sample_rate() {
+            let biquad = Biquad::new_shelf(ShelfType::Peak, 8000.0, 500.0, 6.0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+
+        #[test]
+        fn test_high_sample_rate() {
+            let biquad = Biquad::new_shelf(ShelfType::Peak, 192000.0, 50000.0, 6.0);
+            assert!(!biquad.b0.is_nan());
+            assert!(!biquad.b0.is_infinite());
+        }
+    }
+}

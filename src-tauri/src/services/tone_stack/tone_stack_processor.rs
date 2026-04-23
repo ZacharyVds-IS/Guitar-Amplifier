@@ -85,3 +85,5 @@ impl AudioProcessor for ToneStackProcessor {
         self.treble_eq.process(processed)
     }
 }
+
+//TODO: tone stack tests

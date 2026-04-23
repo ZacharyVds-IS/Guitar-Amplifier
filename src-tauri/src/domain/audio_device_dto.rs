@@ -1,7 +1,15 @@
+//! Data transfer object (DTO) for audio devices.
+//!
+//! This type is serialized and sent to the frontend to populate
+//! input/output device selectors.
+
 use serde::Serialize;
 
-#[derive(Serialize,Clone)]
-pub struct AudioDeviceDto{
+/// Serializable representation of an audio device.
+#[derive(Serialize, Clone)]
+pub struct AudioDeviceDto {
+    /// Stable device identifier used by backend commands for lookup.
     pub id: String,
-    pub name: String
+    /// Human-readable device name shown in the UI.
+    pub name: String,
 }

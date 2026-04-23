@@ -8,9 +8,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "rustriff_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
@@ -28,4 +25,6 @@ tracing = "0.1.44"
 tracing-subscriber = { version="0.3.23", features = ["env-filter"] }
 mockall = "0.14.0"
 atomic_float = "1.1.0"
+aquamarine = "0.6.0"
+
 spectrum-analyzer = "1.7.0"

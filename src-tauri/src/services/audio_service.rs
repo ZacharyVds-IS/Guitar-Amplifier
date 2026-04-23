@@ -10,9 +10,16 @@ use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
+use tauri::{AppHandle, Emitter};
 use tracing::info;
 use crate::services::tone_stack::tone_stack_processor::ToneStackProcessor;
 
+/// The main service that orchestrates real-time audio loopback between an input and output device.
+///
+/// `AudioService` manages the lifecycle of an audio processing pipeline, including:
+/// - Starting and stopping the loopback thread
+/// - Routing audio samples through the [`Channel`] processing chain (gain, master volume)
+/// - Hot-swapping input/output devices without requiring a full restart
 #[derive(Getters)]
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
@@ -22,12 +29,29 @@ pub struct AudioService {
 }
 
 impl AudioService {
+    /// Creates a new `AudioService` using the provided CPAL input/output devices and stream config.
+    ///
+    /// An [`AudioHandler`] is constructed internally from the given parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_device` - The CPAL device to capture audio from.
+    /// * `output_device` - The CPAL device to send processed audio to.
+    /// * `config` - The shared [`StreamConfig`] applied to both streams.
     pub fn new(input_device: Device, output_device: Device, config: StreamConfig) -> Self {
         let handler = AudioHandler::new(input_device, output_device, config);
         Self::new_with_handler(Arc::new(handler))
     }
 
-    /// Creates an `AudioService` with a custom handler. Useful for testing with mock handlers.
+    /// Creates an `AudioService` with a custom handler.
+    ///
+    /// This constructor is primarily intended for unit and integration testing,
+    /// where a mock [`AudioHandlerTrait`] implementation can be injected in place
+    /// of a real [`AudioHandler`].
+    ///
+    /// # Arguments
+    ///
+    /// * `handler` - An [`Arc`]-wrapped implementation of [`AudioHandlerTrait`].
     pub fn new_with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
         Self {
             audio_handler: handler,
@@ -37,6 +61,13 @@ impl AudioService {
         }
     }
 
+    /// Starts the audio loopback on a dedicated background thread.
+    ///
+    /// Audio samples are read from the input stream, passed through the gain and
+    /// master volume processors defined on the [`Channel`], and written to the
+    /// output stream via lock-free ring buffers.
+    ///
+    /// If the loopback is already active this method is a no-op.
     pub fn start_loopback(&mut self) {
         if self.is_active {
             return;
@@ -94,11 +125,17 @@ impl AudioService {
 
             shutdown.store(true, Ordering::SeqCst);
             let _ = worker.join();
+
         });
 
         self.loopback_thread = Some(thread);
     }
 
+    /// Stops the audio loopback and joins the background thread.
+    ///
+    /// Unparks the loopback thread, signals the inner worker to shut down,
+    /// and waits for both threads to finish. If the loopback is not currently
+    /// active this method is a no-op.
     pub fn stop_loopback(&mut self) {
         if !self.is_active {
             return;
@@ -114,6 +151,14 @@ impl AudioService {
         self.is_active = false;
     }
 
+    /// Replaces the underlying audio handler, restarting the loopback if it was running.
+    ///
+    /// If the loopback is active when this method is called it will be stopped,
+    /// the handler swapped, and then the loopback restarted automatically.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_handler` - The replacement [`AudioHandlerTrait`] implementation.
     pub(crate) fn set_audio_handler(&mut self, new_handler: Arc<dyn AudioHandlerTrait>) {
         let was_active = self.is_active;
         if was_active {
@@ -127,6 +172,16 @@ impl AudioService {
         }
     }
 
+    /// Switches the audio input device without interrupting playback longer than necessary.
+    ///
+    /// Constructs a new [`AudioHandler`] that pairs the given `input` device with the
+    /// existing output device and stream config, then delegates to [`set_audio_handler`].
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The new CPAL input device to capture audio from.
+    ///
+    /// [`set_audio_handler`]: AudioService::set_audio_handler
     pub fn set_input_device(&mut self, input: Device) {
         info!("Switching input device");
 
@@ -137,6 +192,16 @@ impl AudioService {
         self.set_audio_handler(Arc::new(new_handler));
     }
 
+    /// Switches the audio output device without interrupting playback longer than necessary.
+    ///
+    /// Constructs a new [`AudioHandler`] that pairs the existing input device with the
+    /// given `output` device and stream config, then delegates to [`set_audio_handler`].
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The new CPAL output device to send processed audio to.
+    ///
+    /// [`set_audio_handler`]: AudioService::set_audio_handler
     pub fn set_output_device(&mut self, output: Device) {
         info!("Switching output device");
 
@@ -147,15 +212,23 @@ impl AudioService {
         self.set_audio_handler(Arc::new(new_handler));
     }
 
-    pub fn toggle_loopback(&mut self, is_on: bool){
-        if self.is_active == is_on{
+    /// Toggles the audio loopback on or off.
+    ///
+    /// - If `is_on` is `true` and the loopback is not active, [`start_loopback`] is called.
+    /// - If `is_on` is `false` and the loopback is active, [`stop_loopback`] is called.
+    /// - If the requested state already matches the current state, this method is a no-op.
+    ///
+    /// [`start_loopback`]: AudioService::start_loopback
+    /// [`stop_loopback`]: AudioService::stop_loopback
+    pub fn toggle_loopback(&mut self, is_on: bool) {
+        if self.is_active == is_on {
             return;
         }
-        if is_on == false{
+        if is_on == false {
             self.stop_loopback();
-            return;
+        } else {
+            self.start_loopback();
         }
-        self.start_loopback();
-
     }
+
 }

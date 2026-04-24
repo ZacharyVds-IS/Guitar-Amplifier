@@ -2,15 +2,18 @@
 This page explains how RustRiff maps to a physical guitar amplifier and where each setting is stored in the app.
 ## Signal chain (physical amp vs RustRiff)
 In a traditional rig, the path is usually:
+
 `Guitar -> Input stage (gain) -> Preamp tone shaping -> Power amp (master volume) -> Speaker/cab`
+
 In RustRiff, the same idea maps to:
+
 `Input device -> Gain processor -> tone stack -> Effect Chain ->  Master volume -> Output device`
 
 - **Input device**: Your interface or microphone source selected in `Settings`.
 - **Gain**: Controls input amplification before effect application.
 - **Tone stack (Low/Mid/Bass)**: A basic equalizer of our Low, Mid and Bass controls.
 - **Effect chain**: The series of effects you have enabled (distortion,delay,reverb, etc).
-- **Master volume**: Final loudness control for the output stage.
+- **Master volume**: Final volume control for the output stage.
 - **Output device**: Where sound is sent (headphones, interface output, speakers).
 
 ## What each setting means

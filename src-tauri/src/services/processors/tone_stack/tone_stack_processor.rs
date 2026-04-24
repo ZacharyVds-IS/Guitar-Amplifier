@@ -1,6 +1,6 @@
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::tone_stack::ToneStack;
-use crate::services::tone_stack::range_eq::{RangeEQ, EQType};
+use crate::services::processors::tone_stack::range_eq::{EQType, RangeEQ};
 use spectrum_analyzer::windows::hann_window;
 use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
 use std::sync::atomic::Ordering;

@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use atomic_float::AtomicF32;
-use tracing::info;
 use crate::domain::audio_processor::AudioProcessor;
+use atomic_float::AtomicF32;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use tracing::info;
 
 /// An audio processor that applies gain with smooth transitions.
 ///
@@ -79,9 +79,9 @@ impl AudioProcessor for GainProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use atomic_float::AtomicF32;
     use std::sync::atomic::Ordering;
+    use std::sync::Arc;
 
     fn make_processor(initial_gain: f32) -> GainProcessor {
         let gain = Arc::new(AtomicF32::new(initial_gain));

@@ -1,18 +1,18 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::thread::JoinHandle;
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
-use crate::services::gain_processor::GainProcessor;
+use crate::services::processors::gain::gain_processor::GainProcessor;
+use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
 use tauri::{AppHandle, Emitter};
 use tracing::info;
-use crate::services::tone_stack::tone_stack_processor::ToneStackProcessor;
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///

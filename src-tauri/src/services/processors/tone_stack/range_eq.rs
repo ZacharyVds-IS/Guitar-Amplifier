@@ -1,4 +1,4 @@
-use crate::services::tone_stack::biquad::{Biquad, ShelfType};
+use crate::services::processors::tone_stack::biquad::{Biquad, ShelfType};
 
 /// Types of equalization filters supported by RangeEQ.
 pub enum EQType {
@@ -145,11 +145,7 @@ mod tests {
     use super::*;
 
     #[cfg(test)]
-    mod success_path {
-        use super::*;
-
-
-    }
+    mod success_path {}
 
     #[cfg(test)]
     mod failure_path {

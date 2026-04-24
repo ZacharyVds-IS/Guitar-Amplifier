@@ -7,6 +7,10 @@ hero:
   tagline: From Rust to Rock in Milliseconds
 
 features:
+  - title: What is RustRiff?
+    details: RustRiff is a guitar amplifier application that combines a React frontend with a Rust/Tauri backend to deliver low-latency audio control and processing.
+    link: /guide/overview
+    linkText: Learn more about the project
   - title: Frontend Documentation
     details: Browse the TypeDoc generated API reference for all React components, hooks, and domain types.
     link: /frontend/index.html
@@ -16,3 +20,4 @@ features:
     link: /backend/doc/rustriff_lib/index.html
     linkText: View API reference
 ---
+

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitepress'
+import {defineConfig} from 'vitepress'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -8,11 +8,48 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
+      { text: 'Guide', link: '/guide/overview' },
       { text: 'Frontend Docs', link: '/frontend/index.html' },
       { text: 'Backend Docs', link: '/backend/doc/rustriff_lib/index.html' }
     ],
 
-    sidebar: [],
+    sidebar: [
+      {
+        text: 'Project Docs',
+        items: [
+          { text: 'Overview', link: '/guide/overview' },
+          { text: 'Project Structure', link: '/guide/project-structure' },
+        ]
+      },
+      {
+        text:'Amp Design',
+        items:[
+          {text:'Relation to real amp', link:'/guide/amp_configuration/structure'},
+          {text:'Gain', link:'/guide/amp_configuration/gain'},
+          {text:'Master Volume', link:'/guide/amp_configuration/master-volume'},
+          {text:'Tone Stack',link:'/guide/amp_configuration/tone-stack'}
+        ]
+      },
+      {
+        text:'Effects',
+        items:[
+          {text:'Effect chain', link:'/guide/effect_chain/chain'},
+        ]
+      },
+      {
+        text: 'API References',
+        items: [
+          { text: 'Frontend API (TypeDoc)', link: '/frontend/index.html' },
+          { text: 'Backend API (Rustdoc)', link: '/backend/doc/rustriff_lib/index.html' }
+        ]
+      },
+      {
+        text: 'Arc42 Descriptions',
+        items:[
+          {text: 'Why choose Rust?', link:'/arc42/programming-language-choice'}
+        ]
+      }
+    ],
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/ZacharyVds-IS/Guitar-Amplifier' }

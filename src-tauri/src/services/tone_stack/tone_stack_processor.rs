@@ -6,10 +6,20 @@ use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
+/// Audio processor for tone stack equalization.
+///
+/// This processor applies bass, middle, and treble equalization to audio samples.
+/// It uses three range EQ filters chained together: bass (low shelf), mid (peak), and treble (high shelf).
+/// The processor reads the current tone stack parameters atomically from the shared `ToneStack` instance
+/// on each processing call to enable real-time parameter changes.
 pub struct ToneStackProcessor {
+    /// Shared reference to the tone stack containing bass, middle, and treble parameters.
     tone_stack: Arc<ToneStack>,
+    /// Low-frequency equalizer for bass adjustment.
     bass_eq: RangeEQ,
+    /// Mid-frequency equalizer for middle adjustment.
     mid_eq: RangeEQ,
+    /// High-frequency equalizer for treble adjustment.
     treble_eq: RangeEQ,
 }
 const BASS_SHELF: f32 = 100.0;
@@ -17,6 +27,20 @@ const MID_PEAK: f32 = 1_200.0;
 const TREBLE_SHELF: f32 = 5_000.0;
 
 impl ToneStackProcessor {
+    /// Creates a new tone stack processor with the given tone stack.
+    ///
+    /// Initializes the three EQ filters with fixed frequency ranges:
+    /// - Bass: low shelf at 100 Hz
+    /// - Mid: peak at 1200 Hz
+    /// - Treble: high shelf at 5000 Hz
+    ///
+    /// # Arguments
+    ///
+    /// * `tone_stack` - Shared reference to the tone stack parameters.
+    ///
+    /// # Returns
+    ///
+    /// A new `ToneStackProcessor` instance.
     pub fn new(tone_stack: Arc<ToneStack>) -> Self {
         Self {
             tone_stack,
@@ -26,6 +50,22 @@ impl ToneStackProcessor {
         }
     }
 
+    /// Prints tone stack energy analysis to the console.
+    ///
+    /// This method accumulates audio samples into an FFT buffer and, when the buffer is full,
+    /// performs spectral analysis to compute energy in bass, mid, and treble frequency bands.
+    /// The results are printed to stdout for debugging/monitoring purposes.
+    ///
+    /// Frequency bands:
+    /// - Bass: 0-180 Hz
+    /// - Mid: 180-2400 Hz
+    /// - Treble: 2400-20000 Hz
+    ///
+    /// # Arguments
+    ///
+    /// * `gain_sample` - The current audio sample to add to the FFT buffer.
+    /// * `fft_buffer` - Mutable reference to the buffer collecting samples for FFT.
+    /// * `fft_size` - The size of the FFT buffer (must be a power of 2).
     pub fn print_tone_stack(&self, gain_sample: f32, fft_buffer: &mut Vec<f32>, fft_size: usize) {
         const PRINT_BASS_MIN: f32 = 0.0;
         const PRINT_BASS_MAX: f32 = 180.0;
@@ -67,6 +107,11 @@ impl ToneStackProcessor {
         }
     }
 
+    /// Updates the EQ parameters from the current tone stack values.
+    ///
+    /// Reads the atomic bass, middle, and treble values from the tone stack
+    /// and applies them to the respective EQ filters. This method should be called
+    /// before processing each sample to ensure real-time parameter updates.
     fn update_parameters(&mut self) {
         self.bass_eq
             .set_percent(self.tone_stack.bass().load(Ordering::Relaxed));
@@ -78,6 +123,18 @@ impl ToneStackProcessor {
 }
 
 impl AudioProcessor for ToneStackProcessor {
+    /// Processes a single audio sample through the tone stack.
+    ///
+    /// Applies the bass, mid, and treble equalization in sequence.
+    /// Updates the EQ parameters from the tone stack before processing.
+    ///
+    /// # Arguments
+    ///
+    /// * `sample` - The input audio sample.
+    ///
+    /// # Returns
+    ///
+    /// The processed audio sample with tone stack equalization applied.
     fn process(&mut self, sample: f32) -> f32 {
         self.update_parameters();
         let processed = self.bass_eq.process(sample);

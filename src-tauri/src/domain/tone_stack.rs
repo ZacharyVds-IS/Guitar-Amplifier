@@ -3,6 +3,13 @@ use std::sync::atomic::Ordering;
 use atomic_float::AtomicF32;
 use tracing::{error, info};
 
+/// Represents the tone stack with atomic bass, middle, and treble parameters for audio equalization.
+///
+/// The tone stack provides controls for adjusting low (bass), mid-range (middle), and high (treble) frequencies.
+/// It uses [`AtomicF32`] for lock-free updates, enabling low-latency parameter changes from the UI thread
+/// while the audio processing thread reads them without interruption.
+///
+/// All parameters are validated to be between 0.0 and 1.0 (inclusive); attempting to set a value outside this range will panic.
 pub struct ToneStack {
     bass: Arc<AtomicF32>,
     middle: Arc<AtomicF32>,
@@ -10,6 +17,9 @@ pub struct ToneStack {
 }
 
 impl ToneStack {
+    /// Creates a new `ToneStack` with default parameter values.
+    ///
+    /// Bass, middle, and treble are initialized to `1.0`.
     pub fn new() -> Self {
         Self {
             bass: Arc::new(AtomicF32::new(1.0)),
@@ -18,18 +28,38 @@ impl ToneStack {
         }
     }
 
+    /// Returns a cloned [`Arc`] to the atomic bass value.
+    ///
+    /// Allows independent threads to share and read/write the bass parameter without contention.
     pub fn bass(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.bass)
     }
 
+    /// Returns a cloned [`Arc`] to the atomic middle value.
+    ///
+    /// Allows independent threads to share and read/write the middle parameter without contention.
     pub fn middle(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.middle)
     }
 
+    /// Returns a cloned [`Arc`] to the atomic treble value.
+    ///
+    /// Allows independent threads to share and read/write the treble parameter without contention.
     pub fn treble(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.treble)
     }
 
+    /// Sets the bass level for the tone stack.
+    ///
+    /// The bass value is atomically updated and will be read by the audio processing thread on the next sample cycle.
+    ///
+    /// # Arguments
+    ///
+    /// * `bass` - The new bass value. Must be between 0.0 and 1.0 (inclusive).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bass` is negative or greater than 1.0.
     pub fn set_bass(&self, bass: f32) {
         if bass.is_sign_positive() && bass <= 1.0 {
             self.bass.store(bass, Ordering::Relaxed);
@@ -39,6 +69,17 @@ impl ToneStack {
         }
     }
 
+    /// Sets the middle level for the tone stack.
+    ///
+    /// The middle value is atomically updated and will be read by the audio processing thread on the next sample cycle.
+    ///
+    /// # Arguments
+    ///
+    /// * `middle` - The new middle value. Must be between 0.0 and 1.0 (inclusive).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `middle` is negative or greater than 1.0.
     pub fn set_middle(&self, middle: f32) {
         if middle.is_sign_positive() && middle <= 1.0 {
             self.middle.store(middle, Ordering::Relaxed);
@@ -48,6 +89,17 @@ impl ToneStack {
         }
     }
 
+    /// Sets the treble level for the tone stack.
+    ///
+    /// The treble value is atomically updated and will be read by the audio processing thread on the next sample cycle.
+    ///
+    /// # Arguments
+    ///
+    /// * `treble` - The new treble value. Must be between 0.0 and 1.0 (inclusive).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `treble` is negative or greater than 1.0.
     pub fn set_treble(&self, treble: f32) {
         if treble.is_sign_positive() && treble <= 1.0{
             self.treble.store(treble, Ordering::Relaxed);

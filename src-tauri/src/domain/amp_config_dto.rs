@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::sync::atomic::Ordering;
+use crate::domain::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
 
 /// Represents the complete amplifier configuration state.
@@ -14,6 +15,8 @@ pub struct AmpConfigDto {
     pub master_volume: f32,
     /// Whether the audio loopback is currently active.
     pub is_active: bool,
+    /// The current tone stack settings, including bass, mid, treble.
+    pub tone_stack: ToneStackDto
 }
 
 impl AmpConfigDto {
@@ -30,7 +33,12 @@ impl AmpConfigDto {
         Self {
             gain: channel.gain().load(Ordering::Relaxed),
             master_volume: channel.master_volume().load(Ordering::Relaxed),
-            is_active: *service.is_active()
+            is_active: *service.is_active(),
+            tone_stack: ToneStackDto{
+                bass: channel.tone_stack().bass().load(Ordering::Relaxed),
+                middle: channel.tone_stack().middle().load(Ordering::Relaxed),
+                treble: channel.tone_stack().treble().load(Ordering::Relaxed)
+            }
         }
     }
 }

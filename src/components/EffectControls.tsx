@@ -11,6 +11,11 @@ export function EffectControls() {
     const setVolume = useAmpStore((state) => state.setVolume);
     const setGain = useAmpStore((state) => state.setGain);
     const setIsActive = useAmpStore((state) => state.setIsActive);
+
+    const setBass = useAmpStore((state) => state.setBass);
+    const setMiddle= useAmpStore((state) => state.setMiddle);
+    const setTreble= useAmpStore((state) => state.setTreble);
+
     return (
         <Box
             sx={{
@@ -68,9 +73,9 @@ export function EffectControls() {
                     </Typography>
 
                     <Stack direction="row" spacing={2}>
-                        <Knob label="Low" value={30} size={50} onChange={(v) => console.log("Low:", v)}/>
-                        <Knob label="Mid" value={60} size={50} onChange={(v) => console.log("Mid:", v)} />
-                        <Knob label="Bass" value={50} size={50} onChange={(v) => console.log("Bass:", v)}/>
+                        <Knob label="Bass" min={0} max={100} value={100} size={50} onChange={setBass}/>
+                        <Knob label="Middle" min={0} max={100} value={100} size={50} onChange={setMiddle}/>
+                        <Knob label="Treble" min={0} max={100} value={100} size={50} onChange={setTreble}/>
                     </Stack>
                 </Box>
             </Stack>

@@ -1,17 +1,18 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::thread::JoinHandle;
+use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::channel::Channel;
+use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::processors::gain::gain_processor::GainProcessor;
+use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
 use tauri::{AppHandle, Emitter};
 use tracing::info;
-use crate::domain::audio_processor::AudioProcessor;
-use crate::domain::channel::Channel;
-use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
-use crate::services::gain_processor::GainProcessor;
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
@@ -79,6 +80,9 @@ impl AudioService {
         let channel = self.channel.clone(); // shared Arc<AtomicF32>
 
         let thread = thread::spawn(move || {
+            const FFT_SIZE: usize = 2048;
+            let mut fft_buffer: Vec<f32> = Vec::with_capacity(FFT_SIZE);
+
             let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
             let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
 
@@ -91,6 +95,7 @@ impl AudioService {
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain());
                 let mut master_volume = GainProcessor::new(channel.master_volume());
+                let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
 
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
@@ -100,7 +105,12 @@ impl AudioService {
                     if let Some(sample) = i_consumer.try_pop() {
                         let gain_sample = gain.process(sample);
 
-                        let processed = master_volume.process(gain_sample);
+                        let eq_sample = tone_stack.process(gain_sample);
+
+                        //for debugging: print the tone stack values
+                        //tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
+
+                        let processed = master_volume.process(eq_sample);
                         let _ = o_producer.try_push(processed);
                     } else {
                         thread::yield_now();
@@ -220,4 +230,5 @@ impl AudioService {
             self.start_loopback();
         }
     }
+
 }

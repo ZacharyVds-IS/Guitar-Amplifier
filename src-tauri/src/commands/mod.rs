@@ -4,7 +4,7 @@
 //! via Tauri's IPC layer. Each submodule groups related commands:
 //!
 //! - [`loopback`] — Audio loopback control
-//! - [`default_controls`] — Gain, master volume, and amplifier configuration
+//! - [`default_controls`] — Gain, master volume, and tone stack equalizer configuration
 //! - [`settings`] — Input/output device selection and enumeration
 
 pub mod loopback;

@@ -24,10 +24,11 @@ export const useAmpStore = create<AmpState>((set) => ({
     gain: 0,
     master_volume: 0,
     is_active: false,
-    isHydrated: false,
-    bass: 1.0,
-    middle: 1.0,
-    treble: 1.0,
+    tone_stack: {
+        bass: 1.0,
+        middle: 1.0,
+        treble: 1.0,
+    },
 
     init: async () => {
         try {
@@ -56,18 +57,33 @@ export const useAmpStore = create<AmpState>((set) => ({
         toggleOnOff({isOn: val});
     },
 
-    setBase: (val: number) => {
-        set({ bass: val });
+    setBass: (val: number) => {
+        set((state) => ({
+            tone_stack: {
+                ...state.tone_stack,
+                bass: val,
+            },
+        }));
         setBass({bass:val})
     },
 
     setMiddle: (val: number) => {
-        set({ middle: val });
+        set((state) => ({
+            tone_stack: {
+                ...state.tone_stack,
+                middle: val,
+            },
+        }));
         setMiddle({middle:val})
     },
 
     setTreble: (val: number) => {
-        set({ treble: val });
+        set((state) => ({
+            tone_stack: {
+                ...state.tone_stack,
+                treble: val,
+            },
+        }));
         setTreble({treble:val})
     },
 }));

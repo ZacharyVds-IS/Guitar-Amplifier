@@ -42,6 +42,12 @@ export default defineConfig({
           { text: 'Frontend API (TypeDoc)', link: '/frontend/index.html' },
           { text: 'Backend API (Rustdoc)', link: '/backend/doc/rustriff_lib/index.html' }
         ]
+      },
+      {
+        text: 'Arc42 Descriptions',
+        items:[
+          {text: 'Why choose Rust?', link:'/arc42/programming-language-choice'}
+        ]
       }
     ],
 

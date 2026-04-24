@@ -1,29 +1,64 @@
 use std::f32::consts::PI;
 
+/// Types of shelf filters supported by the biquad filter.
 pub enum ShelfType {
+    /// Low shelf filter, boosts or cuts frequencies below the cutoff.
     Low,
+    /// High shelf filter, boosts or cuts frequencies above the cutoff.
     High,
+    /// Peak filter, boosts or cuts a narrow band of frequencies around the center.
     Peak,
 }
 
+/// A biquad filter implementation for audio equalization.
+///
+/// This struct implements a second-order IIR filter using the biquad algorithm.
+/// It maintains internal state (x1, x2, y1, y2) for processing continuous audio streams.
+/// The filter coefficients are calculated based on the RBJ Audio EQ Cookbook formulas.
+///
+/// The filter supports shelf and peak responses for tone stack equalization.
 pub struct Biquad {
+    /// Feedforward coefficient b0.
     b0: f32,
+    /// Feedforward coefficient b1.
     b1: f32,
+    /// Feedforward coefficient b2.
     b2: f32,
+    /// Feedback coefficient a1.
     a1: f32,
+    /// Feedback coefficient a2.
     a2: f32,
+    /// Previous input sample x[n-1].
     x1: f32,
+    /// Previous previous input sample x[n-2].
     x2: f32,
+    /// Previous output sample y[n-1].
     y1: f32,
+    /// Previous previous output sample y[n-2].
     y2: f32,
+    /// Sample rate of the audio signal.
     sample_rate: f32,
+    /// Center/cutoff frequency of the filter.
     freq: f32,
+    /// Type of shelf filter.
     shelf_type: ShelfType,
 }
 
 // Biquad shelf filter implementation based on RBJ Audio EQ Cookbook
 // Reference: https://www.w3.org/2011/audio/audio-eq-cookbook.html
 impl Biquad {
+    /// Creates a new biquad shelf filter with the specified parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `shelf` - The type of shelf filter (Low, High, or Peak).
+    /// * `sample_rate` - The sample rate of the audio signal (e.g., 44100.0).
+    /// * `freq` - The center/cutoff frequency in Hz.
+    /// * `gain_db` - The gain in decibels (positive for boost, negative for cut).
+    ///
+    /// # Returns
+    ///
+    /// A new `Biquad` instance configured with the calculated coefficients.
     pub fn new_shelf(shelf: ShelfType, sample_rate: f32, freq: f32, gain_db: f32) -> Self {
         let (b0, b1, b2, _a0, a1, a2) =
             Self::calculate_coefficients(&shelf, sample_rate, freq, gain_db);
@@ -44,6 +79,18 @@ impl Biquad {
         }
     }
 
+    /// Processes a single audio sample through the biquad filter.
+    ///
+    /// This method applies the filter to the input sample and updates the internal state
+    /// for the next sample. It should be called for each sample in sequence.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The input audio sample.
+    ///
+    /// # Returns
+    ///
+    /// The filtered output sample.
     pub fn process(&mut self, x: f32) -> f32 {
         let y = self.b0 * x + self.b1 * self.x1 + self.b2 * self.x2
             - self.a1 * self.y1
@@ -55,6 +102,14 @@ impl Biquad {
         y
     }
 
+    /// Updates the gain of the biquad filter.
+    ///
+    /// Recalculates the filter coefficients based on the new gain value while keeping
+    /// the same frequency and shelf type. The internal state is preserved.
+    ///
+    /// # Arguments
+    ///
+    /// * `gain_db` - The new gain in decibels.
     pub fn set_gain_db(&mut self, gain_db: f32) {
         let (b0, b1, b2, a0, a1, a2) =
             Self::calculate_coefficients(&self.shelf_type, self.sample_rate, self.freq, gain_db);
@@ -72,6 +127,23 @@ impl Biquad {
          */
     }
 
+    /// Calculates the biquad filter coefficients based on the RBJ Audio EQ Cookbook.
+    ///
+    /// This function computes the feedforward (b0, b1, b2) and feedback (a0, a1, a2) coefficients
+    /// for the specified filter type, sample rate, frequency, and gain. The coefficients are
+    /// normalized so that a0 = 1.0.
+    ///
+    /// # Arguments
+    ///
+    /// * `shelf` - The type of shelf filter.
+    /// * `sample_rate` - The sample rate of the audio signal.
+    /// * `freq` - The center/cutoff frequency in Hz.
+    /// * `gain_db` - The gain in decibels.
+    ///
+    /// # Returns
+    ///
+    /// A tuple of normalized coefficients: (b0, b1, b2, a0, a1, a2) where a0 is always 1.0.
+    /// Reference: https://www.w3.org/2011/audio/audio-eq-cookbook.html
     fn calculate_coefficients(
         shelf: &ShelfType,
         sample_rate: f32,

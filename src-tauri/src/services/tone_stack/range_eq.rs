@@ -1,22 +1,54 @@
 use crate::services::tone_stack::biquad::{Biquad, ShelfType};
 
+/// Types of equalization filters supported by RangeEQ.
 pub enum EQType {
+    /// Low-frequency shelf filter.
     Low,
+    /// High-frequency shelf filter.
     High,
+    /// Band-pass filter (combination of low and high shelves).
     Band,
+    /// Peak filter for mid-range frequencies.
     Peak,
 }
 
+/// A range-based equalizer that combines biquad filters for flexible frequency response shaping.
+///
+/// RangeEQ can operate in different modes (Low, High, Band, Peak) and uses one or two biquad filters
+/// to achieve the desired equalization curve. It converts percentage values to decibel gains
+/// and applies them to the underlying filters.
 pub struct RangeEQ {
+    /// Low-frequency biquad filter (used for Low and Band modes).
     low_shelf: Biquad,
+    /// High-frequency biquad filter (used for High and Band modes).
     high_shelf: Biquad,
+    /// Sample rate of the audio signal.
     sample_rate: f32,
+    /// Low cutoff/cutoff frequency in Hz.
     low_hz: f32,
+    /// High cutoff frequency in Hz (used for Band and High modes).
     high_hz: f32,
+    /// Type of equalization.
     eq_type: EQType,
 }
 
 impl RangeEQ {
+    /// Creates a new RangeEQ with the specified parameters.
+    ///
+    /// The `percent` value is converted to decibel gain and applied to the appropriate biquad filter(s)
+    /// based on the `eq_type`. For Band mode, both low and high shelves are used.
+    ///
+    /// # Arguments
+    ///
+    /// * `sample_rate` - The sample rate of the audio signal.
+    /// * `low_hz` - The low cutoff/cutoff frequency in Hz.
+    /// * `high_hz` - The high cutoff frequency in Hz (ignored for Low and Peak modes).
+    /// * `percent` - The gain as a percentage (0.0 to 1.0), converted to dB internally.
+    /// * `eq_type` - The type of equalization filter.
+    ///
+    /// # Returns
+    ///
+    /// A new `RangeEQ` instance configured with the specified parameters.
     pub fn new(sample_rate: f32, low_hz: f32, high_hz: f32, percent: f32, eq_type: EQType) -> Self {
         let gain_db = percent_to_db(percent);
 
@@ -44,6 +76,14 @@ impl RangeEQ {
         }
     }
 
+    /// Updates the gain of the equalizer.
+    ///
+    /// Converts the percentage value to decibel gain and applies it to the appropriate biquad filter(s).
+    /// For Band mode, both filters are updated.
+    ///
+    /// # Arguments
+    ///
+    /// * `percent` - The new gain as a percentage (0.0 to 1.0).
     pub fn set_percent(&mut self, percent: f32) {
         let gain_db = percent_to_db(percent);
         match self.eq_type {
@@ -57,6 +97,18 @@ impl RangeEQ {
         }
     }
 
+    /// Processes a single audio sample through the equalizer.
+    ///
+    /// Applies the appropriate filter(s) based on the EQ type. For Band mode, the sample
+    /// is processed through both low and high shelves in sequence.
+    ///
+    /// # Arguments
+    ///
+    /// * `sample` - The input audio sample.
+    ///
+    /// # Returns
+    ///
+    /// The filtered output sample.
     pub fn process(&mut self, sample: f32) -> f32 {
         match self.eq_type {
             EQType::Low => self.low_shelf.process(sample),
@@ -70,6 +122,18 @@ impl RangeEQ {
     }
 }
 
+/// Converts a percentage value to decibel gain.
+///
+/// The conversion uses a logarithmic scale where 0% corresponds to -24 dB and 100% to 0 dB.
+/// Values are clamped to prevent extreme gains that could cause instability.
+///
+/// # Arguments
+///
+/// * `percent` - The percentage value (0.0 to 1.0).
+///
+/// # Returns
+///
+/// The equivalent gain in decibels.
 fn percent_to_db(percent: f32) -> f32 {
     let p = percent.clamp(0.0001, 1.0);
     // Logarithmic: 0% -> -24 dB, 100% -> 0 dB (prevents instability at extreme values)

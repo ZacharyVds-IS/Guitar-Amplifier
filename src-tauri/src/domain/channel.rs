@@ -2,26 +2,36 @@ use atomic_float::AtomicF32;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::error;
+use crate::domain::tone_stack::ToneStack;
+use crate::domain::tone_stack_dto::ToneStackDto;
 
-/// Represents an audio channel with atomic gain and master volume parameters.
+/// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///
 /// `Channel` uses [`AtomicF32`] for lock-free updates of audio parameters from
 /// the UI thread while the audio processing thread reads them without waiting.
 /// This enables low-latency parameter changes without interrupting audio playback.
 ///
-/// Both gain and master volume are validated to be positive values; attempting to
-/// set a negative value will panic.
+/// The tone stack provides equalization controls for bass (low frequencies), middle (mid-range frequencies),
+/// and treble (high frequencies), allowing fine-tuning of the audio signal's frequency response.
+/// These parameters are also updated atomically for low-latency changes.
+///
+/// Gain and master volume are validated to be positive values (> 0.0); attempting to
+/// set a negative or zero value will panic.
+///
+/// Tone stack values are validated to be between 0.0 and 1.0; attempting to set a value outside this range will panic.
 #[derive(Clone)]
 pub struct Channel {
     name: String,
     gain: Arc<AtomicF32>,
     master_volume: Arc<AtomicF32>,
+    tone_stack: Arc<ToneStack>
 }
 
 impl Channel {
     /// Creates a new `Channel` with the given name and optional gain/master volume values.
     ///
     /// If `gain` or `master_volume` are not provided, they default to `1.0`.
+    /// The tone stack parameters (bass, middle, treble) are initialized to `1.0`.
     ///
     /// # Arguments
     ///
@@ -36,6 +46,7 @@ impl Channel {
             name,
             gain: Arc::new(AtomicF32::new(gain)),
             master_volume: Arc::new(AtomicF32::new(master_volume)),
+            tone_stack: Arc::new(ToneStack::new()),
         }
     }
 
@@ -80,6 +91,67 @@ impl Channel {
             panic!("Master volume must be positive");
         }
     }
+    /// Sets the tone stack parameters from a [`ToneStackDto`].
+    ///
+    /// The bass, middle, and treble values in the DTO should be between 0.0 and 1.0.
+    ///
+    /// # Arguments
+    ///
+    /// * `tone_stack` - The tone stack data transfer object containing the new values.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any value is outside the valid range.
+    pub fn set_tone_stack(&self, tone_stack: ToneStackDto) {
+        self.tone_stack.set_bass(tone_stack.bass);
+        self.tone_stack.set_middle(tone_stack.middle);
+        self.tone_stack.set_treble(tone_stack.treble);
+    }
+
+    /// Sets the bass level for the tone stack.
+    ///
+    /// The input value is expected to be in the range 0-100 and is internally scaled to 0-1.
+    ///
+    /// # Arguments
+    ///
+    /// * `bass` - The bass level (0-100).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the scaled value is not between 0.0 and 1.0.
+    pub fn set_bass(&self, bass: f32) {
+        self.tone_stack.set_bass(bass/100.0);
+    }
+
+    /// Sets the middle level for the tone stack.
+    ///
+    /// The input value is expected to be in the range 0-100 and is internally scaled to 0-1.
+    ///
+    /// # Arguments
+    ///
+    /// * `middle` - The middle level (0-100).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the scaled value is not between 0.0 and 1.0.
+    pub fn set_middle(&self, middle: f32) {
+        self.tone_stack.set_middle(middle/100.0);
+    }
+
+    /// Sets the treble level for the tone stack.
+    ///
+    /// The input value is expected to be in the range 0-100 and is internally scaled to 0-1.
+    ///
+    /// # Arguments
+    ///
+    /// * `treble` - The treble level (0-100).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the scaled value is not between 0.0 and 1.0.
+    pub fn set_treble(&self, treble: f32) {
+        self.tone_stack.set_treble(treble/100.0);
+    }
 
     /// Returns a cloned [`Arc`] to the atomic gain value.
     ///
@@ -96,6 +168,13 @@ impl Channel {
     pub fn master_volume(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.master_volume)
     }
+
+    /// Returns a cloned [`Arc`] to the tone stack.
+    ///
+    /// Allows independent threads to access the tone stack parameters for audio processing.
+    pub fn tone_stack(&self) -> Arc<ToneStack> {
+        Arc::clone(&self.tone_stack)
+    }
 }
 
 #[cfg(test)]
@@ -108,10 +187,17 @@ mod tests {
 
         #[test]
         fn gain_set_to_positive_value_should_succeed() {
-            let channel = Channel::new("Test".to_string(), Some(1.0), None);
+            let channel = Channel::new("Test".to_string(), None, None);
             channel.set_gain(0.5);
             assert_eq!(channel.gain().load(Ordering::Relaxed), 0.5);
         }
+        #[test]
+        fn master_volume_set_to_positive_value_should_succeed() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_master_volume(0.5);
+            assert_eq!(channel.master_volume().load(Ordering::Relaxed), 0.5);
+        }
+
     }
 
     #[cfg(test)]
@@ -121,8 +207,14 @@ mod tests {
         #[test]
         #[should_panic(expected = "Gain must be positive")]
         fn gain_set_to_negative_value_should_panic() {
-            let channel = Channel::new("Test".to_string(), Some(1.0), None);
+            let channel = Channel::new("Test".to_string(), None, None);
             channel.set_gain(-0.5);
+        }
+        #[test]
+        #[should_panic(expected = "Master volume must be positive")]
+        fn master_volume_set_to_negative_value_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_master_volume(-0.5);
         }
     }
 }

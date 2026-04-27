@@ -137,7 +137,7 @@ impl Channel {
         self.name = name;
     }
 
-    pub fn set_volume(&mut self, volume: f32) {
+    pub fn set_volume(&self, volume: f32) {
         if volume.is_sign_positive() {
             self.volume.store(volume, Ordering::Relaxed);
         } else {
@@ -186,6 +186,12 @@ mod tests {
             assert_eq!(channel.gain().load(Ordering::Relaxed), 0.5);
         }
 
+        #[test]
+        fn volume_set_to_positive_value_should_succeed() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_volume(0.5);
+            assert_eq!(channel.volume().load(Ordering::Relaxed), 0.5);
+        }
     }
 
     #[cfg(test)]
@@ -197,6 +203,13 @@ mod tests {
         fn gain_set_to_negative_value_should_panic() {
             let channel = Channel::new("Test".to_string(), None, None);
             channel.set_gain(-0.5);
+        }
+
+        #[test]
+        #[should_panic(expected = "Volume must be positive")]
+        fn volume_set_to_negative_value_should_panic() {
+            let channel = Channel::new("Test".to_string(), None, None);
+            channel.set_volume(-0.5);
         }
     }
 }

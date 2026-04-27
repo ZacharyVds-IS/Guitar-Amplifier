@@ -6,6 +6,7 @@ import {
     setMasterVolume,
     setMiddle,
     setTreble,
+    setVolume,
     toggleOnOff
 } from "../domain";
 import {create} from "zustand/react";
@@ -14,6 +15,7 @@ interface AmpState extends AmpConfigDto {
     init:() => Promise<void>;
     setGain:(val:number) => void;
     setVolume: (val:number) => void;
+    setMasterVolume: (val:number) => void;
     setIsActive:(val:boolean) => void;
     setBass:(val:number) => void;
     setMiddle:(val:number) => void;
@@ -29,6 +31,7 @@ export const useAmpStore = create<AmpState>((set) => ({
         middle: 1.0,
         treble: 1.0,
     },
+    volume: 0,
 
     init: async () => {
         try {
@@ -48,6 +51,11 @@ export const useAmpStore = create<AmpState>((set) => ({
     },
 
     setVolume: (val: number) => {
+        set({ volume: val });
+        setVolume({volume:val})
+    },
+
+    setMasterVolume: (val: number) => {
         set({ master_volume: val });
         setMasterVolume({masterVolume:val})
     },

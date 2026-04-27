@@ -16,7 +16,8 @@ pub struct AmpConfigDto {
     /// Whether the audio loopback is currently active.
     pub is_active: bool,
     /// The current tone stack settings, including bass, mid, treble.
-    pub tone_stack: ToneStackDto
+    pub tone_stack: ToneStackDto,
+    pub volume: f32,
 }
 
 impl AmpConfigDto {
@@ -38,7 +39,8 @@ impl AmpConfigDto {
                 bass: channel.tone_stack().bass().load(Ordering::Relaxed),
                 middle: channel.tone_stack().middle().load(Ordering::Relaxed),
                 treble: channel.tone_stack().treble().load(Ordering::Relaxed)
-            }
+            },
+            volume: channel.volume().load(Ordering::Relaxed),
         }
     }
 }

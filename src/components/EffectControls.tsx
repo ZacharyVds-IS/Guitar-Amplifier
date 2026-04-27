@@ -4,11 +4,13 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 
 export function EffectControls() {
-    const volume = useAmpStore((state) => state.master_volume);
+    const volume = useAmpStore((state) => state.volume);
+    const masterVolume = useAmpStore((state) => state.master_volume);
     const gain = useAmpStore((state) => state.gain);
     const isActive = useAmpStore((state) => state.is_active);
 
     const setVolume = useAmpStore((state) => state.setVolume);
+    const setMasterVolume = useAmpStore((state) => state.setMasterVolume);
     const setGain = useAmpStore((state) => state.setGain);
     const setIsActive = useAmpStore((state) => state.setIsActive);
 
@@ -78,6 +80,7 @@ export function EffectControls() {
                         <Knob label="Treble" min={0} max={100} value={100} size={50} onChange={setTreble}/>
                     </Stack>
                 </Box>
+                <Knob label={"Master"} min={0} max={11} step={1} value={masterVolume} onChange={setMasterVolume}/>
             </Stack>
         </Box>
     );

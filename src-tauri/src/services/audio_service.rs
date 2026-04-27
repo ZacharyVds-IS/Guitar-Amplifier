@@ -97,6 +97,7 @@ impl AudioService {
 
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain());
+                let mut volume = GainProcessor::new(channel.volume());
                 let mut master_volume = GainProcessor::new(master_volume_arc);
                 let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
 
@@ -110,10 +111,14 @@ impl AudioService {
 
                         let eq_sample = tone_stack.process(gain_sample);
 
+                        //EFFECTS GO HERE
+
+                        let wet_sample= volume.process(eq_sample);
+
                         //for debugging: print the tone stack values
                         //tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
 
-                        let processed = master_volume.process(eq_sample);
+                        let processed = master_volume.process(wet_sample);
                         let _ = o_producer.try_push(processed);
                     } else {
                         thread::yield_now();

@@ -3,7 +3,7 @@ use crate::domain::tone_stack_dto::ToneStackDto;
 use atomic_float::AtomicF32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, info};
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///
@@ -139,6 +139,7 @@ impl Channel {
 
     pub fn set_volume(&self, volume: f32) {
         if volume.is_sign_positive() {
+            info!("Setting volume to {}", volume);
             self.volume.store(volume, Ordering::Relaxed);
         } else {
             error!("Volume must be a positive number");
@@ -166,8 +167,8 @@ impl Channel {
         &self.name
     }
 
-    pub fn volume(&self) -> &Arc<AtomicF32> {
-        &self.volume
+    pub fn volume(&self) -> Arc<AtomicF32> {
+        Arc::clone(&self.volume)
     }
 }
 

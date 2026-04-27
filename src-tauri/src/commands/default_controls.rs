@@ -94,3 +94,9 @@ pub(crate) fn set_treble(audio_service: tauri::State<Mutex<AudioService>>, trebl
     let service = audio_service.inner().lock().unwrap();
     service.channel().set_treble(treble);
 }
+
+#[tauri::command]
+pub(crate) fn set_volume(audio_service: tauri::State<Mutex<AudioService>>, volume: f32){
+    let service = audio_service.inner().lock().unwrap();
+    service.channel().set_volume(volume);
+}

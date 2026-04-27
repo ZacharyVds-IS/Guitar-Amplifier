@@ -1,6 +1,6 @@
 # Resampling
 ## What is sample rate?
-Sample rate is the nubmer of samples taken per second from a continuous analog signal, measured in Hertz (hz).
+Sample rate is the number of samples taken per second from a continuous analog signal, measured in Hertz (hz).
 
 ## Potential issues
 Devices aren't necessarily able to handle the same samplerates.

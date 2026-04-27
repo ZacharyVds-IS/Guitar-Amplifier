@@ -1,7 +1,7 @@
-use std::sync::Mutex;
 use crate::domain::amp_config_dto::AmpConfigDto;
 use crate::domain::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
+use std::sync::Mutex;
 
 /// Retrieves the current amplifier configuration as an [`AmpConfigDto`].
 ///
@@ -57,18 +57,18 @@ pub(crate) fn set_gain(audio_service: tauri::State<Mutex<AudioService>>, gain: f
 
 /// Sets the master volume level for the amplifier.
 ///
-/// Applies the master volume value to the [`Channel`] within the [`AudioService`].
+/// Applies the master volume value to the [`AudioService`].
 ///
 /// # Arguments
 ///
 /// * `audio_service` - The shared [`AudioService`] state.
 /// * `master_volume` - The master volume value (must be positive).
 ///
-/// [`Channel`]: crate::domain::channel::Channel
+/// [`AudioService`]: crate::services::audio_service::AudioService
 #[tauri::command]
 pub(crate) fn set_master_volume(audio_service: tauri::State<Mutex<AudioService>>, master_volume: f32) {
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_master_volume(master_volume);
+    service.set_master_volume(master_volume);
 }
 
 #[tauri::command]

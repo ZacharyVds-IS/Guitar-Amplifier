@@ -3,6 +3,7 @@ use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
+use atomic_float::AtomicF32;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
@@ -11,8 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tauri::{AppHandle, Emitter};
-use tracing::info;
+use tracing::{error, info};
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
@@ -26,6 +26,7 @@ pub struct AudioService {
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
     channel: Channel,
+    master_volume: Arc<AtomicF32>,
 }
 
 impl AudioService {
@@ -58,6 +59,7 @@ impl AudioService {
             loopback_thread: None,
             is_active: false,
             channel: Channel::new("Main".to_string(), None, None),
+            master_volume: Arc::new(AtomicF32::new(1.0)),
         }
     }
 
@@ -78,6 +80,7 @@ impl AudioService {
 
         let handler = self.audio_handler.clone();
         let channel = self.channel.clone(); // shared Arc<AtomicF32>
+        let master_volume_arc = self.master_volume.clone();
 
         let thread = thread::spawn(move || {
             const FFT_SIZE: usize = 2048;
@@ -94,7 +97,7 @@ impl AudioService {
 
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain());
-                let mut master_volume = GainProcessor::new(channel.master_volume());
+                let mut master_volume = GainProcessor::new(master_volume_arc);
                 let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
 
                 loop {
@@ -149,6 +152,27 @@ impl AudioService {
         }
 
         self.is_active = false;
+    }
+
+    /// Sets the master volume value.
+    ///
+    /// The master volume value is atomically updated and will be read by the audio processing
+    /// thread on the next sample cycle.
+    ///
+    /// # Arguments
+    ///
+    /// * `master_volume` - The new master volume value. Must be positive (> 0.0).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `master_volume` is negative or zero.
+    pub fn set_master_volume(&self, master_volume: f32) {
+        if master_volume.is_sign_positive() {
+            self.master_volume.store(master_volume, Ordering::Relaxed);
+        } else {
+            error!("Master volume must be a positive number");
+            panic!("Master volume must be positive");
+        }
     }
 
     /// Replaces the underlying audio handler, restarting the loopback if it was running.
@@ -230,5 +254,38 @@ impl AudioService {
             self.start_loopback();
         }
     }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
+    use std::sync::atomic::Ordering;
+    use std::sync::Arc;
+
+    #[cfg(test)]
+    mod success_path {
+        use super::*;
+
+        #[test]
+        fn master_volume_set_to_positive_value_should_succeed() {
+            let mock = MockAudioHandlerTrait::new();
+            let service = AudioService::new_with_handler(Arc::new(mock));
+            service.set_master_volume(0.5);
+            assert_eq!(service.master_volume().load(Ordering::Relaxed), 0.5);
+        }
+    }
+
+    #[cfg(test)]
+    mod failure_path {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "Master volume must be positive")]
+        fn master_volume_set_to_negative_value_should_panic() {
+            let mock = MockAudioHandlerTrait::new();
+            let service = AudioService::new_with_handler(Arc::new(mock));
+            service.set_master_volume(-0.5);
+        }
+    }
 }

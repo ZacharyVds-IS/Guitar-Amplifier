@@ -1,9 +1,9 @@
-use atomic_float::AtomicF32;
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use tracing::error;
 use crate::domain::tone_stack::ToneStack;
 use crate::domain::tone_stack_dto::ToneStackDto;
+use atomic_float::AtomicF32;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use tracing::error;
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///
@@ -23,8 +23,8 @@ use crate::domain::tone_stack_dto::ToneStackDto;
 pub struct Channel {
     name: String,
     gain: Arc<AtomicF32>,
-    master_volume: Arc<AtomicF32>,
-    tone_stack: Arc<ToneStack>
+    tone_stack: Arc<ToneStack>,
+    volume: Arc<AtomicF32>,
 }
 
 impl Channel {
@@ -38,15 +38,15 @@ impl Channel {
     /// * `name` - A human-readable name for the channel (e.g., "Main", "Overdrive").
     /// * `gain` - Optional initial gain value. Defaults to `1.0` if `None`.
     /// * `master_volume` - Optional initial master volume value. Defaults to `1.0` if `None`.
-    pub fn new(name: String, gain: Option<f32>, master_volume: Option<f32> ) -> Self {
+    pub fn new(name: String, gain: Option<f32>, volume: Option<f32> ) -> Self {
         let gain = gain.unwrap_or(1.0);
-        let master_volume = master_volume.unwrap_or(1.0);
+        let volume = volume.unwrap_or(1.0);
 
         Self {
             name,
             gain: Arc::new(AtomicF32::new(gain)),
-            master_volume: Arc::new(AtomicF32::new(master_volume)),
             tone_stack: Arc::new(ToneStack::new()),
+            volume: Arc::new(AtomicF32::new(volume)),
         }
     }
 
@@ -71,26 +71,6 @@ impl Channel {
         }
     }
 
-    /// Sets the master volume value for this channel.
-    ///
-    /// The master volume value is atomically updated and will be read by the audio processing
-    /// thread on the next sample cycle.
-    ///
-    /// # Arguments
-    ///
-    /// * `master_volume` - The new master volume value. Must be positive (> 0.0).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `master_volume` is negative or zero.
-    pub fn set_master_volume(&self, master_volume: f32) {
-        if master_volume.is_sign_positive() {
-            self.master_volume.store(master_volume, Ordering::Relaxed);
-        } else {
-            error!("Master volume must be a positive number");
-            panic!("Master volume must be positive");
-        }
-    }
     /// Sets the tone stack parameters from a [`ToneStackDto`].
     ///
     /// The bass, middle, and treble values in the DTO should be between 0.0 and 1.0.
@@ -153,6 +133,19 @@ impl Channel {
         self.tone_stack.set_treble(treble/100.0);
     }
 
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        if volume.is_sign_positive() {
+            self.volume.store(volume, Ordering::Relaxed);
+        } else {
+            error!("Volume must be a positive number");
+            panic!("Volume must be positive");
+        }
+    }
+
     /// Returns a cloned [`Arc`] to the atomic gain value.
     ///
     /// Allows independent threads to share and read/write the gain parameter
@@ -161,19 +154,20 @@ impl Channel {
         Arc::clone(&self.gain)
     }
 
-    /// Returns a cloned [`Arc`] to the atomic master volume value.
-    ///
-    /// Allows independent threads to share and read/write the master volume parameter
-    /// without contention.
-    pub fn master_volume(&self) -> Arc<AtomicF32> {
-        Arc::clone(&self.master_volume)
-    }
 
     /// Returns a cloned [`Arc`] to the tone stack.
     ///
     /// Allows independent threads to access the tone stack parameters for audio processing.
     pub fn tone_stack(&self) -> Arc<ToneStack> {
         Arc::clone(&self.tone_stack)
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn volume(&self) -> &Arc<AtomicF32> {
+        &self.volume
     }
 }
 
@@ -191,12 +185,6 @@ mod tests {
             channel.set_gain(0.5);
             assert_eq!(channel.gain().load(Ordering::Relaxed), 0.5);
         }
-        #[test]
-        fn master_volume_set_to_positive_value_should_succeed() {
-            let channel = Channel::new("Test".to_string(), None, None);
-            channel.set_master_volume(0.5);
-            assert_eq!(channel.master_volume().load(Ordering::Relaxed), 0.5);
-        }
 
     }
 
@@ -209,12 +197,6 @@ mod tests {
         fn gain_set_to_negative_value_should_panic() {
             let channel = Channel::new("Test".to_string(), None, None);
             channel.set_gain(-0.5);
-        }
-        #[test]
-        #[should_panic(expected = "Master volume must be positive")]
-        fn master_volume_set_to_negative_value_should_panic() {
-            let channel = Channel::new("Test".to_string(), None, None);
-            channel.set_master_volume(-0.5);
         }
     }
 }

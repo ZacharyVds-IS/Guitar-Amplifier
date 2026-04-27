@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
-use std::sync::atomic::Ordering;
 use crate::domain::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
+use serde::{Deserialize, Serialize};
+use std::sync::atomic::Ordering;
 
 /// Represents the complete amplifier configuration state.
 ///
@@ -22,7 +22,7 @@ pub struct AmpConfigDto {
 impl AmpConfigDto {
     /// Constructs an `AmpConfigDto` from the current state of an [`AudioService`].
     ///
-    /// Reads atomic values from the service's channel with relaxed memory ordering.
+    /// Reads atomic values from the service's channel and master volume with relaxed memory ordering.
     ///
     /// # Arguments
     ///
@@ -32,7 +32,7 @@ impl AmpConfigDto {
 
         Self {
             gain: channel.gain().load(Ordering::Relaxed),
-            master_volume: channel.master_volume().load(Ordering::Relaxed),
+            master_volume: service.master_volume().load(Ordering::Relaxed),
             is_active: *service.is_active(),
             tone_stack: ToneStackDto{
                 bass: channel.tone_stack().bass().load(Ordering::Relaxed),

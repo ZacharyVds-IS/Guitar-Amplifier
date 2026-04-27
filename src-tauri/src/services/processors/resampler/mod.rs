@@ -1,2 +1,2 @@
-pub mod rubato_resampler;
+pub mod resampler;
 

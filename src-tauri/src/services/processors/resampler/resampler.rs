@@ -3,18 +3,51 @@ use rubato::{
 };
 use tracing::{error, info, warn};
 
-const MAX_RESAMPLE_RATIO_RELATIVE: f64 = 2.0;
-const SINC_LEN: usize = 128;
-const OVERSAMPLING_FACTOR: usize = 128;
-const CUTOFF: f32 = 0.95;
 
-pub struct RubatoResampler {
+/// A streaming, sample-accurate resampler backed by rubato's [`SincFixedIn`].
+///
+/// Samples are fed one at a time through [`process_sample`]. Internally they
+/// are accumulated in a fixed-size chunk buffer; when the buffer is full rubato
+/// processes the whole chunk and returns resampled output samples. This means
+/// `process_sample` returns an empty `Vec` most of the time and a batch of
+/// output samples every `input_chunk_size` calls.
+///
+/// Call [`flush`] before discarding the resampler (e.g. on shutdown) to
+/// process any samples remaining in the internal buffer. Remaining space is
+/// zero-padded so that rubato receives a complete chunk.
+///
+/// # Construction
+///
+/// Use [`ResamplerImpl::new`] with non-equal, non-zero rates and a non-zero
+/// chunk size. Returns `Err` if any of those constraints are violated.
+///
+/// [`process_sample`]: ResamplerImpl::process_sample
+/// [`flush`]: ResamplerImpl::flush
+pub struct ResamplerImpl {
     inner: SincFixedIn<f32>,
     input_chunk_size: usize,
     input_buffer: Vec<f32>,
 }
 
-impl RubatoResampler {
+impl ResamplerImpl {
+    /// Creates a new `RubatoResampler` that converts audio from `input_rate` to `output_rate`.
+    ///
+    /// The resampler buffers incoming samples into chunks of exactly `input_chunk_size`
+    /// before processing. A larger chunk size improves quality (more filter context)
+    /// but increases latency; a smaller chunk size reduces latency at a slight quality cost.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_rate`       – Sample rate of the incoming audio in Hz (must be > 0).
+    /// * `output_rate`      – Sample rate of the desired output audio in Hz (must be > 0).
+    /// * `input_chunk_size` – Number of input samples per rubato processing call (must be > 0).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(String)` if:
+    /// - Either rate is zero.
+    /// - `input_chunk_size` is zero.
+    /// - Rubato fails to initialise (e.g. an extreme or unsupported ratio).
     pub fn new(input_rate: u32, output_rate: u32, input_chunk_size: usize) -> Result<Self, String> {
         if input_rate == 0 || output_rate == 0 {
             return Err("Sample rates must be > 0".to_string());
@@ -25,17 +58,21 @@ impl RubatoResampler {
         }
 
         let params = SincInterpolationParameters {
-            sinc_len: SINC_LEN,
-            f_cutoff: CUTOFF,
+            // 128 taps: good balance of frequency accuracy vs CPU cost per chunk.
+            sinc_len: 128,
+            // 0.95 of Nyquist: passes up to 95 % of the audio band, reduces aliasing.
+            f_cutoff: 0.95,
             interpolation: SincInterpolationType::Linear,
-            oversampling_factor: OVERSAMPLING_FACTOR,
+            // 128× oversampling of the sinc table: lower interpolation error.
+            oversampling_factor: 128,
             window: WindowFunction::BlackmanHarris2,
         };
 
         let ratio = output_rate as f64 / input_rate as f64;
         let inner = SincFixedIn::<f32>::new(
             ratio,
-            MAX_RESAMPLE_RATIO_RELATIVE,
+            // Allow the ratio to vary up to 2× — more than enough for static device-rate conversion.
+            2.0,
             params,
             input_chunk_size,
             1,
@@ -49,6 +86,16 @@ impl RubatoResampler {
         })
     }
 
+    /// Feeds a single sample into the resampler and returns any output samples produced.
+    ///
+    /// Internally the sample is appended to a chunk buffer. No output is produced until
+    /// the buffer reaches `input_chunk_size`, at which point rubato processes the full
+    /// chunk and returns a batch of resampled `f32` samples.
+    ///
+    /// # Returns
+    ///
+    /// - An empty `Vec` while the chunk buffer is still filling.
+    /// - A `Vec` of resampled `f32` samples once a full chunk has been processed.
     pub fn process_sample(&mut self, sample: f32) -> Vec<f32> {
         self.input_buffer.push(sample);
 
@@ -60,6 +107,16 @@ impl RubatoResampler {
         self.process_chunk(chunk)
     }
 
+    /// Processes any samples remaining in the internal buffer by zero-padding to a full chunk.
+    ///
+    /// Call this once when the audio stream ends or the loopback is stopped to avoid
+    /// losing samples that have not yet formed a complete chunk. The trailing silence
+    /// introduced by the padding is audibly negligible given typical chunk sizes.
+    ///
+    /// # Returns
+    ///
+    /// - A `Vec` of resampled `f32` samples produced from the padded chunk.
+    /// - An empty `Vec` if the buffer was already empty.
     pub fn flush(&mut self) -> Vec<f32> {
         if self.input_buffer.is_empty() {
             return Vec::new();
@@ -70,6 +127,10 @@ impl RubatoResampler {
         self.process_chunk(padded_chunk)
     }
 
+    /// Runs a full chunk of `input_chunk_size` samples through the rubato resampler.
+    ///
+    /// This is the only place rubato is called. Errors are logged and an empty
+    /// `Vec` is returned so the pipeline degrades gracefully rather than panicking.
     fn process_chunk(&mut self, input_chunk: Vec<f32>) -> Vec<f32> {
         let input = vec![input_chunk];
 
@@ -86,25 +147,51 @@ impl RubatoResampler {
 /// Determines when resampling occurs relative to the DSP chain based on the
 /// input and output sample rates.
 ///
-/// - [`Bypass`]: rates are equal, no resampling overhead at all.
-/// - [`PreDsp`]: input rate is higher than output rate — downsample **before**
-///   the DSP chain so every gain/EQ calculation runs at the lower output rate.
-/// - [`PostDsp`]: input rate is lower than output rate — run DSP at the cheaper
-///   input rate and upsample **after**, just before pushing to the output buffer.
+/// Construct the correct variant using [`ResamplePolicy::from_rates`]; do not
+/// construct variants directly unless writing tests.
+///
+/// | Condition            | Variant    | Resampler placement                                 |
+/// |----------------------|------------|-----------------------------------------------------|
+/// | `input == output`    | `Bypass`   | No resampler — zero overhead                        |
+/// | `input  > output`    | `PreDsp`   | Downsample **before** DSP; DSP runs at output rate  |
+/// | `input  < output`    | `PostDsp`  | Upsample **after** DSP; DSP runs at input rate      |
+///
+/// Both `PreDsp` and `PostDsp` run the DSP chain at the *lower* of the two rates,
+/// which minimises CPU cost for gain, EQ, and any future processors.
 ///
 /// [`Bypass`]: ResamplePolicy::Bypass
 /// [`PreDsp`]: ResamplePolicy::PreDsp
 /// [`PostDsp`]: ResamplePolicy::PostDsp
 pub enum ResamplePolicy {
+    /// Input and output rates are equal — the DSP chain is applied directly with no
+    /// resampling overhead.
     Bypass,
-    PreDsp(RubatoResampler),
-    PostDsp(RubatoResampler),
+
+    /// Input rate is higher than output rate. The [`ResamplerImpl`] downsamples each
+    /// input sample to the output rate **before** it enters the DSP chain.
+    PreDsp(ResamplerImpl),
+
+    /// Input rate is lower than output rate. The DSP chain processes the sample at the
+    /// input rate first, then the [`ResamplerImpl`] upsamples the result to the output rate.
+    PostDsp(ResamplerImpl),
 }
 
 impl ResamplePolicy {
-    /// Selects and initialises the correct resampling policy for the given rates.
+    /// Selects and initialises the correct [`ResamplePolicy`] variant for the given rates.
     ///
-    /// Falls back to [`Bypass`] with a warning if the resampler fails to initialise.
+    /// Logs the chosen path at `info` level on startup. If the [`ResamplerImpl`] fails to
+    /// initialise (e.g. rates are zero or rubato rejects the ratio) the method logs a `warn`
+    /// and falls back to [`Bypass`] so the pipeline keeps running without resampling.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_rate`  – Sample rate of the input device in Hz.
+    /// * `output_rate` – Sample rate of the output device in Hz.
+    /// * `chunk_size`  – Number of input samples per rubato processing call (forwarded to [`ResamplerImpl::new`]).
+    ///
+    /// # Returns
+    ///
+    /// The most appropriate [`ResamplePolicy`] variant for the given rate pair.
     ///
     /// [`Bypass`]: ResamplePolicy::Bypass
     pub fn from_rates(input_rate: u32, output_rate: u32, chunk_size: usize) -> Self {
@@ -117,7 +204,7 @@ impl ResamplePolicy {
                 info!(
                     "Sample rates differ: input ({input_rate} Hz) > output ({output_rate} Hz) — downsampling before DSP"
                 );
-                match RubatoResampler::new(input_rate, output_rate, chunk_size) {
+                match ResamplerImpl::new(input_rate, output_rate, chunk_size) {
                     Ok(r) => Self::PreDsp(r),
                     Err(e) => {
                         warn!("Failed to initialise pre-DSP downsampler, using bypass: {e}");
@@ -129,7 +216,7 @@ impl ResamplePolicy {
                 info!(
                     "Sample rates differ: input ({input_rate} Hz) < output ({output_rate} Hz) — upsampling after DSP"
                 );
-                match RubatoResampler::new(input_rate, output_rate, chunk_size) {
+                match ResamplerImpl::new(input_rate, output_rate, chunk_size) {
                     Ok(r) => Self::PostDsp(r),
                     Err(e) => {
                         warn!("Failed to initialise post-DSP upsampler, using bypass: {e}");
@@ -140,10 +227,26 @@ impl ResamplePolicy {
         }
     }
 
-    /// Processes a single input sample through the resampling policy.
+    /// Processes a single input sample through the resampling policy and DSP chain.
     ///
-    /// `dsp` is called once per sample that enters the DSP chain.
-    /// Returns zero or more output samples ready to be pushed to the output buffer.
+    /// The `dsp` closure represents the full effects chain (gain → EQ → master volume).
+    /// Where exactly in the pipeline `dsp` is called depends on the active variant:
+    ///
+    /// | Variant    | Order                                   |
+    /// |------------|-----------------------------------------|
+    /// | `Bypass`   | `dsp(sample)` → 1 output sample         |
+    /// | `PreDsp`   | resample → `dsp` per result             |
+    /// | `PostDsp`  | `dsp(sample)` → resample output         |
+    ///
+    /// # Arguments
+    ///
+    /// * `sample` – A single raw `f32` audio sample from the input ring buffer.
+    /// * `dsp`    – Mutable closure that applies the full DSP chain to one sample and returns the result.
+    ///
+    /// # Returns
+    ///
+    /// Zero or more `f32` output samples ready to be pushed to the output ring buffer.
+    /// Returns an empty `Vec` when the resampler's internal chunk buffer is not yet full.
     pub fn process(&mut self, sample: f32, dsp: &mut impl FnMut(f32) -> f32) -> Vec<f32> {
         match self {
             Self::Bypass => vec![dsp(sample)],
@@ -156,7 +259,25 @@ impl ResamplePolicy {
         }
     }
 
-    /// Flushes any remaining buffered samples through the policy at shutdown.
+    /// Flushes any samples remaining in the resampler's internal buffer at shutdown.
+    ///
+    /// Should be called once after the worker loop exits to avoid losing the tail of
+    /// audio that has not yet filled a complete chunk. The `dsp` closure is applied to
+    /// flushed samples in the same position as during normal processing.
+    ///
+    /// Returns an empty `Vec` for [`Bypass`] (nothing buffered) and for active resamplers
+    /// whose buffer was already empty.
+    ///
+    /// # Arguments
+    ///
+    /// * `dsp` – The same DSP closure used in [`process`], applied to any remaining samples.
+    ///
+    /// # Returns
+    ///
+    /// Zero or more `f32` output samples from the flushed remainder.
+    ///
+    /// [`Bypass`]: ResamplePolicy::Bypass
+    /// [`process`]: ResamplePolicy::process
     pub fn flush(&mut self, dsp: &mut impl FnMut(f32) -> f32) -> Vec<f32> {
         match self {
             Self::Bypass => Vec::new(),
@@ -182,7 +303,7 @@ mod tests {
 
             #[test]
             fn upsampling_eventually_produces_output_samples() {
-                let mut resampler = RubatoResampler::new(44_100, 48_000, 32).unwrap();
+                let mut resampler = ResamplerImpl::new(44_100, 48_000, 32).unwrap();
                 let mut produced = 0usize;
 
                 for _ in 0..512 {
@@ -195,7 +316,7 @@ mod tests {
 
             #[test]
             fn downsampling_outputs_fewer_samples_than_input() {
-                let mut resampler = RubatoResampler::new(48_000, 44_100, 32).unwrap();
+                let mut resampler = ResamplerImpl::new(48_000, 44_100, 32).unwrap();
                 let mut produced = 0usize;
 
                 for _ in 0..128 {
@@ -209,7 +330,7 @@ mod tests {
             #[test]
             fn process_sample_buffers_until_chunk_is_full() {
                 let chunk_size = 16;
-                let mut resampler = RubatoResampler::new(44_100, 48_000, chunk_size).unwrap();
+                let mut resampler = ResamplerImpl::new(44_100, 48_000, chunk_size).unwrap();
                 for _ in 0..(chunk_size - 1) {
                     assert!(resampler.process_sample(0.1).is_empty(), "Should buffer until chunk is full");
                 }
@@ -233,7 +354,7 @@ mod tests {
             #[test]
             fn flush_clears_remaining_buffered_input() {
                 let chunk_size = 32;
-                let mut resampler = RubatoResampler::new(44_100, 48_000, chunk_size).unwrap();
+                let mut resampler = ResamplerImpl::new(44_100, 48_000, chunk_size).unwrap();
                 for _ in 0..10 {
                     resampler.process_sample(0.1);
                 }
@@ -245,7 +366,7 @@ mod tests {
 
             #[test]
             fn flush_on_empty_buffer_returns_nothing() {
-                let mut resampler = RubatoResampler::new(44_100, 48_000, 32).unwrap();
+                let mut resampler = ResamplerImpl::new(44_100, 48_000, 32).unwrap();
                 let flushed = resampler.flush();
                 assert!(flushed.is_empty(), "Flush on an empty buffer should return no samples");
             }
@@ -256,19 +377,19 @@ mod tests {
 
             #[test]
             fn zero_input_rate_returns_error() {
-                let result = RubatoResampler::new(0, 48_000, 32);
+                let result = ResamplerImpl::new(0, 48_000, 32);
                 assert!(result.is_err(), "Zero input rate should return an error");
             }
 
             #[test]
             fn zero_output_rate_returns_error() {
-                let result = RubatoResampler::new(44_100, 0, 32);
+                let result = ResamplerImpl::new(44_100, 0, 32);
                 assert!(result.is_err(), "Zero output rate should return an error");
             }
 
             #[test]
             fn zero_chunk_size_returns_error() {
-                let result = RubatoResampler::new(44_100, 48_000, 0);
+                let result = ResamplerImpl::new(44_100, 48_000, 0);
                 assert!(result.is_err(), "Zero chunk size should return an error");
             }
         }

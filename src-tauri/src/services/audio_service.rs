@@ -2,7 +2,7 @@ use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
-use crate::services::processors::resampler::rubato_resampler::ResamplePolicy;
+use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
@@ -17,10 +17,26 @@ use tracing::info;
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
-/// `AudioService` manages the lifecycle of an audio processing pipeline, including:
-/// - Starting and stopping the loopback thread
-/// - Routing audio samples through the [`Channel`] processing chain (gain, master volume)
-/// - Hot-swapping input/output devices without requiring a full restart
+/// `AudioService` manages the full lifecycle of the audio processing pipeline:
+///
+/// - **Device management** — holds references to the active CPAL input/output devices
+///   through an [`AudioHandlerTrait`] implementation and supports hot-swapping either
+///   device without a full restart.
+/// - **Resampling** — on `start_loopback` the input and output sample rates are compared
+///   and a [`ResamplePolicy`] is selected automatically:
+///   - `input == output` → no resampling, zero overhead.
+///   - `input > output` → downsample before the DSP chain.
+///   - `input < output` → upsample after the DSP chain.
+/// - **DSP chain** — every sample passes through gain, tone stack, and master volume
+///   processors in order. Additional processors can be inserted into `start_loopback`'s
+///   `run_dsp` closure.
+/// - **Thread lifecycle** — the loopback runs on a dedicated background thread with a
+///   lock-free ring buffer between the CPAL callbacks and the worker; the thread is
+///   cleanly shut down via [`stop_loopback`].
+///
+/// [`AudioHandlerTrait`]: crate::infrastructure::audio_handler::AudioHandlerTrait
+/// [`ResamplePolicy`]: crate::services::processors::resampler::resampler::ResamplePolicy
+/// [`stop_loopback`]: AudioService::stop_loopback
 #[derive(Getters)]
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
@@ -70,12 +86,22 @@ impl AudioService {
 
     /// Starts the audio loopback on a dedicated background thread.
     ///
-    /// Audio samples are read from the input stream, routed through the
-    /// [`ResamplePolicy`] which interleaves the [`DspChain`] at the correct
-    /// point relative to resampling, and written to the output stream via
-    /// lock-free ring buffers.
+    /// On startup the service:
+    /// 1. Reads the input and output sample rates from the active [`AudioHandlerTrait`].
+    /// 2. Selects a [`ResamplePolicy`] based on those rates (logged at `info` level).
+    /// 3. Builds a pair of lock-free ring buffers sized to the larger of the two rates.
+    /// 4. Asks the handler to open the input and output CPAL streams.
+    /// 5. Spawns a worker thread that:
+    ///    - Pops samples from the input buffer.
+    ///    - Routes them through the [`ResamplePolicy`] which interleaves `run_dsp` at
+    ///      the correct point (before or after resampling).
+    ///    - Pushes results into the output buffer.
+    ///    - On shutdown, flushes any remaining resampler tail before exiting.
     ///
     /// If the loopback is already active this method is a no-op.
+    ///
+    /// [`AudioHandlerTrait`]: crate::infrastructure::audio_handler::AudioHandlerTrait
+    /// [`ResamplePolicy`]: crate::services::processors::resampler::resampler::ResamplePolicy
     pub fn start_loopback(&mut self) {
         if self.is_active {
             return;

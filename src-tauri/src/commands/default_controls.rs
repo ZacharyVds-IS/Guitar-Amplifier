@@ -52,7 +52,7 @@ pub(crate) fn toggle_on_off(audio_service: tauri::State<Mutex<AudioService>>, is
 #[tauri::command]
 pub(crate) fn set_gain(audio_service: tauri::State<Mutex<AudioService>>, gain: f32) {
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_gain(gain);
+    service.channels().get(*service.current_channel_index()).unwrap().set_gain(gain);
 }
 
 /// Sets the master volume level for the amplifier.
@@ -74,29 +74,29 @@ pub(crate) fn set_master_volume(audio_service: tauri::State<Mutex<AudioService>>
 #[tauri::command]
 pub(crate) fn set_tone_stack(audio_service: tauri::State<Mutex<AudioService>>, tone_stack: ToneStackDto){
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_tone_stack(tone_stack);
+    service.channels().get(*service.current_channel_index()).unwrap().set_tone_stack(tone_stack);
 }
 
 #[tauri::command]
 pub(crate) fn set_bass(audio_service: tauri::State<Mutex<AudioService>>, bass: f32){
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_bass(bass);
+    service.channels().get(*service.current_channel_index()).unwrap().set_bass(bass);
 }
 
 #[tauri::command]
 pub(crate) fn set_middle(audio_service: tauri::State<Mutex<AudioService>>, middle: f32){
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_middle(middle);
+    service.channels().get(*service.current_channel_index()).unwrap().set_middle(middle);
 }
 
 #[tauri::command]
 pub(crate) fn set_treble(audio_service: tauri::State<Mutex<AudioService>>, treble: f32){
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_treble(treble);
+    service.channels().get(*service.current_channel_index()).unwrap().set_treble(treble);
 }
 
 #[tauri::command]
 pub(crate) fn set_volume(audio_service: tauri::State<Mutex<AudioService>>, volume: f32){
     let service = audio_service.inner().lock().unwrap();
-    service.channel().set_volume(volume);
+    service.channels().get(*service.current_channel_index()).unwrap().set_volume(volume);
 }

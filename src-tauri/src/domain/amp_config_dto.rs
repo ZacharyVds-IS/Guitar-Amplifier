@@ -2,6 +2,7 @@ use crate::domain::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
+use crate::domain::channel_dto::ChannelDto;
 
 /// Represents the complete amplifier configuration state.
 ///
@@ -9,15 +10,12 @@ use std::sync::atomic::Ordering;
 /// settings of the amplifier, including gain, master volume, and active/inactive status.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AmpConfigDto {
-    /// The current input gain level.
-    pub gain: f32,
     /// The current master volume level.
     pub master_volume: f32,
     /// Whether the audio loopback is currently active.
     pub is_active: bool,
-    /// The current tone stack settings, including bass, mid, treble.
-    pub tone_stack: ToneStackDto,
-    pub volume: f32,
+    /// The current active channel.
+    pub current_channel: ChannelDto,
 }
 
 impl AmpConfigDto {
@@ -29,18 +27,22 @@ impl AmpConfigDto {
     ///
     /// * `service` - The [`AudioService`] to snapshot.
     pub fn from_service(service: &AudioService) -> Self {
-        let channel = service.channel();
+        let channel = service.channels().get(*service.current_channel_index()).unwrap();
 
         Self {
-            gain: channel.gain().load(Ordering::Relaxed),
             master_volume: service.master_volume().load(Ordering::Relaxed),
             is_active: *service.is_active(),
-            tone_stack: ToneStackDto{
-                bass: channel.tone_stack().bass().load(Ordering::Relaxed),
-                middle: channel.tone_stack().middle().load(Ordering::Relaxed),
-                treble: channel.tone_stack().treble().load(Ordering::Relaxed)
+            current_channel: ChannelDto{
+                name: channel.name().clone(),
+                gain: channel.gain().load(Ordering::Relaxed),
+                tone_stack: ToneStackDto{
+                    bass: channel.tone_stack().bass().load(Ordering::Relaxed),
+                    middle: channel.tone_stack().middle().load(Ordering::Relaxed),
+                    treble: channel.tone_stack().treble().load(Ordering::Relaxed)
+                },
+                volume: channel.volume().load(Ordering::Relaxed),
             },
-            volume: channel.volume().load(Ordering::Relaxed),
+
         }
     }
 }

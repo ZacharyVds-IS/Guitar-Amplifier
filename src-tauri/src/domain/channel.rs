@@ -139,7 +139,6 @@ impl Channel {
 
     pub fn set_volume(&self, volume: f32) {
         if volume.is_sign_positive() {
-            info!("Setting volume to {}", volume);
             self.volume.store(volume, Ordering::Relaxed);
         } else {
             error!("Volume must be a positive number");
@@ -163,7 +162,7 @@ impl Channel {
         Arc::clone(&self.tone_stack)
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &String {
         &self.name
     }
 

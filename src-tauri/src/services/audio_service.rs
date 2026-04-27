@@ -25,7 +25,8 @@ pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
-    channel: Channel,
+    channels: Vec<Channel>,
+    current_channel_index: usize,
     master_volume: Arc<AtomicF32>,
 }
 
@@ -58,8 +59,9 @@ impl AudioService {
             audio_handler: handler,
             loopback_thread: None,
             is_active: false,
-            channel: Channel::new("Main".to_string(), None, None),
+            channels: vec![Channel::new("Default".to_string(), None, None)],
             master_volume: Arc::new(AtomicF32::new(1.0)),
+            current_channel_index: 0,
         }
     }
 
@@ -79,8 +81,12 @@ impl AudioService {
         self.is_active = true;
 
         let handler = self.audio_handler.clone();
-        let channel = self.channel.clone(); // shared Arc<AtomicF32>
+        let channel = self.channels.get(self.current_channel_index).unwrap();
         let master_volume_arc = self.master_volume.clone();
+
+        let gain_arc = channel.gain().clone();
+        let volume_arc = channel.volume().clone();
+        let tone_stack_arc = channel.tone_stack().clone();
 
         let thread = thread::spawn(move || {
             const FFT_SIZE: usize = 2048;
@@ -96,10 +102,10 @@ impl AudioService {
             let worker_shutdown = shutdown.clone();
 
             let worker = thread::spawn(move || {
-                let mut gain = GainProcessor::new(channel.gain());
-                let mut volume = GainProcessor::new(channel.volume());
+                let mut gain = GainProcessor::new(gain_arc);
+                let mut volume = GainProcessor::new(volume_arc);
                 let mut master_volume = GainProcessor::new(master_volume_arc);
-                let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
+                let mut tone_stack = ToneStackProcessor::new(tone_stack_arc);
 
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
@@ -258,6 +264,15 @@ impl AudioService {
         } else {
             self.start_loopback();
         }
+    }
+
+    pub fn add_channel(&mut self, channel_name: String) {
+        self.channels.push(Channel::new(channel_name, None, None));
+        self.set_current_channel_index(self.channels.len() - 1);
+    }
+
+    pub fn set_current_channel_index(&mut self, current_channel_index: usize) {
+        self.current_channel_index = current_channel_index;
     }
 }
 

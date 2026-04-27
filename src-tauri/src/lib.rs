@@ -18,7 +18,6 @@ use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    //TODO remove temporary fields for changing in and output devices.
     let host = default_host();
     let input = host.default_input_device().unwrap();
     let output = host.default_output_device().unwrap();

@@ -1,31 +1,41 @@
-import {
-    Alert,
-    Box,
-    CircularProgress,
-    Typography
-} from "@mui/material";
+import {Alert, Box, CircularProgress, Typography, useTheme} from "@mui/material";
 import {DropdownSelector} from "../components/selection/DropdownSelector.tsx";
 import {useAudioDevices} from "../hooks/useAudioDevices.ts";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
 import {useState} from "react";
 
 export function SettingsScreen() {
+    const theme = useTheme();
     const { inputs, outputs, isLoading, error } = useAudioDevices();
     const { updateInputDevice, updateOutputDevice, error: routingError } = useUpdateAudioDevices();
 
     const [selectedInput, setSelectedInput] = useState<string>("");
     const [selectedOutput, setSelectedOutput] = useState<string>("");
 
-    const inputOptions = inputs.map(d => ({ label: d.name, value: d.id }));
-    const outputOptions = outputs.map(d => ({ label: d.name, value: d.id }));
+    const [inputSampleRate, setInputSampleRate] = useState<number | null>(null);
+    const [outputSampleRate, setOutputSampleRate] = useState<number | null>(null);
+
+    const inputOptions = inputs.map(d => ({
+        label: `${d.name} (${d.sample_rate} Hz)`,
+        value: d.id
+    }));
+
+    const outputOptions = outputs.map(d => ({
+        label: `${d.name} (${d.sample_rate} Hz)`,
+        value: d.id
+    }));
 
     async function handleInputChange(id: string) {
+        const device = inputs.find(d => d.id === id);
         setSelectedInput(id);
+        setInputSampleRate(device?.sample_rate ?? null);
         await updateInputDevice(id);
     }
 
     async function handleOutputChange(id: string) {
+        const device = outputs.find(d => d.id === id);
         setSelectedOutput(id);
+        setOutputSampleRate(device?.sample_rate ?? null);
         await updateOutputDevice(id);
     }
 
@@ -52,6 +62,25 @@ export function SettingsScreen() {
                 selectedValue={selectedOutput}
                 onSelectionChange={handleOutputChange}
             />
+
+            {inputSampleRate &&
+                outputSampleRate &&
+                inputSampleRate !== outputSampleRate && (
+                    <Typography variant="body1">
+                        <Box
+                            component="span"
+                            sx={{ color: theme.palette.primary.main, fontWeight: "bold" }}
+                        >
+                            Sample rates do not match!
+                        </Box>{" "}
+                        Output will have a sample rate of:{" "}
+                        <Box component="span" sx={{ fontWeight: "bold",color:theme.palette.primary.main }}>
+                            {outputSampleRate} Hz
+                        </Box>
+                    </Typography>
+                )}
+
         </Box>
     );
 }
+

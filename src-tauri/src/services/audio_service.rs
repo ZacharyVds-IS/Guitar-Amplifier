@@ -3,6 +3,7 @@ use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
+use cpal::traits::DeviceTrait;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
@@ -37,9 +38,15 @@ impl AudioService {
     ///
     /// * `input_device` - The CPAL device to capture audio from.
     /// * `output_device` - The CPAL device to send processed audio to.
-    /// * `config` - The shared [`StreamConfig`] applied to both streams.
-    pub fn new(input_device: Device, output_device: Device, config: StreamConfig) -> Self {
-        let handler = AudioHandler::new(input_device, output_device, config);
+    /// * `input_config` - The [`StreamConfig`] used for the input stream.
+    /// * `output_config` - The [`StreamConfig`] used for the output stream.
+    pub fn new(
+        input_device: Device,
+        output_device: Device,
+        input_config: StreamConfig,
+        output_config: StreamConfig,
+    ) -> Self {
+        let handler = AudioHandler::new(input_device, output_device, input_config, output_config);
         Self::new_with_handler(Arc::new(handler))
     }
 
@@ -77,14 +84,21 @@ impl AudioService {
         self.is_active = true;
 
         let handler = self.audio_handler.clone();
-        let channel = self.channel.clone(); // shared Arc<AtomicF32>
+        let channel = self.channel.clone();
 
         let thread = thread::spawn(move || {
             const FFT_SIZE: usize = 2048;
             let mut fft_buffer: Vec<f32> = Vec::with_capacity(FFT_SIZE);
 
-            let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
-            let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
+            let ringbuffer_size = handler
+                .input_sample_rate()
+                .max(handler.output_sample_rate()) as usize;
+
+            println!("in: {} out:{}: rate:{}", handler.input_sample_rate(), handler.output_sample_rate(), ringbuffer_size);
+
+
+            let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(ringbuffer_size);
+            let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(ringbuffer_size);
 
             let input_stream = handler.build_input_stream(i_producer);
             let output_stream = handler.build_output_stream(o_consumer);
@@ -182,12 +196,16 @@ impl AudioService {
     /// * `input` - The new CPAL input device to capture audio from.
     ///
     /// [`set_audio_handler`]: AudioService::set_audio_handler
-    pub fn set_input_device(&mut self, input: Device) {
+    pub fn set_input_device(&mut self, input: Device, input_config: StreamConfig) {
         info!("Switching input device");
 
         let old = self.audio_handler.clone();
-        let new_handler =
-            AudioHandler::new(input, old.output_device().clone(), old.config().clone());
+        let new_handler = AudioHandler::new(
+            input,
+            old.output_device().clone(),
+            input_config,
+            old.output_config().clone(),
+        );
 
         self.set_audio_handler(Arc::new(new_handler));
     }
@@ -202,12 +220,16 @@ impl AudioService {
     /// * `output` - The new CPAL output device to send processed audio to.
     ///
     /// [`set_audio_handler`]: AudioService::set_audio_handler
-    pub fn set_output_device(&mut self, output: Device) {
+    pub fn set_output_device(&mut self, output: Device, output_config: StreamConfig) {
         info!("Switching output device");
 
         let old = self.audio_handler.clone();
-        let new_handler =
-            AudioHandler::new(old.input_device().clone(), output, old.config().clone());
+        let new_handler = AudioHandler::new(
+            old.input_device().clone(),
+            output,
+            old.input_config().clone(),
+            output_config,
+        );
 
         self.set_audio_handler(Arc::new(new_handler));
     }

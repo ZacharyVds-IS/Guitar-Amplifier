@@ -1,11 +1,11 @@
 use cpal::traits::{DeviceTrait, StreamTrait};
 use cpal::{Device, Stream, StreamConfig};
+use derive_getters::Getters;
+use mockall::automock;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
 use ringbuf::traits::Split;
 use ringbuf::{HeapCons, HeapProd, HeapRb};
-use derive_getters::Getters;
-use mockall::automock;
 use tracing::error;
 
 /// A thin wrapper around a CPAL [`Stream`] that allows it to be started
@@ -57,8 +57,17 @@ pub trait AudioHandlerTrait: Send + Sync {
     /// Returns a reference to the CPAL output device used by this handler.
     fn output_device(&self) -> &Device;
 
-    /// Returns a reference to the [`StreamConfig`] shared by both streams.
-    fn config(&self) -> &StreamConfig;
+    /// Returns the [`StreamConfig`] used for the input stream.
+    fn input_config(&self) -> &StreamConfig;
+
+    /// Returns the [`StreamConfig`] used for the output stream.
+    fn output_config(&self) -> &StreamConfig;
+
+    /// Returns the configured input sample rate in Hz.
+    fn input_sample_rate(&self) -> u32;
+
+    /// Returns the configured output sample rate in Hz.
+    fn output_sample_rate(&self) -> u32;
 }
 
 /// Concrete implementation of [`AudioHandlerTrait`] backed by real CPAL devices.
@@ -72,7 +81,10 @@ pub trait AudioHandlerTrait: Send + Sync {
 pub struct AudioHandler {
     input_device: Device,
     output_device: Device,
-    config: StreamConfig,
+    input_config: StreamConfig,
+    output_config: StreamConfig,
+    input_sample_rate: u32,
+    output_sample_rate: u32,
 }
 
 impl AudioHandler {
@@ -82,12 +94,24 @@ impl AudioHandler {
     ///
     /// * `input_device` - The CPAL device used to capture audio.
     /// * `output_device` - The CPAL device used to play back audio.
-    /// * `config` - The [`StreamConfig`] applied to both the input and output streams.
-    pub fn new(input_device: Device, output_device: Device, config: StreamConfig) -> Self {
+    /// * `input_config` - The [`StreamConfig`] used for the input stream.
+    /// * `output_config` - The [`StreamConfig`] used for the output stream.
+    pub fn new(
+        input_device: Device,
+        output_device: Device,
+        input_config: StreamConfig,
+        output_config: StreamConfig,
+    ) -> Self {
+        let input_sample_rate = input_config.sample_rate;
+        let output_sample_rate = output_config.sample_rate;
+
         Self {
             input_device,
             output_device,
-            config,
+            input_config,
+            output_config,
+            input_sample_rate,
+            output_sample_rate,
         }
     }
 
@@ -136,7 +160,7 @@ impl AudioHandlerTrait for AudioHandler {
     fn build_input_stream(&self, mut producer: HeapProd<f32>) -> Box<dyn PlayableStream> {
         let stream = self.input_device
             .build_input_stream(
-                &self.config,
+                &self.input_config,
                 move |data: &[f32], _| {
                     for &s in data {
                         let _ = producer.try_push(s);
@@ -161,7 +185,7 @@ impl AudioHandlerTrait for AudioHandler {
     fn build_output_stream(&self, mut consumer: HeapCons<f32>) -> Box<dyn PlayableStream> {
         let stream = self.output_device
             .build_output_stream(
-                &self.config,
+                &self.output_config,
                 move |out: &mut [f32], _| {
                     //println!("Output buffer: {:?}", &out[..10.min(out.len())]);
                     for o in out.iter_mut() {
@@ -183,8 +207,20 @@ impl AudioHandlerTrait for AudioHandler {
         &self.output_device
     }
 
-    fn config(&self) -> &StreamConfig {
-        &self.config
+    fn input_config(&self) -> &StreamConfig {
+        &self.input_config
+    }
+
+    fn output_config(&self) -> &StreamConfig {
+        &self.output_config
+    }
+
+    fn input_sample_rate(&self) -> u32 {
+        self.input_sample_rate
+    }
+
+    fn output_sample_rate(&self) -> u32 {
+        self.output_sample_rate
     }
 
 }

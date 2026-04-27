@@ -1,7 +1,8 @@
-use std::sync::Mutex;
 use crate::domain::audio_device_dto::AudioDeviceDto;
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
+use cpal::traits::DeviceTrait;
+use std::sync::Mutex;
 
 /// Retrieves a list of all available input devices.
 ///
@@ -62,9 +63,13 @@ pub fn set_input_device(
     let device = device_service
         .find_input_device_by_id(&device_id)
         .ok_or("Device not found")?;
+    let input_config = device
+        .default_input_config()
+        .map_err(|e| format!("Failed to get input config: {e}"))?
+        .config();
 
     let mut audio = audio_service.lock().unwrap();
-    audio.set_input_device(device);
+    audio.set_input_device(device, input_config);
 
     Ok(())
 }
@@ -94,9 +99,13 @@ pub fn set_output_device(
     let device = device_service
         .find_output_device_by_id(&device_id)
         .ok_or("Device not found")?;
+    let output_config = device
+        .default_output_config()
+        .map_err(|e| format!("Failed to get output config: {e}"))?
+        .config();
 
     let mut audio = audio_service.lock().unwrap();
-    audio.set_output_device(device);
+    audio.set_output_device(device, output_config);
 
     Ok(())
 }

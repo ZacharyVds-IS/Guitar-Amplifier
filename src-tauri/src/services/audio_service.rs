@@ -13,8 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tracing::info;
-
+use tracing::{error, info};
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
@@ -44,8 +43,9 @@ pub struct AudioService {
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
     channels: Vec<Channel>,
-    current_channel_index: usize,
+    current_channel_id: u32,
     master_volume: Arc<AtomicF32>,
+    next_channel_id: u32
 }
 
 impl AudioService {
@@ -83,9 +83,10 @@ impl AudioService {
             audio_handler: handler,
             loopback_thread: None,
             is_active: false,
-            channels: vec![Channel::new("Default".to_string(), None, None)],
+            channels: vec![Channel::new(0,"Default".to_string(), None, None)],
             master_volume: Arc::new(AtomicF32::new(1.0)),
-            current_channel_index: 0,
+            current_channel_id: 0,
+            next_channel_id: 1
         }
     }
 
@@ -116,7 +117,7 @@ impl AudioService {
         self.is_active = true;
 
         let handler = self.audio_handler.clone();
-        let channel = self.channels.get(self.current_channel_index).unwrap();
+        let channel = self.channels().iter().find(|c| c.id() == *self.current_channel_id()).unwrap();
         let master_volume_arc = self.master_volume.clone();
 
         let gain_arc = channel.gain().clone();
@@ -334,13 +335,24 @@ impl AudioService {
         }
     }
 
-    pub fn add_channel(&mut self, channel_name: String) {
-        self.channels.push(Channel::new(channel_name, None, None));
-        self.set_current_channel_index(self.channels.len() - 1);
+    pub fn add_channel(&mut self, channel_name: String) -> Channel {
+        let id = self.next_channel_id;
+        self.next_channel_id += 1;
+
+        let new_channel = Channel::new(
+            id,
+            channel_name.into(),
+            None,
+            None,
+        );
+
+        self.channels.push(new_channel.clone());
+        self.set_current_channel_id(id);
+        new_channel
     }
 
-    pub fn set_current_channel_index(&mut self, current_channel_index: usize) {
-        self.current_channel_index = current_channel_index;
+    pub fn set_current_channel_id(&mut self, new_current_channel_id: u32) {
+        self.current_channel_id = new_current_channel_id;
     }
 }
 

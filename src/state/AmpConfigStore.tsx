@@ -1,8 +1,10 @@
 import {
+    addChannel,
     AmpConfigDto,
+    ChannelDto,
     getAmpConfig,
     setBass,
-    setChannelIndex,
+    setChannelId,
     setGain,
     setMasterVolume,
     setMiddle,
@@ -14,7 +16,9 @@ import {create} from "zustand/react";
 
 interface AmpState extends AmpConfigDto {
     init: () => Promise<void>;
-    setChannelByIndex: (index: number) => Promise<void>;
+    setChannelById: (index: number) => Promise<void>;
+    addChannel: (channelName: string) => Promise<void>;
+    addChannelFromBackend: (channelDto: ChannelDto) => Promise<void>;
     setGain: (val: number) => void;
     setVolume: (val: number) => void;
     setMasterVolume: (val: number) => void;
@@ -25,112 +29,162 @@ interface AmpState extends AmpConfigDto {
 }
 
 export const useAmpStore = create<AmpState>((set) => ({
-    master_volume: 1,
-    is_active: false,
-    current_channel: {
-        name: "",
-        gain: 1.0,
-        tone_stack: {
-            bass: 1.0,
-            middle: 1.0,
-            treble: 1.0,
+        master_volume: 1,
+        is_active: false,
+        channels: [{
+            id: 0,
+            name: "Default",
+            gain: 1.0,
+            tone_stack: {
+                bass: 100.0,
+                middle: 100.0,
+                treble: 100.0,
+            },
+            volume: 1,
+        }],
+        current_channel: 0,
+
+        init: async () => {
+            try {
+                const config = await getAmpConfig();
+                set({
+                    ...config
+                });
+                console.log("Store hydrated from Rust:", config);
+            } catch (error) {
+                console.error("Failed to fetch init state from Rust:", error);
+            }
         },
-        volume: 1,
-    },
 
-    init: async () => {
-        try {
-            const config = await getAmpConfig();
-            set({
-                ...config
-            });
-            console.log("Store hydrated from Rust:", config);
-        } catch (error) {
-            console.error("Failed to fetch init state from Rust:", error);
-        }
-    },
+        setChannelById: async (id: number) => {
+            try {
+                set({current_channel: id});
 
-    setChannelByIndex: async (index: number) => {
-        try {
-            console.log("Setting channel index to:", index);
-            await setChannelIndex({ channelIndex: index });
-            // Reinitialize to get the new channel data
-            const config = await getAmpConfig();
-            set({
-                ...config
-            });
-            console.log("Channel changed, store updated:", config);
-        } catch (error) {
-            console.error("Failed to set channel index:", error);
-        }
-    },
+                await setChannelId({channelId: id});
 
-    setMasterVolume: (val: number) => {
-        set({master_volume: val});
-        setMasterVolume({masterVolume: val})
-    },
+                const config = await getAmpConfig();
+                set({...config});
 
-    setIsActive: (val: boolean) => {
-        set({is_active: val});
-        toggleOnOff({isOn: val});
-    },
-
-    setGain: (val: number) => {
-        set((state) => ({
-            current_channel: {
-                ...state.current_channel,
-                gain: val
+                console.log("Channel changed, store updated:", config);
+            } catch (error) {
+                console.error("Failed to set channel index:", error);
             }
-        }));
-        setGain({gain: val});
-    },
+        },
 
-    setVolume: (val: number) => {
-        set((state)=>({
-            current_channel: {
-                ...state.current_channel,
-                volume: val,
+        addChannel: async (channelName: string) => {
+            try {
+                console.log("Adding channel with name:", channelName);
+                await addChannel({channelName});
+                // backend emits "channel-added"
+            } catch (error) {
+                console.error("Failed to add channel:", error);
             }
-        }));
-        setVolume({volume: val})
-    },
+        },
 
-    setBass: (val: number) => {
-         set((state) => ({
-             current_channel: {
-                 ...state.current_channel,
-                 tone_stack: {
-                     ...state.current_channel.tone_stack,
-                     bass: val,
-                 },
-             }
-         }));
-         setBass({bass: val})
-     },
+        addChannelFromBackend: async (channelDto: ChannelDto) => {
+            set((state) => {
+                const exists = state.channels.some(
+                    (c) => c.id === channelDto.id
+                );
 
-     setMiddle: (val: number) => {
-         set((state) => ({
-             current_channel: {
-                 ...state.current_channel,
-                 tone_stack: {
-                     ...state.current_channel.tone_stack,
-                     middle: val,
-                 },
-             }
-         }));
-         setMiddle({middle: val})
-     },
+                if (exists) {
+                    return state;
+                }
 
-     setTreble: (val: number) => {
-         set((state) => ({
-             current_channel: {
-                 ...state.current_channel,
-                 tone_stack: {
-                     ...state.current_channel.tone_stack,
-                     treble: val,
-                 },
-             }
-         }));
-         setTreble({treble: val})
-     },
-}));
+                return {
+                    channels: [...state.channels, channelDto],
+                };
+            });
+        },
+
+        setMasterVolume: (val: number) => {
+            set({master_volume: val});
+            setMasterVolume({masterVolume: val})
+        },
+
+        setIsActive: (val: boolean) => {
+            set({is_active: val});
+            toggleOnOff({isOn: val});
+        },
+
+        setGain: (val: number) => {
+            setGain({gain: val});
+
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {...c, gain: val}
+                        : c
+                ),
+            }));
+        },
+
+        setVolume: (val: number) => {
+            setVolume({volume: val});
+
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {...c, volume: val}
+                        : c
+                ),
+            }));
+        },
+
+        setBass: (val: number) => {
+            setBass({bass: val});
+
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {
+                            ...c,
+                            tone_stack: {
+                                ...c.tone_stack,
+                                bass: val,
+                            },
+                        }
+                        : c
+                ),
+            }));
+        },
+
+
+        setMiddle: (val: number) => {
+            setMiddle({middle: val});
+
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {
+                            ...c,
+                            tone_stack: {
+                                ...c.tone_stack,
+                                middle: val,
+                            },
+                        }
+                        : c
+                ),
+            }));
+        },
+
+        setTreble: (val: number) => {
+            setTreble({treble: val});
+
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {
+                            ...c,
+                            tone_stack: {
+                                ...c.tone_stack,
+                                treble: val,
+                            },
+                        }
+                        : c
+                ),
+            }));
+        },
+
+    }))
+;

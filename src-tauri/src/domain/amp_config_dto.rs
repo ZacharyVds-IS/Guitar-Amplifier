@@ -1,8 +1,9 @@
+use crate::domain::channel_dto::ChannelDto;
 use crate::domain::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
-use crate::domain::channel_dto::ChannelDto;
+use mockall::predicate;
 
 /// Represents the complete amplifier configuration state.
 ///
@@ -15,7 +16,8 @@ pub struct AmpConfigDto {
     /// Whether the audio loopback is currently active.
     pub is_active: bool,
     /// The current active channel.
-    pub current_channel: ChannelDto,
+    pub channels: Vec<ChannelDto>,
+    pub current_channel: u32,
 }
 
 impl AmpConfigDto {
@@ -27,22 +29,13 @@ impl AmpConfigDto {
     ///
     /// * `service` - The [`AudioService`] to snapshot.
     pub fn from_service(service: &AudioService) -> Self {
-        let channel = service.channels().get(*service.current_channel_index()).unwrap();
+        let channel = service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap();
 
         Self {
             master_volume: service.master_volume().load(Ordering::Relaxed),
             is_active: *service.is_active(),
-            current_channel: ChannelDto{
-                name: channel.name().clone(),
-                gain: channel.gain().load(Ordering::Relaxed),
-                tone_stack: ToneStackDto{
-                    bass: channel.tone_stack().bass().load(Ordering::Relaxed),
-                    middle: channel.tone_stack().middle().load(Ordering::Relaxed),
-                    treble: channel.tone_stack().treble().load(Ordering::Relaxed)
-                },
-                volume: channel.volume().load(Ordering::Relaxed),
-            },
-
+            channels: service.channels().iter().map(|c| ChannelDto::from(c)).collect(),
+            current_channel: channel.id(),
         }
     }
 }

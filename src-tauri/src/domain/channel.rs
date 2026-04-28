@@ -3,6 +3,7 @@ use crate::domain::tone_stack_dto::ToneStackDto;
 use atomic_float::AtomicF32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tauri::utils::acl::Identifier;
 use tracing::{error, info};
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
@@ -21,6 +22,7 @@ use tracing::{error, info};
 /// Tone stack values are validated to be between 0.0 and 1.0; attempting to set a value outside this range will panic.
 #[derive(Clone)]
 pub struct Channel {
+    id: u32,
     name: String,
     gain: Arc<AtomicF32>,
     tone_stack: Arc<ToneStack>,
@@ -38,11 +40,12 @@ impl Channel {
     /// * `name` - A human-readable name for the channel (e.g., "Main", "Overdrive").
     /// * `gain` - Optional initial gain value. Defaults to `1.0` if `None`.
     /// * `master_volume` - Optional initial master volume value. Defaults to `1.0` if `None`.
-    pub fn new(name: String, gain: Option<f32>, volume: Option<f32> ) -> Self {
+    pub fn new(id: u32,name: String, gain: Option<f32>, volume: Option<f32> ) -> Self {
         let gain = gain.unwrap_or(1.0);
         let volume = volume.unwrap_or(1.0);
 
         Self {
+            id,
             name,
             gain: Arc::new(AtomicF32::new(gain)),
             tone_stack: Arc::new(ToneStack::new()),
@@ -153,14 +156,15 @@ impl Channel {
     pub fn gain(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.gain)
     }
-
-
+    
     /// Returns a cloned [`Arc`] to the tone stack.
     ///
     /// Allows independent threads to access the tone stack parameters for audio processing.
     pub fn tone_stack(&self) -> Arc<ToneStack> {
         Arc::clone(&self.tone_stack)
     }
+    
+    
 
     pub fn name(&self) -> &String {
         &self.name
@@ -168,6 +172,10 @@ impl Channel {
 
     pub fn volume(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.volume)
+    }
+
+    pub fn id(&self) -> u32 {
+        self.id
     }
 }
 
@@ -181,14 +189,14 @@ mod tests {
 
         #[test]
         fn gain_set_to_positive_value_should_succeed() {
-            let channel = Channel::new("Test".to_string(), None, None);
+            let channel = Channel::new(1,"Test".to_string(), None, None);
             channel.set_gain(0.5);
             assert_eq!(channel.gain().load(Ordering::Relaxed), 0.5);
         }
 
         #[test]
         fn volume_set_to_positive_value_should_succeed() {
-            let channel = Channel::new("Test".to_string(), None, None);
+            let channel = Channel::new(1,"Test".to_string(), None, None);
             channel.set_volume(0.5);
             assert_eq!(channel.volume().load(Ordering::Relaxed), 0.5);
         }
@@ -201,14 +209,14 @@ mod tests {
         #[test]
         #[should_panic(expected = "Gain must be positive")]
         fn gain_set_to_negative_value_should_panic() {
-            let channel = Channel::new("Test".to_string(), None, None);
+            let channel = Channel::new(1,"Test".to_string(), None, None);
             channel.set_gain(-0.5);
         }
 
         #[test]
         #[should_panic(expected = "Volume must be positive")]
         fn volume_set_to_negative_value_should_panic() {
-            let channel = Channel::new("Test".to_string(), None, None);
+            let channel = Channel::new(1,"Test".to_string(), None, None);
             channel.set_volume(-0.5);
         }
     }

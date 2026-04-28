@@ -1,37 +1,47 @@
-use crate::domain::channel::Channel;
-use crate::domain::channel_dto::ChannelDto;
+use crate::domain::channel_dto::{ChannelDto};
 use crate::services::audio_service::AudioService;
-use std::sync::mpsc::channel;
 use std::sync::Mutex;
+use tauri::{AppHandle, Emitter};
+use tauri::async_runtime::channel;
+use tracing::info;
 
 #[tauri::command]
-pub(crate) fn set_channel_index(
-    audio_service: tauri::State<Mutex<AudioService>>,
-    channel_index: usize,
-) {
+pub(crate) fn set_channel_id(audio_service: tauri::State<Mutex<AudioService>>, channel_id: u32) {
     let mut service = audio_service.inner().lock().unwrap();
-    service.set_current_channel_index(channel_index);
+    service.set_current_channel_id(channel_id);
 }
 
 #[tauri::command]
-pub(crate) fn get_channel_index(audio_service: tauri::State<Mutex<AudioService>>) -> usize {
+pub(crate) fn get_channel_id(audio_service: tauri::State<Mutex<AudioService>>) -> u32 {
     let service = audio_service.inner().lock().unwrap();
-    *service.current_channel_index()
+    *service.current_channel_id()
 }
 
 #[tauri::command]
-pub(crate) fn add_channel(audio_service: tauri::State<Mutex<AudioService>>, channel_name: String) {
+pub(crate) fn add_channel(app: AppHandle,audio_service: tauri::State<Mutex<AudioService>>, channel_name: String) -> Result<(), String> {
     let mut service = audio_service.inner().lock().unwrap();
-    service.add_channel(channel_name);
+    let channel = service.add_channel(channel_name.clone());
+
+
+    app.emit(
+        "channel-added",
+        ChannelDto::from(&channel),
+    )
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn get_all_channels(audio_service: tauri::State<Mutex<AudioService>>) -> Vec<ChannelDto> {
+pub(crate) fn get_all_channels(
+    audio_service: tauri::State<Mutex<AudioService>>,
+) -> Vec<ChannelDto> {
     let service = audio_service.inner().lock().unwrap();
     service
         .channels()
         .iter()
         .map(|channel| ChannelDto {
+            id: channel.id(),
             name: channel.name().clone(),
             gain: channel.gain().load(std::sync::atomic::Ordering::Relaxed),
             tone_stack: crate::domain::tone_stack_dto::ToneStackDto {

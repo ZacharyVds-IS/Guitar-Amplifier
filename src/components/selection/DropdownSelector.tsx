@@ -22,15 +22,19 @@ interface DropdownProps {
 
 export function DropdownSelector({title, label, options, selectedValue, onSelectionChange, onAdd}: DropdownProps) {
     const handleChange = (event: SelectChangeEvent<string | number>) => {
-        onSelectionChange(event.target.value as string);
+        if (event.target.value === "__ADD_NEW__") {
+            onAdd?.()
+        } else {
+            onSelectionChange(event.target.value as string);
+        }
     };
     return (
         <>
             {title && (
-            <Typography variant="h6" gutterBottom>
-                {title}
-            </Typography>
-        )}
+                <Typography variant="h6" gutterBottom>
+                    {title}
+                </Typography>
+            )}
 
             <FormControl fullWidth>
                 <InputLabel id="simple-select-label">{label}</InputLabel>
@@ -49,10 +53,10 @@ export function DropdownSelector({title, label, options, selectedValue, onSelect
 
                     {onAdd && (
                         [
-                            <Divider key="divider" />,
+                            <Divider key="divider"/>,
                             <MenuItem key="add-button" value="__ADD_NEW__">
                                 <ListItemIcon>
-                                    <AddIcon fontSize="small" />
+                                    <AddIcon fontSize="small"/>
                                 </ListItemIcon>
                                 <ListItemText>Add New Channel</ListItemText>
                             </MenuItem>

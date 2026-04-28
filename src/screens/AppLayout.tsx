@@ -3,22 +3,20 @@ import {Outlet, useNavigate} from "react-router-dom";
 import {useChannels} from "../hooks/useChannels.ts";
 import {ChannelSelector} from "../components/ChannelSelector.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
-import {useEffect} from "react";
+import {useEffect, useState} from "react";
+import {AddChannelDialog} from "../components/AddChannelDialog.tsx";
 
 export function AppLayout() {
     const navigate = useNavigate();
     const {channels, loading, error} = useChannels();
     const ampStore = useAmpStore();
-    const currentChannelName = ampStore.current_channel.name;
+    const currentChannelId = ampStore.current_channel;
+    const currentChannel = ampStore.channels.find(c => c.id === currentChannelId) || {id: -1, name: "No Channel"};
 
-    console.log("AppLayout - channels:", channels, "loading:", loading, "currentChannelName:", currentChannelName);
+    console.log("AppLayout - channels:", channels, "loading:", loading, "currentChannelName:", currentChannel.name);
 
     // Find current channel index based on the amp store's current channel name
-    const currentChannelIndex = channels.length > 0
-        ? channels.findIndex(ch => ch.name === currentChannelName)
-        : 0;
-
-    const channelOptions = channels.map((channel, index) => ({name: channel.name, index}));
+    const channelOptions = channels.map((channel) => ({label: channel.name, value: channel.id}));
 
     // Initialize amp store on mount
     useEffect(() => {
@@ -26,13 +24,21 @@ export function AppLayout() {
         ampStore.init();
     }, []);
 
-    const handleChannelChange = async (index: number) => {
-        console.log("Changing channel to index:", index);
-        await ampStore.setChannelByIndex(index);
+    const handleChannelChange = async (id: number) => {
+        console.log("Changing channel to id:", id);
+        await ampStore.setChannelById(id);
     };
 
+    const [dialogOpen, setDialogOpen] = useState(false);
+
+    const handleAddChannel = async (name: string) => {
+        await ampStore.addChannel(name);
+        setDialogOpen(false);
+    };
+
+
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        <Box sx={{display: 'flex', flexDirection: 'column', height: '100vh'}}>
             <AppBar
                 position="static"
                 sx={{
@@ -44,20 +50,24 @@ export function AppLayout() {
                     borderColor: 'divider'
                 }}
             >
-                <Toolbar variant="dense" sx={{ justifyContent: 'space-between' }}>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                <Toolbar variant="dense" sx={{justifyContent: 'space-between'}}>
+                    <Typography variant="h6" sx={{fontWeight: 'bold'}}>
                         Rust Riff
                     </Typography>
-                    <Box sx={{ display: 'flex', direction:"row", alignItems: 'center', gap: 2 , width: "25%"}}>
+                    <Box sx={{display: 'flex', direction: "row", alignItems: 'center', gap: 2, width: "25%"}}>
                         {!loading && channels.length > 0 ? (
-                            <ChannelSelector
-                                channels={channelOptions}
-                                currentChannelIndex={currentChannelIndex >= 0 ? currentChannelIndex : 0}
-                                onChannelChange={handleChannelChange}
-                                onAdd={async () => ampStore.init()}
-                            />
+                            <>
+                                <ChannelSelector
+                                    channels={channelOptions}
+                                    currentChannelIndex={currentChannelId >= 0 ? currentChannelId : 0}
+                                    onChannelChange={handleChannelChange}
+                                    onAdd={() => setDialogOpen(true)}
+                                />
+                                <AddChannelDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCreate={handleAddChannel}/>
+                            </>
+
                         ) : (
-                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                            <Typography variant="body2" sx={{color: 'text.secondary'}}>
                                 {loading ? "Loading channels..." : error ? "Error loading channels" : "No channels"}
                             </Typography>
                         )}
@@ -67,8 +77,8 @@ export function AppLayout() {
                 </Toolbar>
             </AppBar>
 
-            <Box sx={{ flexGrow: 1, overflow: 'auto', bgcolor: 'background.default' }}>
-                <Outlet />
+            <Box sx={{flexGrow: 1, overflow: 'auto', bgcolor: 'background.default'}}>
+                <Outlet/>
             </Box>
         </Box>
     );

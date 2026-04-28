@@ -14,6 +14,8 @@ export function SettingsScreen() {
     const [selectedOutput, setSelectedOutput] = useState<string>("");
     const showLatencyImpacts = useUIStore((state) => state.showLatencyImpacts);
     const setShowLatencyImpacts = useUIStore((state) => state.setShowLatencyImpacts);
+    const developerMode = useUIStore((state) => state.developerMode);
+    const setDeveloperMode = useUIStore((state) => state.setDeveloperMode);
 
     const [inputSampleRate, setInputSampleRate] = useState<number | null>(null);
     const [outputSampleRate, setOutputSampleRate] = useState<number | null>(null);
@@ -75,6 +77,16 @@ export function SettingsScreen() {
                     />
                 }
                 label="Show Latency Impacts"
+            />
+
+            <FormControlLabel
+                control={
+                    <Switch
+                        checked={developerMode}
+                        onChange={(e) => setDeveloperMode(e.target.checked)}
+                    />
+                }
+                label="Developer Mode"
             />
 
             {inputSampleRate &&

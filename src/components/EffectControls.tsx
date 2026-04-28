@@ -27,6 +27,7 @@ export function EffectControls() {
     const setTreble = useAmpStore((state) => state.setTreble);
 
     const showLatencyImpacts = useUIStore((state) => state.showLatencyImpacts);
+    const developerMode = useUIStore((state) => state.developerMode);
     const [latency, setLatency] = useState<AlgorithmicLatencyDto[]>([]);
     const [bufferLatency, setBufferLatency] = useState<BufferLatencyDto | null>(null);
     const [cpuTimings, setCpuTimings] = useState<ExecutionTimingDto[]>([]);
@@ -35,14 +36,24 @@ export function EffectControls() {
         if (showLatencyImpacts) {
             const fetchTimings = async () => {
                 try {
-                    const [algorithmicLatency, systemBufferLatency, dspCpuTimings] = await Promise.all([
-                        measureAllDspAlgorithmicLatency(),
-                        measureBufferLatency(),
-                        measureAllDspTimings(),
-                    ]);
-                    setLatency(algorithmicLatency);
-                    setBufferLatency(systemBufferLatency);
-                    setCpuTimings(dspCpuTimings);
+                    const promises: Promise<any>[] = [measureBufferLatency()];
+
+                    // Only fetch detailed metrics in developer mode
+                    if (developerMode) {
+                        promises.push(measureAllDspAlgorithmicLatency());
+                        promises.push(measureAllDspTimings());
+                    }
+
+                    const results = await Promise.all(promises);
+                    setBufferLatency(results[0]);
+
+                    if (developerMode) {
+                        setLatency(results[1] || []);
+                        setCpuTimings(results[2] || []);
+                    } else {
+                        setLatency([]);
+                        setCpuTimings([]);
+                    }
                 } catch (error) {
                     console.error("Failed to fetch latency metrics:", error);
                 }
@@ -50,9 +61,10 @@ export function EffectControls() {
             fetchTimings();
         } else {
             setBufferLatency(null);
+            setLatency([]);
             setCpuTimings([]);
         }
-    }, [showLatencyImpacts]);
+    }, [showLatencyImpacts, developerMode]);
 
     const getTimingValue = (processorName: string): string => {
         const timing = latency.find(t => t.processor_name === processorName);
@@ -113,12 +125,16 @@ export function EffectControls() {
                     </Box>
                     {showLatencyImpacts && (
                         <Stack spacing={0}>
-                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                latency: {getTimingValue("Master Volume")}
-                            </Typography>
-                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                cpu: {getCpuTimeValue("Master Volume")}
-                            </Typography>
+                            {developerMode && (
+                                <>
+                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                        latency: {getTimingValue("Master Volume")}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                        cpu: {getCpuTimeValue("Master Volume")}
+                                    </Typography>
+                                </>
+                            )}
                         </Stack>
                     )}
                 </Stack>
@@ -134,12 +150,16 @@ export function EffectControls() {
                     />
                     {showLatencyImpacts && (
                         <Stack spacing={0}>
-                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                latency: {getTimingValue("Gain")}
-                            </Typography>
-                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                cpu: {getCpuTimeValue("Gain")}
-                            </Typography>
+                            {developerMode && (
+                                <>
+                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                        latency: {getTimingValue("Gain")}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                        cpu: {getCpuTimeValue("Gain")}
+                                    </Typography>
+                                </>
+                            )}
                         </Stack>
                     )}
                 </Box>
@@ -179,23 +199,27 @@ export function EffectControls() {
                     </Box>
                     {showLatencyImpacts && (
                         <Stack spacing={0}>
-                            <Typography variant="caption" sx={{
-                                fontSize: "0.62rem",
-                                color: "text.secondary",
-                                mt: 1,
-                                display: "block",
-                                textAlign: "center"
-                            }}>
-                                latency: {getTimingValue("Tone Stack")}
-                            </Typography>
-                            <Typography variant="caption" sx={{
-                                fontSize: "0.62rem",
-                                color: "text.secondary",
-                                display: "block",
-                                textAlign: "center"
-                            }}>
-                                cpu: {getCpuTimeValue("Tone Stack")}
-                            </Typography>
+                            {developerMode && (
+                                <>
+                                    <Typography variant="caption" sx={{
+                                        fontSize: "0.62rem",
+                                        color: "text.secondary",
+                                        mt: 1,
+                                        display: "block",
+                                        textAlign: "center"
+                                    }}>
+                                        latency: {getTimingValue("Tone Stack")}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{
+                                        fontSize: "0.62rem",
+                                        color: "text.secondary",
+                                        display: "block",
+                                        textAlign: "center"
+                                    }}>
+                                        cpu: {getCpuTimeValue("Tone Stack")}
+                                    </Typography>
+                                </>
+                            )}
                         </Stack>
                     )}
                 </Stack>

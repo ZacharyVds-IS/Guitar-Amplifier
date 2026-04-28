@@ -2,6 +2,7 @@ use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
+use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
@@ -11,15 +12,31 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tauri::{AppHandle, Emitter};
 use tracing::info;
+
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
-/// `AudioService` manages the lifecycle of an audio processing pipeline, including:
-/// - Starting and stopping the loopback thread
-/// - Routing audio samples through the [`Channel`] processing chain (gain, master volume)
-/// - Hot-swapping input/output devices without requiring a full restart
+/// `AudioService` manages the full lifecycle of the audio processing pipeline:
+///
+/// - **Device management** — holds references to the active CPAL input/output devices
+///   through an [`AudioHandlerTrait`] implementation and supports hot-swapping either
+///   device without a full restart.
+/// - **Resampling** — on `start_loopback` the input and output sample rates are compared
+///   and a [`ResamplePolicy`] is selected automatically:
+///   - `input == output` → no resampling, zero overhead.
+///   - `input > output` → downsample before the DSP chain.
+///   - `input < output` → upsample after the DSP chain.
+/// - **DSP chain** — every sample passes through gain, tone stack, and master volume
+///   processors in order. Additional processors can be inserted into `start_loopback`'s
+///   `run_dsp` closure.
+/// - **Thread lifecycle** — the loopback runs on a dedicated background thread with a
+///   lock-free ring buffer between the CPAL callbacks and the worker; the thread is
+///   cleanly shut down via [`stop_loopback`].
+///
+/// [`AudioHandlerTrait`]: crate::infrastructure::audio_handler::AudioHandlerTrait
+/// [`ResamplePolicy`]: crate::services::processors::resampler::resampler::ResamplePolicy
+/// [`stop_loopback`]: AudioService::stop_loopback
 #[derive(Getters)]
 pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
@@ -37,9 +54,15 @@ impl AudioService {
     ///
     /// * `input_device` - The CPAL device to capture audio from.
     /// * `output_device` - The CPAL device to send processed audio to.
-    /// * `config` - The shared [`StreamConfig`] applied to both streams.
-    pub fn new(input_device: Device, output_device: Device, config: StreamConfig) -> Self {
-        let handler = AudioHandler::new(input_device, output_device, config);
+    /// * `input_config` - The [`StreamConfig`] used for the input stream.
+    /// * `output_config` - The [`StreamConfig`] used for the output stream.
+    pub fn new(
+        input_device: Device,
+        output_device: Device,
+        input_config: StreamConfig,
+        output_config: StreamConfig,
+    ) -> Self {
+        let handler = AudioHandler::new(input_device, output_device, input_config, output_config);
         Self::new_with_handler(Arc::new(handler))
     }
 
@@ -63,11 +86,22 @@ impl AudioService {
 
     /// Starts the audio loopback on a dedicated background thread.
     ///
-    /// Audio samples are read from the input stream, passed through the gain and
-    /// master volume processors defined on the [`Channel`], and written to the
-    /// output stream via lock-free ring buffers.
+    /// On startup the service:
+    /// 1. Reads the input and output sample rates from the active [`AudioHandlerTrait`].
+    /// 2. Selects a [`ResamplePolicy`] based on those rates (logged at `info` level).
+    /// 3. Builds a pair of lock-free ring buffers sized to the larger of the two rates.
+    /// 4. Asks the handler to open the input and output CPAL streams.
+    /// 5. Spawns a worker thread that:
+    ///    - Pops samples from the input buffer.
+    ///    - Routes them through the [`ResamplePolicy`] which interleaves `run_dsp` at
+    ///      the correct point (before or after resampling).
+    ///    - Pushes results into the output buffer.
+    ///    - On shutdown, flushes any remaining resampler tail before exiting.
     ///
     /// If the loopback is already active this method is a no-op.
+    ///
+    /// [`AudioHandlerTrait`]: crate::infrastructure::audio_handler::AudioHandlerTrait
+    /// [`ResamplePolicy`]: crate::services::processors::resampler::resampler::ResamplePolicy
     pub fn start_loopback(&mut self) {
         if self.is_active {
             return;
@@ -77,14 +111,34 @@ impl AudioService {
         self.is_active = true;
 
         let handler = self.audio_handler.clone();
-        let channel = self.channel.clone(); // shared Arc<AtomicF32>
+        let channel = self.channel.clone();
 
         let thread = thread::spawn(move || {
-            const FFT_SIZE: usize = 2048;
-            let mut fft_buffer: Vec<f32> = Vec::with_capacity(FFT_SIZE);
+            // How many input samples to batch before the resampler produces output.
+            // Larger = better quality, more latency. Smaller = lower latency, cheaper.
+            const RESAMPLER_CHUNK_SIZE: usize = 256;
 
-            let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(48000);
-            let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(48000);
+            let ringbuffer_size = handler.input_sample_rate().max(handler.output_sample_rate()) as usize;
+
+            // ── Resampling decision ──────────────────────────────────────────────
+            // `ResamplePolicy::from_rates` compares input and output sample rates
+            // and picks one of three strategies (logged at startup):
+            //
+            //   input == output  →  Bypass   – no resampler created at all
+            //   input  > output  →  PreDsp   – downsample BEFORE the DSP chain
+            //                                  (DSP runs at the lower output rate → cheaper)
+            //   input  < output  →  PostDsp  – upsample AFTER the DSP chain
+            //                                  (DSP runs at the lower input rate → cheaper)
+            //
+            // The chosen policy is the only place a `RubatoResampler` is created.
+            let mut policy = ResamplePolicy::from_rates(
+                handler.input_sample_rate(),
+                handler.output_sample_rate(),
+                RESAMPLER_CHUNK_SIZE,
+            );
+
+            let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(ringbuffer_size);
+            let (mut o_producer, o_consumer) = AudioHandler::create_ringbuffer(ringbuffer_size);
 
             let input_stream = handler.build_input_stream(i_producer);
             let output_stream = handler.build_output_stream(o_consumer);
@@ -93,9 +147,19 @@ impl AudioService {
             let worker_shutdown = shutdown.clone();
 
             let worker = thread::spawn(move || {
-                let mut gain = GainProcessor::new(channel.gain());
+                // ── Effects chain ────────────────────────────────────────────────
+                // Add new processors here to extend the signal chain.
+                // Current order: Gain → Tone Stack → Master Volume
+                let mut gain          = GainProcessor::new(channel.gain());
+                let mut tone_stack    = ToneStackProcessor::new(channel.tone_stack());
                 let mut master_volume = GainProcessor::new(channel.master_volume());
-                let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
+
+                // Applies the full DSP chain to a single sample in order.
+                let mut run_dsp = |sample: f32| -> f32 {
+                    let sample = gain.process(sample);
+                    let sample = tone_stack.process(sample);
+                    master_volume.process(sample)
+                };
 
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
@@ -103,18 +167,22 @@ impl AudioService {
                     }
 
                     if let Some(sample) = i_consumer.try_pop() {
-                        let gain_sample = gain.process(sample);
-
-                        let eq_sample = tone_stack.process(gain_sample);
-
-                        //for debugging: print the tone stack values
-                        //tone_stack.print_tone_stack(eq_sample, &mut fft_buffer, FFT_SIZE);
-
-                        let processed = master_volume.process(eq_sample);
-                        let _ = o_producer.try_push(processed);
+                        // `policy.process` applies the resampler at the right moment:
+                        //   PreDsp  → resamples first, then calls `dsp.process` on each result
+                        //   PostDsp → calls `dsp.process` first, then resamples the output
+                        //   Bypass  → calls `dsp.process` directly, returns a single sample
+                        for processed_sample in policy.process(sample, &mut |resampled_sample| run_dsp(resampled_sample)) {
+                            let _ = o_producer.try_push(processed_sample);
+                        }
                     } else {
                         thread::yield_now();
                     }
+                }
+
+                // Drain any samples still sitting in the resampler's input buffer
+                // when the loopback is stopped so we don't lose the tail.
+                for processed_sample in policy.flush(&mut |resampled_sample| run_dsp(resampled_sample)) {
+                    let _ = o_producer.try_push(processed_sample);
                 }
             });
 
@@ -125,7 +193,6 @@ impl AudioService {
 
             shutdown.store(true, Ordering::SeqCst);
             let _ = worker.join();
-
         });
 
         self.loopback_thread = Some(thread);
@@ -182,12 +249,16 @@ impl AudioService {
     /// * `input` - The new CPAL input device to capture audio from.
     ///
     /// [`set_audio_handler`]: AudioService::set_audio_handler
-    pub fn set_input_device(&mut self, input: Device) {
+    pub fn set_input_device(&mut self, input: Device, input_config: StreamConfig) {
         info!("Switching input device");
 
         let old = self.audio_handler.clone();
-        let new_handler =
-            AudioHandler::new(input, old.output_device().clone(), old.config().clone());
+        let new_handler = AudioHandler::new(
+            input,
+            old.output_device().clone(),
+            input_config,
+            old.output_config().clone(),
+        );
 
         self.set_audio_handler(Arc::new(new_handler));
     }
@@ -202,12 +273,16 @@ impl AudioService {
     /// * `output` - The new CPAL output device to send processed audio to.
     ///
     /// [`set_audio_handler`]: AudioService::set_audio_handler
-    pub fn set_output_device(&mut self, output: Device) {
+    pub fn set_output_device(&mut self, output: Device, output_config: StreamConfig) {
         info!("Switching output device");
 
         let old = self.audio_handler.clone();
-        let new_handler =
-            AudioHandler::new(old.input_device().clone(), output, old.config().clone());
+        let new_handler = AudioHandler::new(
+            old.input_device().clone(),
+            output,
+            old.input_config().clone(),
+            output_config,
+        );
 
         self.set_audio_handler(Arc::new(new_handler));
     }
@@ -224,11 +299,10 @@ impl AudioService {
         if self.is_active == is_on {
             return;
         }
-        if is_on == false {
-            self.stop_loopback();
-        } else {
+        if is_on {
             self.start_loopback();
+        } else {
+            self.stop_loopback();
         }
     }
-
 }

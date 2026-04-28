@@ -1,7 +1,7 @@
-use cpal::Host;
-use cpal::traits::HostTrait;
 use crate::domain::audio_device_dto::AudioDeviceDto;
 use cpal::traits::DeviceTrait;
+use cpal::traits::HostTrait;
+use cpal::{Host, SampleRate};
 use tracing::error;
 
 /// Service for managing audio device enumeration and lookup.
@@ -42,9 +42,13 @@ impl DeviceService {
                     let name = desc.name().to_string();
                     let device_id = device.id().ok()?;
                     let id = format!("{:?}", device_id);
+                    let device_config = device.default_input_config().ok()?;
+                    let default_sample_rate = device_config.sample_rate();
+
                     Some(AudioDeviceDto {
                         id,
                         name,
+                        sample_rate:default_sample_rate
                     })
                 })
                 .collect(),
@@ -72,10 +76,13 @@ impl DeviceService {
                     let name = desc.name().to_string();
                     let device_id = device.id().ok()?;
                     let id = format!("{:?}", device_id);
+                    let device_config = device.default_output_config().ok()?;
+                    let default_sample_rate = device_config.sample_rate();
 
                     Some(AudioDeviceDto {
                         id,
                         name,
+                        sample_rate: default_sample_rate,
                     })
                 })
                 .collect(),

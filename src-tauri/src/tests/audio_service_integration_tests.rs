@@ -14,6 +14,15 @@ mod audio_service_integration_tests {
         *service.is_active()
     }
 
+    fn make_timed_stream_mock(input_rate: u32, output_rate: u32, stream_build_times: usize) -> MockAudioHandlerTrait {
+        let mut mock = MockAudioHandlerTrait::new();
+        mock.expect_build_input_stream().times(stream_build_times).returning(|_| Box::new(FakeStream));
+        mock.expect_build_output_stream().times(stream_build_times).returning(|_| Box::new(FakeStream));
+        mock.expect_input_sample_rate().return_const(input_rate);
+        mock.expect_output_sample_rate().return_const(output_rate);
+        mock
+    }
+
     #[cfg(test)]
     mod start_loopback_service {
         use super::*;
@@ -30,10 +39,7 @@ mod audio_service_integration_tests {
 
         #[test]
         fn start_loopback_twice_does_not_spawn_second_thread() {
-            let mut mock = MockAudioHandlerTrait::new();
-            mock.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
-            mock.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
-
+            let mock = make_timed_stream_mock(48_000, 48_000, 1);
             let mut service = build_service(mock);
 
             service.start_loopback();
@@ -70,10 +76,7 @@ mod audio_service_integration_tests {
 
         #[test]
         fn toggle_true_when_already_active_is_no_op() {
-            let mut mock = MockAudioHandlerTrait::new();
-            mock.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
-            mock.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
-
+            let mock = make_timed_stream_mock(48_000, 48_000, 1);
             let mut service = build_service(mock);
 
             service.toggle_loopback(true);
@@ -88,6 +91,8 @@ mod audio_service_integration_tests {
             let mut mock = MockAudioHandlerTrait::new();
             mock.expect_build_input_stream().times(0).returning(|_| Box::new(FakeStream));
             mock.expect_build_output_stream().times(0).returning(|_| Box::new(FakeStream));
+            mock.expect_input_sample_rate().return_const(48_000u32);
+            mock.expect_output_sample_rate().return_const(48_000u32);
 
             let mut service = build_service(mock);
 
@@ -115,6 +120,8 @@ mod audio_service_integration_tests {
             let mut new_handler = MockAudioHandlerTrait::new();
             new_handler.expect_build_input_stream().times(0).returning(|_| Box::new(FakeStream));
             new_handler.expect_build_output_stream().times(0).returning(|_| Box::new(FakeStream));
+            new_handler.expect_input_sample_rate().return_const(48_000u32);
+            new_handler.expect_output_sample_rate().return_const(48_000u32);
 
             service.set_audio_handler(Arc::new(new_handler));
         }
@@ -125,10 +132,7 @@ mod audio_service_integration_tests {
 
             service.toggle_loopback(true);
 
-            let mut new_handler = MockAudioHandlerTrait::new();
-            new_handler.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
-            new_handler.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
-
+            let new_handler = make_timed_stream_mock(48_000, 48_000, 1);
             service.set_audio_handler(Arc::new(new_handler));
 
             assert!(is_active(&service));
@@ -141,10 +145,7 @@ mod audio_service_integration_tests {
 
             service.toggle_loopback(true);
 
-            let mut first = MockAudioHandlerTrait::new();
-            first.expect_build_input_stream().times(1).returning(|_| Box::new(FakeStream));
-            first.expect_build_output_stream().times(1).returning(|_| Box::new(FakeStream));
-
+            let first = make_timed_stream_mock(48_000, 48_000, 1);
             service.set_audio_handler(Arc::new(first));
 
             service.set_audio_handler(Arc::new(make_mock_handler()));

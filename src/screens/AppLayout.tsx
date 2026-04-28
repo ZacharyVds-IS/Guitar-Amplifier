@@ -2,13 +2,34 @@ import {AppBar, Box, Button, Toolbar, Typography} from "@mui/material";
 import {Outlet, useNavigate} from "react-router-dom";
 import {useChannels} from "../hooks/useChannels.ts";
 import {ChannelSelector} from "../components/ChannelSelector.tsx";
+import {useAmpStore} from "../state/AmpConfigStore.tsx";
+import {useEffect} from "react";
 
 export function AppLayout() {
     const navigate = useNavigate();
-    const {channels, loading, refetch, error} = useChannels()
+    const {channels, loading, error} = useChannels();
+    const ampStore = useAmpStore();
+    const currentChannelName = ampStore.current_channel.name;
 
-    const channelOptions = channels.map((channel, index) => ({value: index, label: channel.name}))
+    console.log("AppLayout - channels:", channels, "loading:", loading, "currentChannelName:", currentChannelName);
 
+    // Find current channel index based on the amp store's current channel name
+    const currentChannelIndex = channels.length > 0
+        ? channels.findIndex(ch => ch.name === currentChannelName)
+        : 0;
+
+    const channelOptions = channels.map((channel, index) => ({name: channel.name, index}));
+
+    // Initialize amp store on mount
+    useEffect(() => {
+        console.log("AppLayout mounted, initializing amp store");
+        ampStore.init();
+    }, []);
+
+    const handleChannelChange = async (index: number) => {
+        console.log("Changing channel to index:", index);
+        await ampStore.setChannelByIndex(index);
+    };
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -28,7 +49,18 @@ export function AppLayout() {
                         Rust Riff
                     </Typography>
                     <Box sx={{ display: 'flex', direction:"row", alignItems: 'center', gap: 2 , width: "25%"}}>
-                        <ChannelSelector channels={channelOptions} currentChannelIndex={0} onChannelChange={(value)=>{console.log(value)}} />
+                        {!loading && channels.length > 0 ? (
+                            <ChannelSelector
+                                channels={channelOptions}
+                                currentChannelIndex={currentChannelIndex >= 0 ? currentChannelIndex : 0}
+                                onChannelChange={handleChannelChange}
+                                onAdd={async () => ampStore.init()}
+                            />
+                        ) : (
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                {loading ? "Loading channels..." : error ? "Error loading channels" : "No channels"}
+                            </Typography>
+                        )}
                         <Button color="inherit" onClick={() => navigate("/")}>Home</Button>
                         <Button color="inherit" onClick={() => navigate("/settings")}>Settings</Button>
                     </Box>

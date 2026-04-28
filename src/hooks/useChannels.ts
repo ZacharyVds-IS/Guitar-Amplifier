@@ -1,27 +1,39 @@
 import {useEffect, useState} from "react";
-import {getAllChannels} from "../domain";
+import {ChannelDto, getAllChannels} from "../domain";
 
 export function useChannels() {
-    const [channels, setChannels] = useState([]);
+    const [channels, setChannels] = useState<ChannelDto[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    const fetchChannels = async () => {
-        try {
-            setLoading(true);
-            const data = await getAllChannels();
-            setChannels(data);
-        } catch (err) {
-            console.error("Failed to fetch channels:", err);
-            setError(err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        fetchChannels();
-    }, [fetchChannels]);
+        const fetchChannels = async () => {
+            try {
+                setLoading(true);
+                setError(null);
+                console.log("useChannels: Fetching channels...");
+                const data = await getAllChannels();
+                console.log("useChannels: Channels fetched successfully:", data);
+                setChannels(data);
+                if (data.length === 0) {
+                    console.warn("useChannels: No channels returned from backend");
+                }
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : String(err);
+                console.error("useChannels: Failed to fetch channels:", err);
+                setError(errorMessage);
+                setChannels([]);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    return {channels, loading, error, refetch: fetchChannels };
+        fetchChannels();
+    }, []);
+
+    return {
+        channels,
+        loading,
+        error,
+    };
 }

@@ -13,7 +13,7 @@ export function ChannelSelector({channels, currentChannelIndex, onChannelChange,
         <Box sx={{display: 'flex', direction: "row", alignItems: 'center', gap: 2, width: "100%"}}>
             <DropdownSelector
                 label={"Channels"} options={channels} selectedValue={channels[currentChannelIndex]}
-                onSelectionChange={onChannelChange()} onAdd={onAdd}/>
+                onSelectionChange={(index) => onChannelChange(index)} onAdd={onAdd}/>
         </Box>
     )
 }

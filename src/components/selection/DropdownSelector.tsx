@@ -1,4 +1,15 @@
-import {FormControl, InputLabel, MenuItem, Select, SelectChangeEvent, Typography} from "@mui/material";
+import {
+    Divider,
+    FormControl,
+    InputLabel,
+    ListItemIcon,
+    ListItemText,
+    MenuItem,
+    Select,
+    SelectChangeEvent,
+    Typography
+} from "@mui/material";
+import AddIcon from '@mui/icons-material/Add';
 
 interface DropdownProps {
     title?: string;

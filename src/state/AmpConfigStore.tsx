@@ -2,6 +2,7 @@ import {
     AmpConfigDto,
     getAmpConfig,
     setBass,
+    setChannelIndex,
     setGain,
     setMasterVolume,
     setMiddle,
@@ -13,6 +14,7 @@ import {create} from "zustand/react";
 
 interface AmpState extends AmpConfigDto {
     init: () => Promise<void>;
+    setChannelByIndex: (index: number) => Promise<void>;
     setGain: (val: number) => void;
     setVolume: (val: number) => void;
     setMasterVolume: (val: number) => void;
@@ -48,6 +50,21 @@ export const useAmpStore = create<AmpState>((set) => ({
         }
     },
 
+    setChannelByIndex: async (index: number) => {
+        try {
+            console.log("Setting channel index to:", index);
+            await setChannelIndex({ channelIndex: index });
+            // Reinitialize to get the new channel data
+            const config = await getAmpConfig();
+            set({
+                ...config
+            });
+            console.log("Channel changed, store updated:", config);
+        } catch (error) {
+            console.error("Failed to set channel index:", error);
+        }
+    },
+
     setMasterVolume: (val: number) => {
         set({master_volume: val});
         setMasterVolume({masterVolume: val})
@@ -79,41 +96,41 @@ export const useAmpStore = create<AmpState>((set) => ({
     },
 
     setBass: (val: number) => {
-        set((state) => ({
-            current_channel: {
-                ...state.current_channel,
-                tone_stack: {
-                    ...state.tone_stack,
-                    bass: val,
-                },
-            }
-        }));
-        setBass({bass: val})
-    },
+         set((state) => ({
+             current_channel: {
+                 ...state.current_channel,
+                 tone_stack: {
+                     ...state.current_channel.tone_stack,
+                     bass: val,
+                 },
+             }
+         }));
+         setBass({bass: val})
+     },
 
-    setMiddle: (val: number) => {
-        set((state) => ({
-            current_channel: {
-                ...state.current_channel,
-                tone_stack: {
-                    ...state.tone_stack,
-                    middle: val,
-                },
-            }
-        }));
-        setMiddle({middle: val})
-    },
+     setMiddle: (val: number) => {
+         set((state) => ({
+             current_channel: {
+                 ...state.current_channel,
+                 tone_stack: {
+                     ...state.current_channel.tone_stack,
+                     middle: val,
+                 },
+             }
+         }));
+         setMiddle({middle: val})
+     },
 
-    setTreble: (val: number) => {
-        set((state) => ({
-            current_channel: {
-                ...state.current_channel,
-                tone_stack: {
-                    ...state.tone_stack,
-                    treble: val,
-                },
-            }
-        }));
-        setTreble({treble: val})
-    },
+     setTreble: (val: number) => {
+         set((state) => ({
+             current_channel: {
+                 ...state.current_channel,
+                 tone_stack: {
+                     ...state.current_channel.tone_stack,
+                     treble: val,
+                 },
+             }
+         }));
+         setTreble({treble: val})
+     },
 }));

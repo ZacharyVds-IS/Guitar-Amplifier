@@ -24,16 +24,17 @@ export default defineConfig({
       {
         text:'Amp Design',
         items:[
-          {text:'Relation to real amp', link:'/guide/amp_configuration/structure'},
-          {text:'Gain', link:'/guide/amp_configuration/gain'},
-          {text:'Master Volume', link:'/guide/amp_configuration/master-volume'},
-          {text:'Tone Stack',link:'/guide/amp_configuration/tone-stack'}
+          {text:'Relation to real amp', link:'/guide/amp_design/structure'},
+          {text:'Resampling', link:'/guide/amp_design/resampling.md'},
+          {text:'Gain', link:'/guide/amp_design/gain'},
+          {text:'Master Volume', link:'/guide/amp_design/master-volume'},
+          {text:'Tone Stack',link:'/guide/amp_design/tone-stack'}
         ]
       },
       {
         text:'Effects',
         items:[
-          {text:'Effect chain', link:'/guide/effect_chain/chain'},
+          {text:'Effect chain', link:'/guide/effects/chain'},
         ]
       },
       {

@@ -1,9 +1,9 @@
-use atomic_float::AtomicF32;
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
-use tracing::error;
+use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::domain::tone_stack::ToneStack;
-use crate::domain::tone_stack_dto::ToneStackDto;
+use atomic_float::AtomicF32;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use tracing::error;
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///

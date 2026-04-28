@@ -1,4 +1,7 @@
-use crate::domain::execution_timing_dto::ExecutionTimingDto;
+use crate::domain::dto::algorithmic_latency_dto::AlgorithmicLatencyDto;
+use crate::domain::dto::buffer_latency_dto::BufferLatencyDto;
+use crate::domain::dto::execution_timing_dto::ExecutionTimingDto;
+use crate::services::audio_latency_measurement_service::AudioLatencyMeasurementService;
 use crate::services::audio_service::AudioService;
 use std::sync::Mutex;
 use tracing::info;
@@ -10,7 +13,7 @@ pub fn test_gain_latency(audio_service: tauri::State<'_, Mutex<AudioService>>) -
         .lock()
         .map_err(|_| "Failed to lock audio service".to_string())?;
 
-    let added_us_per_sample = service.measure_gain_latency(2048);
+    let added_us_per_sample = AudioLatencyMeasurementService::measure_gain_latency(&service, 2048);
 
     info!(
         "Gain processor execution impact: {:.6} µs/sample",
@@ -26,21 +29,19 @@ pub fn test_gain_latency(audio_service: tauri::State<'_, Mutex<AudioService>>) -
 
 /// Measures execution impact of all processors in the DSP chain.
 ///
-/// Returns a vector of timing measurements in chain order:
-/// 1. Input Latency (buffer-based I/O latency)
-/// 2. Gain
-/// 3. Tone Stack
-/// 4. Master Volume
-/// 5. Output Latency (buffer-based I/O latency)
+/// Returns a vector of CPU-time measurements in chain order:
+/// 1. Gain
+/// 2. Tone Stack
+/// 3. Master Volume
 #[tauri::command]
-pub fn measure_all_dsp_timings(
+pub fn measure_all_dsp_cpu_timings(
     audio_service: tauri::State<'_, Mutex<AudioService>>,
 ) -> Result<Vec<ExecutionTimingDto>, String> {
     let service = audio_service
         .lock()
         .map_err(|_| "Failed to lock audio service".to_string())?;
 
-    let timings = service.measure_all_dsp_timings(2048);
+    let timings = AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 2048);
 
     for timing in &timings {
         info!(
@@ -53,54 +54,43 @@ pub fn measure_all_dsp_timings(
     Ok(timings)
 }
 
-//TODO:Remove unused commands.
 #[tauri::command]
-pub fn test_tone_stack_latency(audio_service: tauri::State<'_, Mutex<AudioService>>) -> Result<(), String> {
+pub fn measure_all_dsp_algorithmic_latency(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+) -> Result<Vec<AlgorithmicLatencyDto>, String> {
     let service = audio_service
         .lock()
         .map_err(|_| "Failed to lock audio service".to_string())?;
 
-    let added_us_per_sample = service.measure_tone_stack_latency(2048);
+    let latency = AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
 
-    info!(
-        "Tone stack processor execution impact: {:.6} µs/sample",
-        added_us_per_sample
-    );
-    println!(
-        "Tone stack processor execution impact: {:.6} µs/sample",
-        added_us_per_sample
-    );
+    for item in &latency {
+        info!(
+            processor = item.processor_name,
+            latency_samples = item.latency_samples,
+            latency_ms = item.latency_ms,
+            "DSP chain processor algorithmic latency"
+        );
+    }
 
-    Ok(())
+    Ok(latency)
 }
-
-/// Measures execution impact for a fixed-delay processor.
-///
-/// This command is a diagnostic sanity check for the time-based analyzer itself.
 #[tauri::command]
-pub fn test_fixed_delay_latency(audio_service: tauri::State<'_, Mutex<AudioService>>) -> Result<(), String> {
+pub fn measure_buffer_latency(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+) -> Result<BufferLatencyDto, String> {
     let service = audio_service
         .lock()
         .map_err(|_| "Failed to lock audio service".to_string())?;
 
-    let configured_delay_samples = 128usize;
-    let analysis_block_size = 2048usize;
-    let added_us_per_sample = service.measure_fixed_delay_latency(
-        configured_delay_samples,
-        analysis_block_size,
-    );
+    let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
 
     info!(
-        "Fixed-delay processor execution impact: configured_delay={} samples, {:.6} µs/sample",
-        configured_delay_samples,
-        added_us_per_sample
-    );
-    println!(
-        "Fixed-delay processor execution impact: configured_delay={} samples, {:.6} µs/sample",
-        configured_delay_samples,
-        added_us_per_sample
+        input_buffer_latency_ms = latency.input_buffer_latency_ms,
+        output_buffer_latency_ms = latency.output_buffer_latency_ms,
+        total_buffer_latency_ms = latency.total_buffer_latency_ms,
+        "I/O buffer latency"
     );
 
-    Ok(())
+    Ok(latency)
 }
-

@@ -1,5 +1,5 @@
-use crate::domain::amp_config_dto::AmpConfigDto;
-use crate::domain::tone_stack_dto::ToneStackDto;
+use crate::domain::dto::amp_config_dto::AmpConfigDto;
+use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
 use std::sync::Mutex;
 

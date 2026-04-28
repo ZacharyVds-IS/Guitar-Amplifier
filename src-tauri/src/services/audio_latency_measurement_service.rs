@@ -6,11 +6,13 @@
 use crate::domain::dto::algorithmic_latency_dto::AlgorithmicLatencyDto;
 use crate::domain::dto::buffer_latency_dto::BufferLatencyDto;
 use crate::domain::dto::execution_timing_dto::ExecutionTimingDto;
+use crate::domain::dto::round_trip_latency_dto::RoundTripLatencyDto;
 use crate::services::analyzers::LatencyAnalyzer::LatencyAnalyzer;
 use crate::services::audio_service::AudioService;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
 use cpal::BufferSize;
+use std::time::Duration;
 
 pub struct AudioLatencyMeasurementService;
 
@@ -84,6 +86,18 @@ impl AudioLatencyMeasurementService {
         let output_ms = (output_frames as f64 / audio_service.audio_handler().output_sample_rate() as f64) * 1000.0;
 
         BufferLatencyDto::new(input_ms, output_ms)
+    }
+
+    /// Measures round-trip latency by probing the active audio loopback pipeline.
+    ///
+    /// This performs an actual live measurement: an impulse is injected at output and
+    /// the returned signal is detected at input. It therefore captures full path delay
+    /// through buffering, DSP thread scheduling, driver/hardware path, and callback timing.
+    pub fn measure_round_trip_latency(audio_service: &AudioService) -> RoundTripLatencyDto {
+        match audio_service.measure_round_trip_latency(Duration::from_secs(3)) {
+            Ok(latency_ms) => RoundTripLatencyDto::success(latency_ms),
+            Err(error) => RoundTripLatencyDto::failure(error),
+        }
     }
 }
 

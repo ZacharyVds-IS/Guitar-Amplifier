@@ -9,10 +9,123 @@ use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 use tracing::info;
+
+const ROUND_TRIP_DETECTION_THRESHOLD: f32 = 0.6;
+const ROUND_TRIP_IMPULSE_AMPLITUDE: f32 = 0.95;
+
+struct RoundTripProbe {
+    state: Mutex<RoundTripProbeState>,
+    cv: Condvar,
+}
+
+#[derive(Default)]
+struct RoundTripProbeState {
+    generation: u64,
+    request_pending: bool,
+    completed_generation: u64,
+    result_ms: Option<f64>,
+    error: Option<String>,
+}
+
+impl RoundTripProbe {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(RoundTripProbeState::default()),
+            cv: Condvar::new(),
+        }
+    }
+
+    fn request(&self) -> u64 {
+        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
+        state.generation = state.generation.saturating_add(1);
+        state.request_pending = true;
+        state.result_ms = None;
+        state.error = None;
+        let generation = state.generation;
+        self.cv.notify_all();
+        generation
+    }
+
+    fn try_take_pending_request(&self) -> Option<u64> {
+        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
+        if state.request_pending {
+            state.request_pending = false;
+            Some(state.generation)
+        } else {
+            None
+        }
+    }
+
+    fn complete_success(&self, generation: u64, latency_ms: f64) {
+        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
+        if state.generation != generation {
+            return;
+        }
+        state.completed_generation = generation;
+        state.result_ms = Some(latency_ms);
+        state.error = None;
+        self.cv.notify_all();
+    }
+
+    fn complete_error(&self, generation: u64, error: String) {
+        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
+        if state.generation != generation {
+            return;
+        }
+        state.completed_generation = generation;
+        state.result_ms = None;
+        state.error = Some(error);
+        self.cv.notify_all();
+    }
+
+    fn wait_for_result(&self, generation: u64, timeout: Duration) -> Result<f64, String> {
+        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
+        let deadline = Instant::now() + timeout;
+
+        while state.completed_generation < generation {
+            let now = Instant::now();
+            if now >= deadline {
+                return Err("Round-trip latency measurement timed out".to_string());
+            }
+            let remaining = deadline.saturating_duration_since(now);
+            let (new_state, wait_result) = self
+                .cv
+                .wait_timeout(state, remaining)
+                .expect("round trip probe mutex poisoned while waiting");
+            state = new_state;
+
+            if wait_result.timed_out() && state.completed_generation < generation {
+                return Err("Round-trip latency measurement timed out".to_string());
+            }
+        }
+
+        if let Some(latency_ms) = state.result_ms {
+            Ok(latency_ms)
+        } else {
+            Err(state
+                .error
+                .clone()
+                .unwrap_or_else(|| "Round-trip latency measurement failed".to_string()))
+        }
+    }
+
+    fn fail_current(&self, reason: String) {
+        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
+        if state.generation == 0 {
+            return;
+        }
+        state.request_pending = false;
+        state.completed_generation = state.generation;
+        state.result_ms = None;
+        state.error = Some(reason);
+        self.cv.notify_all();
+    }
+}
 
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
@@ -43,6 +156,7 @@ pub struct AudioService {
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
     channel: Channel,
+    round_trip_probe: Arc<RoundTripProbe>,
 }
 
 impl AudioService {
@@ -81,7 +195,17 @@ impl AudioService {
             loopback_thread: None,
             is_active: false,
             channel: Channel::new("Main".to_string(), None, None),
+            round_trip_probe: Arc::new(RoundTripProbe::new()),
         }
+    }
+
+    pub fn measure_round_trip_latency(&self, timeout: Duration) -> Result<f64, String> {
+        if !self.is_active {
+            return Err("Audio loopback is not active. Please start loopback first.".to_string());
+        }
+
+        let generation = self.round_trip_probe.request();
+        self.round_trip_probe.wait_for_result(generation, timeout)
     }
 
     /// Starts the audio loopback on a dedicated background thread.
@@ -112,6 +236,7 @@ impl AudioService {
 
         let handler = self.audio_handler.clone();
         let channel = self.channel.clone();
+        let round_trip_probe = self.round_trip_probe.clone();
 
         let thread = thread::spawn(move || {
             // How many input samples to batch before the resampler produces output.
@@ -145,6 +270,7 @@ impl AudioService {
 
             let shutdown = Arc::new(AtomicBool::new(false));
             let worker_shutdown = shutdown.clone();
+            let probe_for_worker = round_trip_probe.clone();
 
             let worker = thread::spawn(move || {
                 // ── Effects chain ────────────────────────────────────────────────
@@ -161,22 +287,72 @@ impl AudioService {
                     master_volume.process(sample)
                 };
 
+                let mut active_measurement: Option<u64> = None;
+                let mut impulse_injected_at: Option<Instant> = None;
+                let measurement_timeout = Duration::from_secs(2);
+
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) {
                         break;
                     }
 
+                    if active_measurement.is_none() {
+                        if let Some(generation) = probe_for_worker.try_take_pending_request() {
+                            active_measurement = Some(generation);
+                            impulse_injected_at = None;
+                        }
+                    }
+
                     if let Some(sample) = i_consumer.try_pop() {
+                        if let (Some(generation), Some(injected_at)) = (active_measurement, impulse_injected_at) {
+                            if sample.abs() >= ROUND_TRIP_DETECTION_THRESHOLD {
+                                let measured_ms = injected_at.elapsed().as_secs_f64() * 1000.0;
+                                probe_for_worker.complete_success(generation, measured_ms);
+                                active_measurement = None;
+                                impulse_injected_at = None;
+                            } else if injected_at.elapsed() >= measurement_timeout {
+                                probe_for_worker.complete_error(
+                                    generation,
+                                    "Round-trip detection timed out. Route output to input and retry.".to_string(),
+                                );
+                                active_measurement = None;
+                                impulse_injected_at = None;
+                            }
+                        }
+
                         // `policy.process` applies the resampler at the right moment:
                         //   PreDsp  → resamples first, then calls `dsp.process` on each result
                         //   PostDsp → calls `dsp.process` first, then resamples the output
                         //   Bypass  → calls `dsp.process` directly, returns a single sample
                         for processed_sample in policy.process(sample, &mut |resampled_sample| run_dsp(resampled_sample)) {
+                            if active_measurement.is_some() && impulse_injected_at.is_none() {
+                                if o_producer.try_push(ROUND_TRIP_IMPULSE_AMPLITUDE).is_ok() {
+                                    impulse_injected_at = Some(Instant::now());
+                                }
+                                continue;
+                            }
                             let _ = o_producer.try_push(processed_sample);
                         }
                     } else {
+                        if let (Some(generation), Some(injected_at)) = (active_measurement, impulse_injected_at) {
+                            if injected_at.elapsed() >= measurement_timeout {
+                                probe_for_worker.complete_error(
+                                    generation,
+                                    "Round-trip detection timed out. Route output to input and retry.".to_string(),
+                                );
+                                active_measurement = None;
+                                impulse_injected_at = None;
+                            }
+                        }
                         thread::yield_now();
                     }
+                }
+
+                if let Some(generation) = active_measurement {
+                    probe_for_worker.complete_error(
+                        generation,
+                        "Round-trip measurement was interrupted.".to_string(),
+                    );
                 }
 
                 // Drain any samples still sitting in the resampler's input buffer
@@ -216,6 +392,7 @@ impl AudioService {
         }
 
         self.is_active = false;
+        self.round_trip_probe.fail_current("Audio loopback stopped.".to_string());
     }
 
     /// Replaces the underlying audio handler, restarting the loopback if it was running.

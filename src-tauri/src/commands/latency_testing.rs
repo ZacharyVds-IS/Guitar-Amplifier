@@ -1,6 +1,7 @@
 use crate::domain::dto::algorithmic_latency_dto::AlgorithmicLatencyDto;
 use crate::domain::dto::buffer_latency_dto::BufferLatencyDto;
 use crate::domain::dto::execution_timing_dto::ExecutionTimingDto;
+use crate::domain::dto::round_trip_latency_dto::RoundTripLatencyDto;
 use crate::services::audio_latency_measurement_service::AudioLatencyMeasurementService;
 use crate::services::audio_service::AudioService;
 use std::sync::Mutex;
@@ -91,6 +92,31 @@ pub fn measure_buffer_latency(
         total_buffer_latency_ms = latency.total_buffer_latency_ms,
         "I/O buffer latency"
     );
+
+    Ok(latency)
+}
+
+#[tauri::command]
+pub fn measure_round_trip_latency(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+) -> Result<RoundTripLatencyDto, String> {
+    let service = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
+
+    let latency = AudioLatencyMeasurementService::measure_round_trip_latency(&service);
+
+    if latency.is_valid {
+        info!(
+            round_trip_latency_ms = latency.latency_ms,
+            "Round-trip latency measurement"
+        );
+    } else {
+        info!(
+            error = latency.error.clone(),
+            "Round-trip latency measurement failed"
+        );
+    }
 
     Ok(latency)
 }

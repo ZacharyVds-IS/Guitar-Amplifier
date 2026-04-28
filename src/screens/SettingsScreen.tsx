@@ -1,9 +1,11 @@
-import {Alert, Box, CircularProgress, Divider, FormControlLabel, Switch, Typography, useTheme} from "@mui/material";
+import {Alert, Box, CircularProgress, Divider, FormControlLabel, Switch, Typography, useTheme, Button} from "@mui/material";
 import {DropdownSelector} from "../components/selection/DropdownSelector.tsx";
 import {useAudioDevices} from "../hooks/useAudioDevices.ts";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {useUIStore} from "../state/UIStore.tsx";
+import * as commands from "../domain/commands.ts";
+import * as types from "../domain/types.ts";
 
 export function SettingsScreen() {
     const theme = useTheme();
@@ -12,13 +14,15 @@ export function SettingsScreen() {
 
     const [selectedInput, setSelectedInput] = useState<string>("");
     const [selectedOutput, setSelectedOutput] = useState<string>("");
-    const showLatencyImpacts = useUIStore((state) => state.showLatencyImpacts);
-    const setShowLatencyImpacts = useUIStore((state) => state.setShowLatencyImpacts);
     const developerMode = useUIStore((state) => state.developerMode);
     const setDeveloperMode = useUIStore((state) => state.setDeveloperMode);
 
     const [inputSampleRate, setInputSampleRate] = useState<number | null>(null);
     const [outputSampleRate, setOutputSampleRate] = useState<number | null>(null);
+    const [roundTripLatency, setRoundTripLatency] = useState<number | null>(null);
+    const [roundTripLoading, setRoundTripLoading] = useState(false);
+    const [roundTripError, setRoundTripError] = useState<string | null>(null);
+    const [bufferLatency, setBufferLatency] = useState<types.BufferLatencyDto | null>(null);
 
 
     const inputOptions = inputs.map(d => ({
@@ -36,6 +40,7 @@ export function SettingsScreen() {
         setSelectedInput(id);
         setInputSampleRate(device?.sample_rate ?? null);
         await updateInputDevice(id);
+        await loadBufferLatency();
     }
 
     async function handleOutputChange(id: string) {
@@ -43,7 +48,40 @@ export function SettingsScreen() {
         setSelectedOutput(id);
         setOutputSampleRate(device?.sample_rate ?? null);
         await updateOutputDevice(id);
+        await loadBufferLatency();
     }
+
+    async function loadBufferLatency() {
+        try {
+            const latency = await commands.measureBufferLatency();
+            setBufferLatency(latency);
+        } catch {
+            setBufferLatency(null);
+        }
+    }
+
+    async function handleMeasureRoundTripLatency() {
+        setRoundTripLoading(true);
+        setRoundTripError(null);
+        try {
+            const result = await commands.measureRoundTripLatency();
+            if (result.is_valid) {
+                setRoundTripLatency(result.latency_ms);
+            } else {
+                setRoundTripError(result.error || "Failed to measure round-trip latency");
+                setRoundTripLatency(null);
+            }
+        } catch (error) {
+            setRoundTripError(error instanceof Error ? error.message : "Unknown error occurred");
+            setRoundTripLatency(null);
+        } finally {
+            setRoundTripLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        void loadBufferLatency();
+    }, []);
 
     if (isLoading) return <CircularProgress />;
     if (error) return <Alert severity="error">{error}</Alert>;
@@ -67,7 +105,6 @@ export function SettingsScreen() {
                 }}
             >
                 <Box sx={{ display: "flex", gap: 3, flex: 1, minHeight: 0, overflow: "hidden" }}>
-                    {/* Left side - Regular settings (scrollable) */}
                     <Box
                         sx={{
                             flex: "0 0 50%",
@@ -92,16 +129,6 @@ export function SettingsScreen() {
                         <FormControlLabel
                             control={
                                 <Switch
-                                    checked={showLatencyImpacts}
-                                    onChange={(e) => setShowLatencyImpacts(e.target.checked)}
-                                />
-                            }
-                            label="Show Latency Impacts"
-                        />
-
-                        <FormControlLabel
-                            control={
-                                <Switch
                                     checked={developerMode}
                                     onChange={(e) => setDeveloperMode(e.target.checked)}
                                 />
@@ -109,28 +136,88 @@ export function SettingsScreen() {
                             label="Developer Mode"
                         />
 
-                        {inputSampleRate &&
-                            outputSampleRate &&
-                            inputSampleRate !== outputSampleRate && (
-                                <Typography variant="body1">
-                                    <Box
-                                        component="span"
-                                        sx={{ color: theme.palette.primary.main, fontWeight: "bold" }}
-                                    >
-                                        Sample rates do not match!
-                                    </Box>{" "}
-                                    Output will have a sample rate of:{" "}
-                                    <Box component="span" sx={{ fontWeight: "bold",color:theme.palette.primary.main }}>
-                                        {outputSampleRate} Hz
+                    {inputSampleRate &&
+                        outputSampleRate &&
+                        inputSampleRate !== outputSampleRate && (
+                            <Typography variant="body1">
+                                <Box
+                                    component="span"
+                                    sx={{ color: theme.palette.primary.main, fontWeight: "bold" }}
+                                >
+                                    Sample rates do not match!
+                                </Box>{" "}
+                                Output will have a sample rate of:{" "}
+                                <Box component="span" sx={{ fontWeight: "bold",color:theme.palette.primary.main }}>
+                                    {outputSampleRate} Hz
+                                </Box>
+                            </Typography>
+                        )}
+
+                    <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1 }}>
+                            Latency
+                        </Typography>
+
+                        <Box sx={{ p: 1.5, backgroundColor: theme.palette.action.hover, borderRadius: 1, mb: 1.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                                Estimated Buffer Latency
+                            </Typography>
+                            {bufferLatency ? (
+                                <Typography variant="caption" sx={{ display: "block", mt: 0.5 }}>
+                                    {bufferLatency.input_buffer_latency_ms.toFixed(2)} ms (input) + {" "}
+                                    {bufferLatency.output_buffer_latency_ms.toFixed(2)} ms (output) = {" "}
+                                    <Box component="span" sx={{ fontWeight: "bold", color: theme.palette.primary.main }}>
+                                        {bufferLatency.total_buffer_latency_ms.toFixed(2)} ms
                                     </Box>
                                 </Typography>
+                            ) : (
+                                <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: theme.palette.text.secondary }}>
+                                    Unable to read current buffer latency.
+                                </Typography>
                             )}
+                        </Box>
+
+                        <Box sx={{ p: 1.5, backgroundColor: theme.palette.action.hover, borderRadius: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: "bold", mb: 1 }}>
+                                Measured Round-Trip Latency
+                            </Typography>
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={handleMeasureRoundTripLatency}
+                                disabled={roundTripLoading}
+                                fullWidth
+                                sx={{ mb: 1 }}
+                            >
+                                {roundTripLoading ? "Measuring..." : "Measure Round-Trip"}
+                            </Button>
+
+                            {roundTripError && (
+                                <Alert severity="error" sx={{ mb: 1 }}>
+                                    {roundTripError}
+                                </Alert>
+                            )}
+
+                            {roundTripLatency !== null && (
+                                <Typography variant="caption" sx={{ display: "block" }}>
+                                    <Box component="span" sx={{ fontWeight: "bold", color: theme.palette.primary.main }}>
+                                        {roundTripLatency.toFixed(2)} ms
+                                    </Box>{" "}
+                                    measured end-to-end.
+                                </Typography>
+                            )}
+
+                            {roundTripLatency === null && !roundTripError && (
+                                <Typography variant="caption" sx={{ display: "block", color: theme.palette.text.secondary }}>
+                                    Route output back into input (for example: Line Out to Line In), then press Measure Round-Trip.
+                                </Typography>
+                            )}
+                        </Box>
+                    </Box>
                     </Box>
 
-                    {/* Divider */}
                     <Divider orientation="vertical" />
 
-                    {/* Right side - Device settings (non-scrollable) */}
                     <Box
                         sx={{
                             flex: "0 0 50%",

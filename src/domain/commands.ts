@@ -104,6 +104,12 @@ export async function measureBufferLatency(): Promise<types.BufferLatencyDto> {
 
 
 
+export async function measureRoundTripLatency(): Promise<types.RoundTripLatencyDto> {
+  return invoke('measure_round_trip_latency');
+}
+
+
+
 export async function testToneStackLatency(): Promise<void> {
   return invoke('test_tone_stack_latency');
 }
@@ -113,5 +119,3 @@ export async function testToneStackLatency(): Promise<void> {
 export async function testFixedDelayLatency(): Promise<void> {
   return invoke('test_fixed_delay_latency');
 }
-
-

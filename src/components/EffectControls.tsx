@@ -4,12 +4,9 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 import {useUIStore} from "../state/UIStore.tsx";
 import {
-    type AlgorithmicLatencyDto,
-    type BufferLatencyDto,
-    type ExecutionTimingDto,
+    type AlgorithmicLatencyDto, type ExecutionTimingDto,
     measureAllDspAlgorithmicLatency,
-    measureAllDspTimings,
-    measureBufferLatency
+    measureAllDspTimings
 } from "../domain";
 import {useEffect, useState} from "react";
 
@@ -26,45 +23,32 @@ export function EffectControls() {
     const setMiddle = useAmpStore((state) => state.setMiddle);
     const setTreble = useAmpStore((state) => state.setTreble);
 
-    const showLatencyImpacts = useUIStore((state) => state.showLatencyImpacts);
     const developerMode = useUIStore((state) => state.developerMode);
     const [latency, setLatency] = useState<AlgorithmicLatencyDto[]>([]);
-    const [bufferLatency, setBufferLatency] = useState<BufferLatencyDto | null>(null);
     const [cpuTimings, setCpuTimings] = useState<ExecutionTimingDto[]>([]);
 
     useEffect(() => {
-        if (showLatencyImpacts) {
+        if (developerMode) {
             const fetchTimings = async () => {
                 try {
-                    const promises: Promise<any>[] = [measureBufferLatency()];
-
-                    // Only fetch detailed metrics in developer mode
-                    if (developerMode) {
-                        promises.push(measureAllDspAlgorithmicLatency());
-                        promises.push(measureAllDspTimings());
-                    }
+                    const promises: Promise<any>[] = [
+                        measureAllDspAlgorithmicLatency(),
+                        measureAllDspTimings()
+                    ];
 
                     const results = await Promise.all(promises);
-                    setBufferLatency(results[0]);
-
-                    if (developerMode) {
-                        setLatency(results[1] || []);
-                        setCpuTimings(results[2] || []);
-                    } else {
-                        setLatency([]);
-                        setCpuTimings([]);
-                    }
+                    setLatency(results[0] || []);
+                    setCpuTimings(results[1] || []);
                 } catch (error) {
                     console.error("Failed to fetch latency metrics:", error);
                 }
             };
             fetchTimings();
         } else {
-            setBufferLatency(null);
             setLatency([]);
             setCpuTimings([]);
         }
-    }, [showLatencyImpacts, developerMode]);
+    }, [developerMode]);
 
     const getTimingValue = (processorName: string): string => {
         const timing = latency.find(t => t.processor_name === processorName);
@@ -88,24 +72,6 @@ export function EffectControls() {
                 boxShadow: 8
             }}
         >
-            {showLatencyImpacts && bufferLatency && (
-                <Stack direction={"row"} sx={{pb: 2}}>
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            mt: 1.25,
-                            display: "block",
-                            fontSize: "0.62rem",
-                            color: "text.secondary",
-                            textAlign: "center"
-                        }}
-                    >
-                        Estimated buffer latency: in {bufferLatency.input_buffer_latency_ms.toFixed(3)} ms /
-                        out {bufferLatency.output_buffer_latency_ms.toFixed(3)} ms /
-                        total {bufferLatency.total_buffer_latency_ms.toFixed(3)} ms
-                    </Typography>
-                </Stack>
-            )}
             <Stack direction="row" spacing={4}>
                 <Box sx={{display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5}}>
                     <FlipSwitch label={"On/Off"} value={isActive} onChange={setIsActive}/>
@@ -123,18 +89,14 @@ export function EffectControls() {
                         />
 
                     </Box>
-                    {showLatencyImpacts && (
+                    {developerMode && (
                         <Stack spacing={0}>
-                            {developerMode && (
-                                <>
-                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                        latency: {getTimingValue("Master Volume")}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                        cpu: {getCpuTimeValue("Master Volume")}
-                                    </Typography>
-                                </>
-                            )}
+                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                latency: {getTimingValue("Master Volume")}
+                            </Typography>
+                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                cpu: {getCpuTimeValue("Master Volume")}
+                            </Typography>
                         </Stack>
                     )}
                 </Stack>
@@ -148,18 +110,14 @@ export function EffectControls() {
                         value={gain}
                         onChange={setGain}
                     />
-                    {showLatencyImpacts && (
+                    {developerMode && (
                         <Stack spacing={0}>
-                            {developerMode && (
-                                <>
-                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                        latency: {getTimingValue("Gain")}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
-                                        cpu: {getCpuTimeValue("Gain")}
-                                    </Typography>
-                                </>
-                            )}
+                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                latency: {getTimingValue("Gain")}
+                            </Typography>
+                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                cpu: {getCpuTimeValue("Gain")}
+                            </Typography>
                         </Stack>
                     )}
                 </Box>
@@ -197,29 +155,25 @@ export function EffectControls() {
                             <Knob label="Treble" min={0} max={100} value={100} size={50} onChange={setTreble}/>
                         </Stack>
                     </Box>
-                    {showLatencyImpacts && (
+                    {developerMode && (
                         <Stack spacing={0}>
-                            {developerMode && (
-                                <>
-                                    <Typography variant="caption" sx={{
-                                        fontSize: "0.62rem",
-                                        color: "text.secondary",
-                                        mt: 1,
-                                        display: "block",
-                                        textAlign: "center"
-                                    }}>
-                                        latency: {getTimingValue("Tone Stack")}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{
-                                        fontSize: "0.62rem",
-                                        color: "text.secondary",
-                                        display: "block",
-                                        textAlign: "center"
-                                    }}>
-                                        cpu: {getCpuTimeValue("Tone Stack")}
-                                    </Typography>
-                                </>
-                            )}
+                            <Typography variant="caption" sx={{
+                                fontSize: "0.62rem",
+                                color: "text.secondary",
+                                mt: 1,
+                                display: "block",
+                                textAlign: "center"
+                            }}>
+                                latency: {getTimingValue("Tone Stack")}
+                            </Typography>
+                            <Typography variant="caption" sx={{
+                                fontSize: "0.62rem",
+                                color: "text.secondary",
+                                display: "block",
+                                textAlign: "center"
+                            }}>
+                                cpu: {getCpuTimeValue("Tone Stack")}
+                            </Typography>
                         </Stack>
                     )}
                 </Stack>

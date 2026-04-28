@@ -33,6 +33,12 @@ export interface AlgorithmicLatencyDto {
   latency_ms: number;
 }
 
+export interface RoundTripLatencyDto {
+  latency_ms: number;
+  is_valid: boolean;
+  error: string | null;
+}
+
 export interface ToneStackDto {
   bass: number;
   middle: number;
@@ -101,11 +107,5 @@ export interface SetOutputDeviceParams {
   deviceId: string;
   [key: string]: unknown;
 }
-
-
-
-
-
-
 
 

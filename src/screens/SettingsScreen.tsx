@@ -1,4 +1,4 @@
-import {Alert, Box, CircularProgress, FormControlLabel, Switch, Typography, useTheme} from "@mui/material";
+import {Alert, Box, CircularProgress, Divider, FormControlLabel, Switch, Typography, useTheme} from "@mui/material";
 import {DropdownSelector} from "../components/selection/DropdownSelector.tsx";
 import {useAudioDevices} from "../hooks/useAudioDevices.ts";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
@@ -49,63 +49,116 @@ export function SettingsScreen() {
     if (error) return <Alert severity="error">{error}</Alert>;
 
     return (
-        <Box sx={{ p: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box sx={{ p: 4, display: "flex", flexDirection: "column", height: "100%", gap: 2 }}>
             <Typography variant="h6">Settings</Typography>
             {routingError && <Alert severity="error">{routingError}</Alert>}
 
-            <DropdownSelector
-                title="Input Device"
-                label="Select input device"
-                options={inputOptions}
-                selectedValue={selectedInput}
-                onSelectionChange={handleInputChange}
-            />
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "hidden",
+                    backgroundColor: theme.palette.background.paper,
+                    borderRadius: 2,
+                    boxShadow: 2,
+                    p: 3,
+                }}
+            >
+                <Box sx={{ display: "flex", gap: 3, flex: 1, minHeight: 0, overflow: "hidden" }}>
+                    {/* Left side - Regular settings (scrollable) */}
+                    <Box
+                        sx={{
+                            flex: "0 0 50%",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            pr: 2,
+                            "&::-webkit-scrollbar": {
+                                width: "8px",
+                            },
+                            "&::-webkit-scrollbar-track": {
+                                background: "transparent",
+                            },
+                            "&::-webkit-scrollbar-thumb": {
+                                background: theme.palette.action.disabled,
+                                borderRadius: "4px",
+                            },
+                        }}
+                    >
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={showLatencyImpacts}
+                                    onChange={(e) => setShowLatencyImpacts(e.target.checked)}
+                                />
+                            }
+                            label="Show Latency Impacts"
+                        />
 
-            <DropdownSelector
-                title="Output Device"
-                label="Select output device"
-                options={outputOptions}
-                selectedValue={selectedOutput}
-                onSelectionChange={handleOutputChange}
-            />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={developerMode}
+                                    onChange={(e) => setDeveloperMode(e.target.checked)}
+                                />
+                            }
+                            label="Developer Mode"
+                        />
 
-            <FormControlLabel
-                control={
-                    <Switch
-                        checked={showLatencyImpacts}
-                        onChange={(e) => setShowLatencyImpacts(e.target.checked)}
-                    />
-                }
-                label="Show Latency Impacts"
-            />
+                        {inputSampleRate &&
+                            outputSampleRate &&
+                            inputSampleRate !== outputSampleRate && (
+                                <Typography variant="body1">
+                                    <Box
+                                        component="span"
+                                        sx={{ color: theme.palette.primary.main, fontWeight: "bold" }}
+                                    >
+                                        Sample rates do not match!
+                                    </Box>{" "}
+                                    Output will have a sample rate of:{" "}
+                                    <Box component="span" sx={{ fontWeight: "bold",color:theme.palette.primary.main }}>
+                                        {outputSampleRate} Hz
+                                    </Box>
+                                </Typography>
+                            )}
+                    </Box>
 
-            <FormControlLabel
-                control={
-                    <Switch
-                        checked={developerMode}
-                        onChange={(e) => setDeveloperMode(e.target.checked)}
-                    />
-                }
-                label="Developer Mode"
-            />
+                    {/* Divider */}
+                    <Divider orientation="vertical" />
 
-            {inputSampleRate &&
-                outputSampleRate &&
-                inputSampleRate !== outputSampleRate && (
-                    <Typography variant="body1">
-                        <Box
-                            component="span"
-                            sx={{ color: theme.palette.primary.main, fontWeight: "bold" }}
-                        >
-                            Sample rates do not match!
-                        </Box>{" "}
-                        Output will have a sample rate of:{" "}
-                        <Box component="span" sx={{ fontWeight: "bold",color:theme.palette.primary.main }}>
-                            {outputSampleRate} Hz
-                        </Box>
-                    </Typography>
-                )}
+                    {/* Right side - Device settings (non-scrollable) */}
+                    <Box
+                        sx={{
+                            flex: "0 0 50%",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 2,
+                            pl: 2,
+                            overflowX: "hidden",
+                        }}
+                    >
+                        <DropdownSelector
+                            title="Input Device"
+                            label="Select input device"
+                            options={inputOptions}
+                            selectedValue={selectedInput}
+                            onSelectionChange={handleInputChange}
+                        />
 
+                        <DropdownSelector
+                            title="Output Device"
+                            label="Select output device"
+                            options={outputOptions}
+                            selectedValue={selectedOutput}
+                            onSelectionChange={handleOutputChange}
+                        />
+                    </Box>
+                </Box>
+            </Box>
         </Box>
     );
 }

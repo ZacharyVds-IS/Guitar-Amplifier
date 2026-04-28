@@ -1,13 +1,9 @@
-import {
-    Alert,
-    Box,
-    CircularProgress,
-    Typography
-} from "@mui/material";
+import {Alert, Box, CircularProgress, FormControlLabel, Switch, Typography, useTheme} from "@mui/material";
 import {DropdownSelector} from "../components/selection/DropdownSelector.tsx";
 import {useAudioDevices} from "../hooks/useAudioDevices.ts";
 import {useUpdateAudioDevices} from "../hooks/useUpdateAudioDevices.ts";
 import {useState} from "react";
+import {useUIStore} from "../state/UIStore.tsx";
 
 export function SettingsScreen() {
     const theme = useTheme();
@@ -16,9 +12,12 @@ export function SettingsScreen() {
 
     const [selectedInput, setSelectedInput] = useState<string>("");
     const [selectedOutput, setSelectedOutput] = useState<string>("");
+    const showLatencyImpacts = useUIStore((state) => state.showLatencyImpacts);
+    const setShowLatencyImpacts = useUIStore((state) => state.setShowLatencyImpacts);
 
     const [inputSampleRate, setInputSampleRate] = useState<number | null>(null);
     const [outputSampleRate, setOutputSampleRate] = useState<number | null>(null);
+
 
     const inputOptions = inputs.map(d => ({
         label: `${d.name} (${d.sample_rate} Hz)`,

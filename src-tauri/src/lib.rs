@@ -6,7 +6,8 @@ pub mod infrastructure;
 #[cfg(test)]
 pub mod tests;
 
-use crate::commands::default_controls::{get_amp_config,set_gain, set_master_volume, toggle_on_off,  set_bass, set_middle, set_treble};
+use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, toggle_on_off};
+use crate::commands::latency_testing::{measure_all_dsp_timings, test_fixed_delay_latency, test_gain_latency, test_tone_stack_latency};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_input_device_list, get_output_device_list, set_input_device, set_output_device};
 use crate::services::audio_service::AudioService;

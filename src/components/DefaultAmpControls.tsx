@@ -28,7 +28,7 @@ export function DefaultAmpControls() {
                 width: 'fit-content' // Keeps the panel tight around controls
             }}
         >
-            <Stack direction="row" spacing={4} alignItems="center">
+            <Stack direction="row" spacing={4} sx={{ alignItems: 'center' }}>
                 <FlipSwitch label={"On/Off"} value={isActive} onChange={setIsActive} />
                 <Knob
                     label="Volume"

@@ -3,10 +3,9 @@ import {Knob} from "./selection/Knob.tsx";
 
 interface EffectPedalProps {
     mainColor: string;
-    name: string;
 }
 
-export function EffectPedalPreview({ mainColor, name }: EffectPedalProps) {
+export function EffectPedalPreview({ mainColor }: EffectPedalProps) {
     return (
         <Box
             sx={{

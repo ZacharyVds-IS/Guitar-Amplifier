@@ -50,7 +50,7 @@ export function EffectPedal({ mainColor, name }: EffectPedalProps) {
                 />
 
                 {/* Knobs Row */}
-                <Stack direction="row" spacing={1} justifyContent="center">
+                <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
                     <Knob label="Level" value={50} size={40} disabled />
                     <Knob label="Tone" value={50} size={40} disabled />
                     <Knob label="Dist" value={50} size={40} disabled />

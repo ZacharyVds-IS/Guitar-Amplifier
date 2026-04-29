@@ -4,128 +4,17 @@ use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
+use crate::services::round_trip_probe::{ProbeWorkerContext, RoundTripProbe};
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use tracing::info;
-
-const ROUND_TRIP_DETECTION_THRESHOLD: f32 = 0.6;
-const ROUND_TRIP_IMPULSE_AMPLITUDE: f32 = 0.95;
-
-struct RoundTripProbe {
-    state: Mutex<RoundTripProbeState>,
-    cv: Condvar,
-}
-
-#[derive(Default)]
-struct RoundTripProbeState {
-    generation: u64,
-    request_pending: bool,
-    completed_generation: u64,
-    result_ms: Option<f64>,
-    error: Option<String>,
-}
-
-impl RoundTripProbe {
-    fn new() -> Self {
-        Self {
-            state: Mutex::new(RoundTripProbeState::default()),
-            cv: Condvar::new(),
-        }
-    }
-
-    fn request(&self) -> u64 {
-        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
-        state.generation = state.generation.saturating_add(1);
-        state.request_pending = true;
-        state.result_ms = None;
-        state.error = None;
-        let generation = state.generation;
-        self.cv.notify_all();
-        generation
-    }
-
-    fn try_take_pending_request(&self) -> Option<u64> {
-        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
-        if state.request_pending {
-            state.request_pending = false;
-            Some(state.generation)
-        } else {
-            None
-        }
-    }
-
-    fn complete_success(&self, generation: u64, latency_ms: f64) {
-        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
-        if state.generation != generation {
-            return;
-        }
-        state.completed_generation = generation;
-        state.result_ms = Some(latency_ms);
-        state.error = None;
-        self.cv.notify_all();
-    }
-
-    fn complete_error(&self, generation: u64, error: String) {
-        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
-        if state.generation != generation {
-            return;
-        }
-        state.completed_generation = generation;
-        state.result_ms = None;
-        state.error = Some(error);
-        self.cv.notify_all();
-    }
-
-    fn wait_for_result(&self, generation: u64, timeout: Duration) -> Result<f64, String> {
-        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
-        let deadline = Instant::now() + timeout;
-
-        while state.completed_generation < generation {
-            let now = Instant::now();
-            if now >= deadline {
-                return Err("Round-trip latency measurement timed out".to_string());
-            }
-            let remaining = deadline.saturating_duration_since(now);
-            let (new_state, wait_result) = self
-                .cv
-                .wait_timeout(state, remaining)
-                .expect("round trip probe mutex poisoned while waiting");
-            state = new_state;
-
-            if wait_result.timed_out() && state.completed_generation < generation {
-                return Err("Round-trip latency measurement timed out".to_string());
-            }
-        }
-
-        if let Some(latency_ms) = state.result_ms {
-            Ok(latency_ms)
-        } else {
-            Err(state
-                .error
-                .clone()
-                .unwrap_or_else(|| "Round-trip latency measurement failed".to_string()))
-        }
-    }
-
-    fn fail_current(&self, reason: String) {
-        let mut state = self.state.lock().expect("round trip probe mutex poisoned");
-        if state.generation == 0 {
-            return;
-        }
-        state.request_pending = false;
-        state.completed_generation = state.generation;
-        state.result_ms = None;
-        state.error = Some(reason);
-        self.cv.notify_all();
-    }
-}
 
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
@@ -227,11 +116,7 @@ impl AudioService {
     /// [`AudioHandlerTrait`]: crate::infrastructure::audio_handler::AudioHandlerTrait
     /// [`ResamplePolicy`]: crate::services::processors::resampler::resampler::ResamplePolicy
     pub fn start_loopback(&mut self) {
-        if self.is_active {
-            return;
-        }
-
-        info!("Starting audio loopback");
+        if self.is_active { return; }
         self.is_active = true;
 
         let handler = self.audio_handler.clone();
@@ -239,23 +124,11 @@ impl AudioService {
         let round_trip_probe = self.round_trip_probe.clone();
 
         let thread = thread::spawn(move || {
-            // How many input samples to batch before the resampler produces output.
-            // Larger = better quality, more latency. Smaller = lower latency, cheaper.
             const RESAMPLER_CHUNK_SIZE: usize = 256;
+            //let ringbuffer_size = handler.input_sample_rate().max(handler.output_sample_rate()) as usize;
 
-            let ringbuffer_size = handler.input_sample_rate().max(handler.output_sample_rate()) as usize;
+            let ringbuffer_size = 2048;
 
-            // ── Resampling decision ──────────────────────────────────────────────
-            // `ResamplePolicy::from_rates` compares input and output sample rates
-            // and picks one of three strategies (logged at startup):
-            //
-            //   input == output  →  Bypass   – no resampler created at all
-            //   input  > output  →  PreDsp   – downsample BEFORE the DSP chain
-            //                                  (DSP runs at the lower output rate → cheaper)
-            //   input  < output  →  PostDsp  – upsample AFTER the DSP chain
-            //                                  (DSP runs at the lower input rate → cheaper)
-            //
-            // The chosen policy is the only place a `RubatoResampler` is created.
             let mut policy = ResamplePolicy::from_rates(
                 handler.input_sample_rate(),
                 handler.output_sample_rate(),
@@ -273,100 +146,67 @@ impl AudioService {
             let probe_for_worker = round_trip_probe.clone();
 
             let worker = thread::spawn(move || {
-                // ── Effects chain ────────────────────────────────────────────────
-                // Add new processors here to extend the signal chain.
-                // Current order: Gain → Tone Stack → Master Volume
-                let mut gain          = GainProcessor::new(channel.gain());
-                let mut tone_stack    = ToneStackProcessor::new(channel.tone_stack());
+                let mut gain = GainProcessor::new(channel.gain());
+                let mut tone_stack = ToneStackProcessor::new(channel.tone_stack());
                 let mut master_volume = GainProcessor::new(channel.master_volume());
 
-                // Applies the full DSP chain to a single sample in order.
                 let mut run_dsp = |sample: f32| -> f32 {
-                    let sample = gain.process(sample);
-                    let sample = tone_stack.process(sample);
-                    master_volume.process(sample)
+                    let s = gain.process(sample);
+                    let s = tone_stack.process(s);
+                    master_volume.process(s)
                 };
 
-                let mut active_measurement: Option<u64> = None;
-                let mut impulse_injected_at: Option<Instant> = None;
-                let measurement_timeout = Duration::from_secs(2);
+                let mut probe_ctx = ProbeWorkerContext::new();
+
+                // --- DEBUG COUNTERS ---
+                let mut samples_received_total: u64 = 0;
+                let mut peak_volume: f32 = 0.0;
+                let mut last_log_time = Instant::now();
 
                 loop {
-                    if worker_shutdown.load(Ordering::SeqCst) {
-                        break;
-                    }
+                    if worker_shutdown.load(Ordering::SeqCst) { break; }
 
-                    if active_measurement.is_none() {
-                        if let Some(generation) = probe_for_worker.try_take_pending_request() {
-                            active_measurement = Some(generation);
-                            impulse_injected_at = None;
+                    // Pick up a new measurement request when the probe is idle.
+                    if probe_ctx.is_idle() {
+                        if let Some(gen) = probe_for_worker.try_take_pending_request() {
+                            probe_ctx.begin(gen);
                         }
                     }
 
                     if let Some(sample) = i_consumer.try_pop() {
-                        if let (Some(generation), Some(injected_at)) = (active_measurement, impulse_injected_at) {
-                            if sample.abs() >= ROUND_TRIP_DETECTION_THRESHOLD {
-                                let measured_ms = injected_at.elapsed().as_secs_f64() * 1000.0;
-                                probe_for_worker.complete_success(generation, measured_ms);
-                                active_measurement = None;
-                                impulse_injected_at = None;
-                            } else if injected_at.elapsed() >= measurement_timeout {
-                                probe_for_worker.complete_error(
-                                    generation,
-                                    "Round-trip detection timed out. Route output to input and retry.".to_string(),
-                                );
-                                active_measurement = None;
-                                impulse_injected_at = None;
-                            }
+                        samples_received_total += 1;
+                        let abs_s = sample.abs();
+                        if abs_s > peak_volume { peak_volume = abs_s; }
+
+                        if last_log_time.elapsed() >= Duration::from_secs(2) {
+                            println!("[RT-DEBUG] Worker Alive. Total samples: {}. Peak Vol: {:.4}", samples_received_total, peak_volume);
+                            peak_volume = 0.0;
+                            last_log_time = Instant::now();
                         }
 
-                        // `policy.process` applies the resampler at the right moment:
-                        //   PreDsp  → resamples first, then calls `dsp.process` on each result
-                        //   PostDsp → calls `dsp.process` first, then resamples the output
-                        //   Bypass  → calls `dsp.process` directly, returns a single sample
-                        for processed_sample in policy.process(sample, &mut |resampled_sample| run_dsp(resampled_sample)) {
-                            if active_measurement.is_some() && impulse_injected_at.is_none() {
-                                if o_producer.try_push(ROUND_TRIP_IMPULSE_AMPLITUDE).is_ok() {
-                                    impulse_injected_at = Some(Instant::now());
-                                }
-                                continue;
-                            }
-                            let _ = o_producer.try_push(processed_sample);
+                        // Run DSP inside the resample policy (handles up/down-sampling transparently).
+                        // Each resulting sample is handed to the probe, which decides whether to
+                        // forward it, replace it with an impulse, or suppress it during guard time.
+                        for dsp_sample in policy.process(sample, &mut |s| run_dsp(s)) {
+                            probe_ctx.tick(
+                                sample,
+                                dsp_sample,
+                                &mut |v| o_producer.try_push(v).is_ok(),
+                                &probe_for_worker,
+                            );
                         }
                     } else {
-                        if let (Some(generation), Some(injected_at)) = (active_measurement, impulse_injected_at) {
-                            if injected_at.elapsed() >= measurement_timeout {
-                                probe_for_worker.complete_error(
-                                    generation,
-                                    "Round-trip detection timed out. Route output to input and retry.".to_string(),
-                                );
-                                active_measurement = None;
-                                impulse_injected_at = None;
-                            }
-                        }
+                        probe_ctx.tick_idle(&probe_for_worker);
                         thread::yield_now();
                     }
                 }
-
-                if let Some(generation) = active_measurement {
-                    probe_for_worker.complete_error(
-                        generation,
-                        "Round-trip measurement was interrupted.".to_string(),
-                    );
-                }
-
-                // Drain any samples still sitting in the resampler's input buffer
-                // when the loopback is stopped so we don't lose the tail.
-                for processed_sample in policy.flush(&mut |resampled_sample| run_dsp(resampled_sample)) {
-                    let _ = o_producer.try_push(processed_sample);
-                }
             });
 
+            println!("[RT-DEBUG] Starting CPAL streams...");
             input_stream.play();
             output_stream.play();
 
             thread::park();
-
             shutdown.store(true, Ordering::SeqCst);
             let _ = worker.join();
         });

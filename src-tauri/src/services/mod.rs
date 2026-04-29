@@ -5,3 +5,4 @@ pub mod audio_latency_measurement_service;
 pub mod device_service;
 pub mod processors;
 pub mod analyzers;
+pub mod round_trip_probe;

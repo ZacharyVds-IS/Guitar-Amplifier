@@ -5,6 +5,7 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {useState} from "react";
 import {AddChannelDialog} from "../components/AddChannelDialog.tsx";
 import DeleteIcon from '@mui/icons-material/Delete';
+import {DeleteChannelConfirmationDialog} from "../components/DeleteConfirmationDialog.tsx";
 
 export function AppLayout() {
     const navigate = useNavigate();
@@ -23,6 +24,8 @@ export function AppLayout() {
     };
 
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+
 
     const handleAddChannel = async (name: string) => {
         await ampStore.addChannel(name);
@@ -60,8 +63,11 @@ export function AppLayout() {
                                     onChannelChange={handleChannelChange}
                                     onAdd={() => setDialogOpen(true)}
                                 />
-                                <AddChannelDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onCreate={handleAddChannel}/>
-                                { currentChannelId != 0 && <IconButton onClick={handleDeleteChannel}><DeleteIcon/></IconButton>}
+                                <AddChannelDialog open={dialogOpen} onClose={() => setDialogOpen(false)}
+                                                  onCreate={handleAddChannel}/>
+                                {currentChannelId != 0 &&
+                                    <IconButton onClick={() => setConfirmOpen(true)}><DeleteIcon/></IconButton>}
+                                <DeleteChannelConfirmationDialog confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} handleDelete={handleDeleteChannel}/>
                             </>
 
                         ) : (

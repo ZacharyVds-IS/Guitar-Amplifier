@@ -119,3 +119,13 @@ export async function testToneStackLatency(): Promise<void> {
 export async function testFixedDelayLatency(): Promise<void> {
   return invoke('test_fixed_delay_latency');
 }
+
+
+export async function getBufferSizeFrames(): Promise<number> {
+  return invoke('get_buffer_size_frames');
+}
+
+
+export async function setBufferSizeFrames(params: types.SetBufferSizeFramesParams): Promise<void> {
+  return invoke('set_buffer_size_frames', params);
+}

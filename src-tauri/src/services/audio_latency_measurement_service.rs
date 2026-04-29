@@ -7,10 +7,12 @@ use crate::domain::dto::algorithmic_latency_dto::AlgorithmicLatencyDto;
 use crate::domain::dto::buffer_latency_dto::BufferLatencyDto;
 use crate::domain::dto::execution_timing_dto::ExecutionTimingDto;
 use crate::domain::dto::round_trip_latency_dto::RoundTripLatencyDto;
+use crate::infrastructure::audio_handler::AudioHandlerTrait;
 use crate::services::analyzers::LatencyAnalyzer::LatencyAnalyzer;
 use crate::services::audio_service::AudioService;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
+use crate::services::round_trip_latency_session::RoundTripLatencySession;
 use cpal::BufferSize;
 use std::time::Duration;
 
@@ -88,13 +90,14 @@ impl AudioLatencyMeasurementService {
         BufferLatencyDto::new(input_ms, output_ms)
     }
 
-    /// Measures round-trip latency by probing the active audio loopback pipeline.
+    /// Measures round-trip latency using a **dedicated** pair of CPAL streams.
     ///
-    /// This performs an actual live measurement: an impulse is injected at output and
-    /// the returned signal is detected at input. It therefore captures full path delay
-    /// through buffering, DSP thread scheduling, driver/hardware path, and callback timing.
-    pub fn measure_round_trip_latency(audio_service: &AudioService) -> RoundTripLatencyDto {
-        match audio_service.measure_round_trip_latency(Duration::from_secs(3)) {
+    /// Opens its own input and output streams (independent of the regular loopback),
+    /// warms them up, fires impulses, and returns the averaged result.  Because the
+    /// `Mutex<AudioService>` is released by the caller before this runs, the rest of
+    /// the UI stays responsive during the measurement.
+    pub fn measure_round_trip_latency(handler: &dyn AudioHandlerTrait) -> RoundTripLatencyDto {
+        match RoundTripLatencySession::run(handler, Duration::from_secs(10), Duration::from_millis(1500)) {
             Ok(latency_ms) => RoundTripLatencyDto::success(latency_ms),
             Err(error) => RoundTripLatencyDto::failure(error),
         }

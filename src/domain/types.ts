@@ -109,3 +109,7 @@ export interface SetOutputDeviceParams {
 }
 
 
+export interface SetBufferSizeFramesParams {
+  frames: number;
+  [key: string]: unknown;
+}

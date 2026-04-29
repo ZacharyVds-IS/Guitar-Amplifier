@@ -4,8 +4,7 @@ use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
-use crate::services::round_trip_probe::{ProbeWorkerContext, RoundTripProbe};
-use cpal::{Device, StreamConfig};
+use cpal::{BufferSize, Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
@@ -45,7 +44,7 @@ pub struct AudioService {
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
     channel: Channel,
-    round_trip_probe: Arc<RoundTripProbe>,
+    preferred_buffer_frames: u32,
 }
 
 impl AudioService {
@@ -79,22 +78,61 @@ impl AudioService {
     ///
     /// * `handler` - An [`Arc`]-wrapped implementation of [`AudioHandlerTrait`].
     pub fn new_with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
+        let preferred_buffer_frames = match handler.output_config().buffer_size {
+            BufferSize::Fixed(frames) => frames,
+            BufferSize::Default => 256,
+        };
+
         Self {
             audio_handler: handler,
             loopback_thread: None,
             is_active: false,
             channel: Channel::new("Main".to_string(), None, None),
-            round_trip_probe: Arc::new(RoundTripProbe::new()),
+            preferred_buffer_frames,
         }
     }
 
-    pub fn measure_round_trip_latency(&self, timeout: Duration) -> Result<f64, String> {
-        if !self.is_active {
-            return Err("Audio loopback is not active. Please start loopback first.".to_string());
+    /// Current user-selected stream buffer size in frames.
+    pub fn buffer_size_frames(&self) -> u32 {
+        self.preferred_buffer_frames
+    }
+
+    /// Applies a user-selected buffer size to both input and output streams.
+    ///
+    /// The service rebuilds the underlying handler using the currently selected devices
+    /// and restarts loopback automatically if it was active.
+    pub fn set_buffer_size_frames(&mut self, frames: u32) -> Result<(), String> {
+        if !(64..=4096).contains(&frames) {
+            return Err("Buffer size must be between 64 and 4096 frames".to_string());
         }
 
-        let generation = self.round_trip_probe.request();
-        self.round_trip_probe.wait_for_result(generation, timeout)
+        let previous_frames = self.preferred_buffer_frames;
+        if previous_frames == frames {
+            return Ok(());
+        }
+
+        info!(
+            previous_buffer_size_frames = previous_frames,
+            new_buffer_size_frames = frames,
+            "Updating audio stream buffer size"
+        );
+
+        let old = self.audio_handler.clone();
+        let mut input_config = old.input_config().clone();
+        let mut output_config = old.output_config().clone();
+        input_config.buffer_size = BufferSize::Fixed(frames);
+        output_config.buffer_size = BufferSize::Fixed(frames);
+
+        let new_handler = AudioHandler::new(
+            old.input_device().clone(),
+            old.output_device().clone(),
+            input_config,
+            output_config,
+        );
+
+        self.preferred_buffer_frames = frames;
+        self.set_audio_handler(Arc::new(new_handler));
+        Ok(())
     }
 
     /// Starts the audio loopback on a dedicated background thread.
@@ -102,7 +140,7 @@ impl AudioService {
     /// On startup the service:
     /// 1. Reads the input and output sample rates from the active [`AudioHandlerTrait`].
     /// 2. Selects a [`ResamplePolicy`] based on those rates (logged at `info` level).
-    /// 3. Builds a pair of lock-free ring buffers sized to the larger of the two rates.
+    /// 3. Builds a pair of lock-free ring buffers sized from the configured preferred buffer size.
     /// 4. Asks the handler to open the input and output CPAL streams.
     /// 5. Spawns a worker thread that:
     ///    - Pops samples from the input buffer.
@@ -121,13 +159,10 @@ impl AudioService {
 
         let handler = self.audio_handler.clone();
         let channel = self.channel.clone();
-        let round_trip_probe = self.round_trip_probe.clone();
+        let ringbuffer_size = ((self.preferred_buffer_frames as usize) * 4).max(512);
 
         let thread = thread::spawn(move || {
             const RESAMPLER_CHUNK_SIZE: usize = 256;
-            //let ringbuffer_size = handler.input_sample_rate().max(handler.output_sample_rate()) as usize;
-
-            let ringbuffer_size = 2048;
 
             let mut policy = ResamplePolicy::from_rates(
                 handler.input_sample_rate(),
@@ -143,7 +178,6 @@ impl AudioService {
 
             let shutdown = Arc::new(AtomicBool::new(false));
             let worker_shutdown = shutdown.clone();
-            let probe_for_worker = round_trip_probe.clone();
 
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(channel.gain());
@@ -156,8 +190,6 @@ impl AudioService {
                     master_volume.process(s)
                 };
 
-                let mut probe_ctx = ProbeWorkerContext::new();
-
                 // --- DEBUG COUNTERS ---
                 let mut samples_received_total: u64 = 0;
                 let mut peak_volume: f32 = 0.0;
@@ -166,43 +198,28 @@ impl AudioService {
                 loop {
                     if worker_shutdown.load(Ordering::SeqCst) { break; }
 
-                    // Pick up a new measurement request when the probe is idle.
-                    if probe_ctx.is_idle() {
-                        if let Some(gen) = probe_for_worker.try_take_pending_request() {
-                            probe_ctx.begin(gen);
-                        }
-                    }
-
                     if let Some(sample) = i_consumer.try_pop() {
                         samples_received_total += 1;
                         let abs_s = sample.abs();
                         if abs_s > peak_volume { peak_volume = abs_s; }
 
                         if last_log_time.elapsed() >= Duration::from_secs(2) {
-                            println!("[RT-DEBUG] Worker Alive. Total samples: {}. Peak Vol: {:.4}", samples_received_total, peak_volume);
+                            println!("[LOOPBACK] Worker alive. Samples: {}, Peak: {:.4}", samples_received_total, peak_volume);
                             peak_volume = 0.0;
                             last_log_time = Instant::now();
                         }
 
-                        // Run DSP inside the resample policy (handles up/down-sampling transparently).
-                        // Each resulting sample is handed to the probe, which decides whether to
-                        // forward it, replace it with an impulse, or suppress it during guard time.
+                        // Run DSP through the resample policy (handles up/down-sampling transparently).
                         for dsp_sample in policy.process(sample, &mut |s| run_dsp(s)) {
-                            probe_ctx.tick(
-                                sample,
-                                dsp_sample,
-                                &mut |v| o_producer.try_push(v).is_ok(),
-                                &probe_for_worker,
-                            );
+                            let _ = o_producer.try_push(dsp_sample);
                         }
                     } else {
-                        probe_ctx.tick_idle(&probe_for_worker);
                         thread::yield_now();
                     }
                 }
             });
 
-            println!("[RT-DEBUG] Starting CPAL streams...");
+            println!("[LOOPBACK] Starting CPAL streams...");
             input_stream.play();
             output_stream.play();
 
@@ -232,7 +249,6 @@ impl AudioService {
         }
 
         self.is_active = false;
-        self.round_trip_probe.fail_current("Audio loopback stopped.".to_string());
     }
 
     /// Replaces the underlying audio handler, restarting the loopback if it was running.
@@ -270,10 +286,13 @@ impl AudioService {
         info!("Switching input device");
 
         let old = self.audio_handler.clone();
+        let mut adjusted_input = input_config;
+        adjusted_input.buffer_size = BufferSize::Fixed(self.preferred_buffer_frames);
+
         let new_handler = AudioHandler::new(
             input,
             old.output_device().clone(),
-            input_config,
+            adjusted_input,
             old.output_config().clone(),
         );
 
@@ -294,11 +313,14 @@ impl AudioService {
         info!("Switching output device");
 
         let old = self.audio_handler.clone();
+        let mut adjusted_output = output_config;
+        adjusted_output.buffer_size = BufferSize::Fixed(self.preferred_buffer_frames);
+
         let new_handler = AudioHandler::new(
             old.input_device().clone(),
             output,
             old.input_config().clone(),
-            output_config,
+            adjusted_output,
         );
 
         self.set_audio_handler(Arc::new(new_handler));

@@ -116,4 +116,23 @@ pub fn set_output_device(
     Ok(())
 }
 
+#[tauri::command]
+pub fn get_buffer_size_frames(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+) -> Result<u32, String> {
+    let audio = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
+    Ok(audio.buffer_size_frames())
+}
 
+#[tauri::command]
+pub fn set_buffer_size_frames(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+    frames: u32,
+) -> Result<(), String> {
+    let mut audio = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
+    audio.set_buffer_size_frames(frames)
+}

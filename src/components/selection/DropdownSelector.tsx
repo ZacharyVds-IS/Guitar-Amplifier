@@ -9,6 +9,9 @@ interface DropdownProps {
 }
 
 export function DropdownSelector({title, label, options, selectedValue, onSelectionChange}: DropdownProps) {
+    const selectId = `${title}-${label}`.toLowerCase().replace(/\s+/g, "-");
+    const labelId = `${selectId}-label`;
+
     const handleChange = (event: SelectChangeEvent<string | number>) => {
         onSelectionChange(event.target.value as string);
     };
@@ -19,10 +22,10 @@ export function DropdownSelector({title, label, options, selectedValue, onSelect
             </Typography>
 
             <FormControl fullWidth>
-                <InputLabel id="simple-select-label">{label}</InputLabel>
+                <InputLabel id={labelId}>{label}</InputLabel>
                 <Select
-                    labelId="simple-select-label"
-                    id="simple-select"
+                    labelId={labelId}
+                    id={selectId}
                     value={selectedValue}
                     label={label}
                     onChange={handleChange}

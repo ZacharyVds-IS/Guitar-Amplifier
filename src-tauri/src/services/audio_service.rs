@@ -346,6 +346,15 @@ impl AudioService {
         }
     }
 
+    /// Adds a new channel to the channel list and return the new channel.
+    ///
+    /// New channels are initialized with default values and the `current_channel_id` is updated to the new channel's id.
+    ///
+    /// # Arguments
+    ///
+    /// * `channel_name` - The name of the new channel (30 characters max).
+    ///
+    /// [`set_current_channel_id`]: AudioService::set_current_channel_id
     pub fn add_channel(&mut self, channel_name: String) -> Channel {
         if channel_name.len() <= 30 {
             let id = self.next_channel_id;
@@ -362,6 +371,13 @@ impl AudioService {
         }
     }
 
+    /// Removes the channel with the given id from the channel list and sets `current_channel_id` to 0 (default channel).
+    ///
+    /// # Arguments
+    ///
+    /// * `channel_id` - The id of the channel to remove. Cannot be 0 (default channel).
+    ///
+    /// [`set_current_channel_id`]: AudioService::set_current_channel_id
     pub fn remove_channel(&mut self, channel_id: u32) {
         if channel_id != 0 {
             self.channels.retain(|c| c.id() != channel_id);
@@ -371,6 +387,14 @@ impl AudioService {
         }
     }
 
+    /// Sets the current channel id, restarting the loopback if it was active to ensure the new channel's parameters are applied.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_current_channel_id` - The id of the channel to set as current. Must exist in the channel list.
+    ///
+    /// [`start_loopback`]: AudioService::start_loopback
+    /// [`stop_loopback`]: AudioService::stop_loopback
     pub fn set_current_channel_id(&mut self, new_current_channel_id: u32) {
         let was_on = self.is_active;
         self.stop_loopback();

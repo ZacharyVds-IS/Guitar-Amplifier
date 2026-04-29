@@ -136,10 +136,24 @@ impl Channel {
         self.tone_stack.set_treble(treble/100.0);
     }
 
+    /// Sets the name of the Channel
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
 
+    /// Sets the volume for this channel.
+    ///
+    /// #Arguments
+    ///
+    /// * `volume` - The volume level (must be positive)
+    ///
+    /// # Panics
+    ///
+    /// Panics if the volume is negative.
     pub fn set_volume(&self, volume: f32) {
         if volume.is_sign_positive() {
             self.volume.store(volume, Ordering::Relaxed);
@@ -164,16 +178,19 @@ impl Channel {
         Arc::clone(&self.tone_stack)
     }
     
-    
-
+    /// Returns the name of the channel.
     pub fn name(&self) -> &String {
         &self.name
     }
 
+    /// Returns a cloned [`Arc`] to the atomic volume value.
+    ///
+    /// Allows independent threads to share and read/write the volume parameter without contention.
     pub fn volume(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.volume)
     }
 
+    /// Returns the unique identifier of the channel.
     pub fn id(&self) -> u32 {
         self.id
     }

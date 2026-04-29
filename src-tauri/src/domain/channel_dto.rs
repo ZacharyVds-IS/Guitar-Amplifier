@@ -1,8 +1,9 @@
-use std::sync::atomic::Ordering;
-use serde::{Deserialize, Serialize};
 use crate::domain::channel::Channel;
 use crate::domain::tone_stack_dto::ToneStackDto;
+use serde::{Deserialize, Serialize};
+use std::sync::atomic::Ordering;
 
+/// Data transfer object for a Channel's settings.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChannelDto {
     /// Unique identifier for the Channel.

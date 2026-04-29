@@ -1,9 +1,7 @@
 use crate::domain::channel_dto::ChannelDto;
-use crate::domain::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
-use mockall::predicate;
 
 /// Represents the complete amplifier configuration state.
 ///
@@ -15,8 +13,9 @@ pub struct AmpConfigDto {
     pub master_volume: f32,
     /// Whether the audio loopback is currently active.
     pub is_active: bool,
-    /// The current active channel.
+    /// The list of all channels with their respective settings (gain, tone stack, volume).
     pub channels: Vec<ChannelDto>,
+    /// The current channel id
     pub current_channel: u32,
 }
 

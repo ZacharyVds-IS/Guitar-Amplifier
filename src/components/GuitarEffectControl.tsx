@@ -3,7 +3,7 @@ import {Knob} from "./selection/Knob.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 
-export function EffectControls() {
+export function DefaultAmpControls() {
     const volume = useAmpStore((state) => state.master_volume);
     const gain = useAmpStore((state) => state.gain);
     const isActive = useAmpStore((state) => state.is_active);

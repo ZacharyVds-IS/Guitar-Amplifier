@@ -9,8 +9,8 @@ export function SettingsScreen() {
     const { inputs, outputs, isLoading, error } = useAudioDevices();
     const { updateInputDevice, updateOutputDevice, error: routingError } = useUpdateAudioDevices();
 
-    const [selectedInput, setSelectedInput] = useState<string>("");
-    const [selectedOutput, setSelectedOutput] = useState<string>("");
+    const [selectedInput, setSelectedInput] = useState<string | number>("");
+    const [selectedOutput, setSelectedOutput] = useState<string | number>("");
 
     const [inputSampleRate, setInputSampleRate] = useState<number | null>(null);
     const [outputSampleRate, setOutputSampleRate] = useState<number | null>(null);
@@ -25,18 +25,18 @@ export function SettingsScreen() {
         value: d.id
     }));
 
-    async function handleInputChange(id: string) {
+    async function handleInputChange(id: string | number) {
         const device = inputs.find(d => d.id === id);
         setSelectedInput(id);
         setInputSampleRate(device?.sample_rate ?? null);
-        await updateInputDevice(id);
+        await updateInputDevice(id as string);
     }
 
-    async function handleOutputChange(id: string) {
+    async function handleOutputChange(id: string | number) {
         const device = outputs.find(d => d.id === id);
         setSelectedOutput(id);
         setOutputSampleRate(device?.sample_rate ?? null);
-        await updateOutputDevice(id);
+        await updateOutputDevice(id as string);
     }
 
     if (isLoading) return <CircularProgress />;

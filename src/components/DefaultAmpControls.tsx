@@ -4,11 +4,22 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 
 export function DefaultAmpControls() {
-    const volume = useAmpStore((state) => state.master_volume);
-    const gain = useAmpStore((state) => state.gain);
+
+    const activeChannel = useAmpStore((state) =>
+        state.channels.find((c) => c.id === state.current_channel)
+    );
+
+    const volume = activeChannel?.volume ?? 0;
+    const gain = activeChannel?.gain ?? 0;
+    const bass = activeChannel?.tone_stack.bass ?? 0;
+    const middle = activeChannel?.tone_stack.middle ?? 0;
+    const treble = activeChannel?.tone_stack.treble ?? 0;
+
+    const masterVolume = useAmpStore((state) => state.master_volume);
     const isActive = useAmpStore((state) => state.is_active);
 
     const setVolume = useAmpStore((state) => state.setVolume);
+    const setMasterVolume = useAmpStore((state) => state.setMasterVolume);
     const setGain = useAmpStore((state) => state.setGain);
     const setIsActive = useAmpStore((state) => state.setIsActive);
 
@@ -73,11 +84,12 @@ export function DefaultAmpControls() {
                     </Typography>
 
                     <Stack direction="row" spacing={2}>
-                        <Knob label="Bass" min={0} max={100} value={100} size={50} onChange={setBass} />
-                        <Knob label="Middle" min={0} max={100} value={100} size={50} onChange={setMiddle} />
-                        <Knob label="Treble" min={0} max={100} value={100} size={50} onChange={setTreble} />
+                        <Knob label="Bass" min={0} max={100} value={bass} size={50} onChange={setBass}/>
+                        <Knob label="Middle" min={0} max={100} value={middle} size={50} onChange={setMiddle}/>
+                        <Knob label="Treble" min={0} max={100} value={treble} size={50} onChange={setTreble}/>
                     </Stack>
                 </Box>
+                <Knob label={"Master"} min={0} max={11} step={1} value={masterVolume} onChange={setMasterVolume}/>
             </Stack>
         </Box>
     );

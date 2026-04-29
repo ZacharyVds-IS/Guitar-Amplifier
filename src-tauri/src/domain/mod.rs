@@ -6,4 +6,6 @@ pub mod audio_processor;
 pub mod amp_config_dto;
 pub mod tone_stack;
 pub mod tone_stack_dto;
+pub mod channel_dto;
+
 mod effect;

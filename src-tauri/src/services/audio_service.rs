@@ -4,6 +4,7 @@ use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
+use atomic_float::AtomicF32;
 use cpal::{Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
@@ -12,8 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tracing::info;
-
+use tracing::{error, info};
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
@@ -42,7 +42,10 @@ pub struct AudioService {
     audio_handler: Arc<dyn AudioHandlerTrait>,
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
-    channel: Channel,
+    channels: Vec<Channel>,
+    current_channel_id: u32,
+    master_volume: Arc<AtomicF32>,
+    next_channel_id: u32,
 }
 
 impl AudioService {
@@ -80,7 +83,10 @@ impl AudioService {
             audio_handler: handler,
             loopback_thread: None,
             is_active: false,
-            channel: Channel::new("Main".to_string(), None, None),
+            channels: vec![Channel::new(0, "Default".to_string(), None, None)],
+            master_volume: Arc::new(AtomicF32::new(1.0)),
+            current_channel_id: 0,
+            next_channel_id: 1,
         }
     }
 
@@ -111,14 +117,25 @@ impl AudioService {
         self.is_active = true;
 
         let handler = self.audio_handler.clone();
-        let channel = self.channel.clone();
+        let channel = self
+            .channels()
+            .iter()
+            .find(|c| c.id() == *self.current_channel_id())
+            .unwrap();
+        let master_volume_arc = self.master_volume.clone();
+
+        let gain_arc = channel.gain().clone();
+        let volume_arc = channel.volume().clone();
+        let tone_stack_arc = channel.tone_stack().clone();
 
         let thread = thread::spawn(move || {
             // How many input samples to batch before the resampler produces output.
             // Larger = better quality, more latency. Smaller = lower latency, cheaper.
             const RESAMPLER_CHUNK_SIZE: usize = 256;
 
-            let ringbuffer_size = handler.input_sample_rate().max(handler.output_sample_rate()) as usize;
+            let ringbuffer_size = handler
+                .input_sample_rate()
+                .max(handler.output_sample_rate()) as usize;
 
             // ── Resampling decision ──────────────────────────────────────────────
             // `ResamplePolicy::from_rates` compares input and output sample rates
@@ -147,17 +164,15 @@ impl AudioService {
             let worker_shutdown = shutdown.clone();
 
             let worker = thread::spawn(move || {
-                // ── Effects chain ────────────────────────────────────────────────
-                // Add new processors here to extend the signal chain.
-                // Current order: Gain → Tone Stack → Master Volume
-                let mut gain          = GainProcessor::new(channel.gain());
-                let mut tone_stack    = ToneStackProcessor::new(channel.tone_stack());
-                let mut master_volume = GainProcessor::new(channel.master_volume());
+                let mut gain = GainProcessor::new(gain_arc);
+                let mut volume = GainProcessor::new(volume_arc);
+                let mut master_volume = GainProcessor::new(master_volume_arc);
+                let mut tone_stack = ToneStackProcessor::new(tone_stack_arc);
 
-                // Applies the full DSP chain to a single sample in order.
                 let mut run_dsp = |sample: f32| -> f32 {
                     let sample = gain.process(sample);
                     let sample = tone_stack.process(sample);
+                    let sample = volume.process(sample);
                     master_volume.process(sample)
                 };
 
@@ -171,7 +186,9 @@ impl AudioService {
                         //   PreDsp  → resamples first, then calls `dsp.process` on each result
                         //   PostDsp → calls `dsp.process` first, then resamples the output
                         //   Bypass  → calls `dsp.process` directly, returns a single sample
-                        for processed_sample in policy.process(sample, &mut |resampled_sample| run_dsp(resampled_sample)) {
+                        for processed_sample in policy
+                            .process(sample, &mut |resampled_sample| run_dsp(resampled_sample))
+                        {
                             let _ = o_producer.try_push(processed_sample);
                         }
                     } else {
@@ -181,7 +198,9 @@ impl AudioService {
 
                 // Drain any samples still sitting in the resampler's input buffer
                 // when the loopback is stopped so we don't lose the tail.
-                for processed_sample in policy.flush(&mut |resampled_sample| run_dsp(resampled_sample)) {
+                for processed_sample in
+                    policy.flush(&mut |resampled_sample| run_dsp(resampled_sample))
+                {
                     let _ = o_producer.try_push(processed_sample);
                 }
             });
@@ -216,6 +235,27 @@ impl AudioService {
         }
 
         self.is_active = false;
+    }
+
+    /// Sets the master volume value.
+    ///
+    /// The master volume value is atomically updated and will be read by the audio processing
+    /// thread on the next sample cycle.
+    ///
+    /// # Arguments
+    ///
+    /// * `master_volume` - The new master volume value. Must be positive (> 0.0).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `master_volume` is negative or zero.
+    pub fn set_master_volume(&self, master_volume: f32) {
+        if master_volume.is_sign_positive() {
+            self.master_volume.store(master_volume, Ordering::Relaxed);
+        } else {
+            error!("Master volume must be a positive number");
+            panic!("Master volume must be positive");
+        }
     }
 
     /// Replaces the underlying audio handler, restarting the loopback if it was running.
@@ -303,6 +343,143 @@ impl AudioService {
             self.start_loopback();
         } else {
             self.stop_loopback();
+        }
+    }
+
+    /// Adds a new channel to the channel list and return the new channel.
+    ///
+    /// New channels are initialized with default values and the `current_channel_id` is updated to the new channel's id.
+    ///
+    /// # Arguments
+    ///
+    /// * `channel_name` - The name of the new channel (30 characters max).
+    ///
+    /// [`set_current_channel_id`]: AudioService::set_current_channel_id
+    pub fn add_channel(&mut self, channel_name: String) -> Channel {
+        if channel_name.len() <= 30 {
+            let id = self.next_channel_id;
+            self.next_channel_id += 1;
+
+            let new_channel = Channel::new(id, channel_name.into(), None, None);
+
+            self.channels.push(new_channel.clone());
+            self.set_current_channel_id(id);
+            new_channel
+        } else {
+            error!("Channel name must be 30 characters or less");
+            panic!("Channel name must be 30 characters or less");
+        }
+    }
+
+    /// Removes the channel with the given id from the channel list and sets `current_channel_id` to 0 (default channel).
+    ///
+    /// # Arguments
+    ///
+    /// * `channel_id` - The id of the channel to remove. Cannot be 0 (default channel).
+    ///
+    /// [`set_current_channel_id`]: AudioService::set_current_channel_id
+    pub fn remove_channel(&mut self, channel_id: u32) {
+        if channel_id != 0 {
+            self.channels.retain(|c| c.id() != channel_id);
+            self.set_current_channel_id(0);
+        } else {
+            error!("Cannot remove default channel");
+        }
+    }
+
+    /// Sets the current channel id, restarting the loopback if it was active to ensure the new channel's parameters are applied.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_current_channel_id` - The id of the channel to set as current. Must exist in the channel list.
+    ///
+    /// [`start_loopback`]: AudioService::start_loopback
+    /// [`stop_loopback`]: AudioService::stop_loopback
+    pub fn set_current_channel_id(&mut self, new_current_channel_id: u32) {
+        let was_on = self.is_active;
+        self.stop_loopback();
+        self.current_channel_id = new_current_channel_id;
+        if was_on {
+            self.start_loopback();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
+    use std::sync::atomic::Ordering;
+    use std::sync::Arc;
+
+    #[cfg(test)]
+    mod success_path {
+        use super::*;
+
+        #[test]
+        fn master_volume_set_to_positive_value_should_succeed() {
+            let mock = MockAudioHandlerTrait::new();
+            let service = AudioService::new_with_handler(Arc::new(mock));
+            service.set_master_volume(0.5);
+            assert_eq!(service.master_volume().load(Ordering::Relaxed), 0.5);
+        }
+
+        #[test]
+        fn add_channel_should_add_a_channel_with_correct_values_and_sets_current_channel_id_to_new_id() {
+            let mock = MockAudioHandlerTrait::new();
+            let mut service = AudioService::new_with_handler(Arc::new(mock));
+            let test_channel = service.add_channel("TestChannel".to_string());
+
+            assert_eq!(service.channels.len(), 2);
+            assert_eq!(test_channel.name(), "TestChannel");
+            assert_eq!(test_channel.id(), 1);
+            assert_eq!(test_channel.gain().load(Ordering::Relaxed), 1.0);
+            assert_eq!(test_channel.volume().load(Ordering::Relaxed), 1.0);
+            assert_eq!(test_channel.tone_stack().bass().load(Ordering::Relaxed),1.0);
+            assert_eq!(test_channel.tone_stack().middle().load(Ordering::Relaxed),1.0);
+            assert_eq!(test_channel.tone_stack().treble().load(Ordering::Relaxed),1.0);
+            assert_eq!(*service.current_channel_id(), test_channel.id());
+        }
+
+        #[test]
+        fn remove_channel_removes_channel_and_sets_current_channel_id_to_0 () {
+            let mock = MockAudioHandlerTrait::new();
+            let mut service = AudioService::new_with_handler(Arc::new(mock));
+            let test_channel = service.add_channel("TestChannel".to_string());
+            service.remove_channel(test_channel.id());
+
+            assert_eq!(service.channels.len(), 1);
+            assert_eq!(*service.current_channel_id(), 0);
+        }
+    }
+
+    #[cfg(test)]
+    mod failure_path {
+        use super::*;
+
+        #[test]
+        #[should_panic(expected = "Master volume must be positive")]
+        fn master_volume_set_to_negative_value_should_panic() {
+            let mock = MockAudioHandlerTrait::new();
+            let service = AudioService::new_with_handler(Arc::new(mock));
+            service.set_master_volume(-0.5);
+        }
+
+        #[test]
+        fn removing_default_channel_should_do_nothing() {
+            let mock = MockAudioHandlerTrait::new();
+            let mut service = AudioService::new_with_handler(Arc::new(mock));
+            service.remove_channel(0);
+
+            assert_eq!(service.channels.len(), 1);
+        }
+
+        #[test]
+        #[should_panic(expected = "Channel name must be 30 characters or less")]
+        fn add_channel_should_panic_with_to_long_name() {
+            let mock = MockAudioHandlerTrait::new();
+            let mut service = AudioService::new_with_handler(Arc::new(mock));
+            let test_channel = service.add_channel("Hippopotomonstrosesquippedaliophobia".to_string());
         }
     }
 }

@@ -6,7 +6,8 @@ pub mod infrastructure;
 #[cfg(test)]
 pub mod tests;
 
-use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, toggle_on_off};
+use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
+use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume, toggle_on_off};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_input_device_list, get_output_device_list, set_input_device, set_output_device};
 use crate::services::audio_service::AudioService;
@@ -35,7 +36,26 @@ pub fn run() {
         .manage(Mutex::new(AudioService::new(input, output, input_config, output_config)))
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![start_loopback, set_gain,get_input_device_list,get_output_device_list,set_input_device,set_output_device, set_master_volume, toggle_on_off, get_amp_config, set_bass, set_middle, set_treble])
+        .invoke_handler(tauri::generate_handler![
+            start_loopback,
+            set_gain,
+            get_input_device_list,
+            get_output_device_list,
+            set_input_device,
+            set_output_device,
+            set_master_volume,
+            toggle_on_off,
+            get_amp_config,
+            set_bass,
+            set_middle,
+            set_treble,
+            set_volume,
+            set_channel_id,
+            get_channel_id,
+            add_channel,
+            get_all_channels,
+            remove_channel,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

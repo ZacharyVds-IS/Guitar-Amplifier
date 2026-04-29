@@ -33,6 +33,7 @@ export function AddChannelDialog({open, onClose, onCreate}: AddChannelProps) {
             <DialogTitle>New Channel</DialogTitle>
 
             <DialogContent>
+
                 <TextField
                     autoFocus
                     margin="dense"
@@ -40,10 +41,15 @@ export function AddChannelDialog({open, onClose, onCreate}: AddChannelProps) {
                     fullWidth
                     value={channelName}
                     onChange={(e) => setChannelName(e.target.value)}
+                    slotProps={{
+                        htmlInput: {maxLength: 30}
+                    }}
+                    helperText={`${channelName.length}/30`}
                     onKeyDown={(e) => {
                         if (e.key === "Enter") handleCreate();
                     }}
                 />
+
             </DialogContent>
 
             <DialogActions>

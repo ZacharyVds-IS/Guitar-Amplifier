@@ -25,6 +25,8 @@ export function ChannelSelector({channels, currentChannelId, onChannelChange, on
             selectedValue={selectedChannel ? selectedChannel.value : ""}
             onSelectionChange={handleSelectionChange}
             onAdd={onAdd}
+            hasBorder={false}
+            hasLabel={false}
         />
     );
 

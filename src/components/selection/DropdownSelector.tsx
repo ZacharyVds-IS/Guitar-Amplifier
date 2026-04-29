@@ -18,9 +18,11 @@ interface DropdownProps {
     selectedValue: string | number;
     onSelectionChange: (value: string | number) => void;
     onAdd?: () => void;
+    hasBorder?: boolean;
+    hasLabel?: boolean;
 }
 
-export function DropdownSelector({title, label, options, selectedValue, onSelectionChange, onAdd}: DropdownProps) {
+export function DropdownSelector({title, label, options, selectedValue, onSelectionChange, onAdd, hasBorder = true, hasLabel = true}: DropdownProps) {
     const handleChange = (event: SelectChangeEvent<string | number>) => {
         const selectedValue = event.target.value;
 
@@ -39,13 +41,19 @@ export function DropdownSelector({title, label, options, selectedValue, onSelect
             )}
 
             <FormControl fullWidth>
-                <InputLabel id="simple-select-label">{label}</InputLabel>
+                {hasLabel && <InputLabel id="simple-select-label">{label}</InputLabel>}
                 <Select
                     labelId="simple-select-label"
                     id="simple-select"
                     value={selectedValue}
                     label={label}
                     onChange={handleChange}
+                    sx={{
+                        '& .MuiOutlinedInput-notchedOutline': {
+                            border: hasBorder ? '1px solid' : 'none',
+                        },
+                    }}
+
                 >
                     {options.map((option) => (
                         <MenuItem key={option.value} value={option.value}>

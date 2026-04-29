@@ -3,23 +3,12 @@ import {Knob} from "./selection/Knob.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 
-export function EffectControls() {
-
-    const activeChannel = useAmpStore((state) =>
-        state.channels.find((c) => c.id === state.current_channel)
-    );
-
-    const volume = activeChannel?.volume ?? 0;
-    const gain = activeChannel?.gain ?? 0;
-    const bass = activeChannel?.tone_stack.bass ?? 0;
-    const middle = activeChannel?.tone_stack.middle ?? 0;
-    const treble = activeChannel?.tone_stack.treble ?? 0;
-
-    const masterVolume = useAmpStore((state) => state.master_volume);
+export function DefaultAmpControls() {
+    const volume = useAmpStore((state) => state.master_volume);
+    const gain = useAmpStore((state) => state.gain);
     const isActive = useAmpStore((state) => state.is_active);
 
     const setVolume = useAmpStore((state) => state.setVolume);
-    const setMasterVolume = useAmpStore((state) => state.setMasterVolume);
     const setGain = useAmpStore((state) => state.setGain);
     const setIsActive = useAmpStore((state) => state.setIsActive);
 
@@ -27,21 +16,20 @@ export function EffectControls() {
     const setMiddle = useAmpStore((state) => state.setMiddle);
     const setTreble = useAmpStore((state) => state.setTreble);
 
-
     return (
         <Box
             sx={{
                 p: 4,
                 bgcolor: 'background.paper',
                 borderRadius: 4,
-                display: 'inline-block',
                 border: '1px solid',
                 borderColor: 'divider',
-                boxShadow: 8
+                boxShadow: 8,
+                width: 'fit-content' // Keeps the panel tight around controls
             }}
         >
-            <Stack direction="row" spacing={4}>
-                <FlipSwitch label={"On/Off"} value={isActive} onChange={setIsActive}/>
+            <Stack direction="row" spacing={4} sx={{ alignItems: 'center' }}>
+                <FlipSwitch label={"On/Off"} value={isActive} onChange={setIsActive} />
                 <Knob
                     label="Volume"
                     value={volume}
@@ -85,12 +73,11 @@ export function EffectControls() {
                     </Typography>
 
                     <Stack direction="row" spacing={2}>
-                        <Knob label="Bass" min={0} max={100} value={bass} size={50} onChange={setBass}/>
-                        <Knob label="Middle" min={0} max={100} value={middle} size={50} onChange={setMiddle}/>
-                        <Knob label="Treble" min={0} max={100} value={treble} size={50} onChange={setTreble}/>
+                        <Knob label="Bass" min={0} max={100} value={100} size={50} onChange={setBass} />
+                        <Knob label="Middle" min={0} max={100} value={100} size={50} onChange={setMiddle} />
+                        <Knob label="Treble" min={0} max={100} value={100} size={50} onChange={setTreble} />
                     </Stack>
                 </Box>
-                <Knob label={"Master"} min={0} max={11} step={1} value={masterVolume} onChange={setMasterVolume}/>
             </Stack>
         </Box>
     );

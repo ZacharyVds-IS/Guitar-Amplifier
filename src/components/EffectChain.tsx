@@ -1,7 +1,8 @@
 import {Box, Paper, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
+import {EffectDto} from "../domain";
 
-const effects = [
+const effectsComponents = [
     {
         id: 2,
         type: 'Distortion',
@@ -11,7 +12,18 @@ const effects = [
     }
 ];
 
-export function EffectChain() {
+export interface EffectChainProps {
+    effects: EffectDto[];
+}
+
+export function EffectChain({effects}: EffectChainProps) {
+    effects.forEach(effect => {effectsComponents.push({
+        id: effect.id,
+        type: effect.name,
+        icon: (
+            <EffectPedalPreview mainColor={"#f46616"}/>
+        )
+    })})
 
     return (
         <Box
@@ -95,7 +107,7 @@ export function EffectChain() {
                         Amp
                     </Typography>
                 </Box>
-                {effects.map((item) => (
+                {effectsComponents.map((item) => (
                     <Box key={item.id} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
                         <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
                             {item.icon}

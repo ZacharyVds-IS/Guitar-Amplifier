@@ -3,22 +3,6 @@ import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
 
 const effects = [
     {
-        id: 1,
-        type: 'Amp',
-        icon: (
-            <Box
-                sx={{
-                    width: 60,
-                    height: 60,
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'text.secondary',
-                    borderRadius: 2
-                }}
-            />
-        )
-    },
-    {
         id: 2,
         type: 'Distortion',
         icon: (
@@ -28,6 +12,7 @@ const effects = [
 ];
 
 export function EffectChain() {
+
     return (
         <Box
             component="section"
@@ -40,7 +25,7 @@ export function EffectChain() {
             }}
         >
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 4 }}>
+            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: 4}}>
                 <Paper
                     sx={{
                         bgcolor: 'background.paper',
@@ -84,9 +69,35 @@ export function EffectChain() {
                     zIndex: 2
                 }}
             >
+                <Box key={0} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                    <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
+                    <Box
+                        sx={{
+                            width: 60,
+                            height: 60,
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'text.secondary',
+                            borderRadius: 2
+                        }}
+                    />
+                    </Box>
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            mt: 1,
+
+                            color: 'text.primary',
+                            fontWeight: 500,
+                            fontSize: '0.75rem'
+                        }}
+                    >
+                        Amp
+                    </Typography>
+                </Box>
                 {effects.map((item) => (
-                    <Box key={item.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', height: 75 }}>
+                    <Box key={item.id} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                        <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
                             {item.icon}
                         </Box>
                         <Typography

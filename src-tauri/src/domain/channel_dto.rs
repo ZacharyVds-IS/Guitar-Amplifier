@@ -1,5 +1,5 @@
 use crate::domain::channel::Channel;
-use crate::domain::tone_stack_dto::ToneStackDto;
+use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
 

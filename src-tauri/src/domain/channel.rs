@@ -1,10 +1,9 @@
+use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::domain::tone_stack::ToneStack;
-use crate::domain::tone_stack_dto::ToneStackDto;
 use atomic_float::AtomicF32;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::utils::acl::Identifier;
-use tracing::{error, info};
+use tracing::error;
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///
@@ -170,14 +169,14 @@ impl Channel {
     pub fn gain(&self) -> Arc<AtomicF32> {
         Arc::clone(&self.gain)
     }
-    
+
     /// Returns a cloned [`Arc`] to the tone stack.
     ///
     /// Allows independent threads to access the tone stack parameters for audio processing.
     pub fn tone_stack(&self) -> Arc<ToneStack> {
         Arc::clone(&self.tone_stack)
     }
-    
+
     /// Returns the name of the channel.
     pub fn name(&self) -> &String {
         &self.name

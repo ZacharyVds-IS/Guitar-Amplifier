@@ -1,7 +1,7 @@
 use crate::domain::channel_dto::ChannelDto;
+use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::services::audio_service::AudioService;
 use std::sync::Mutex;
-use tauri::async_runtime::channel;
 use tauri::{AppHandle, Emitter};
 use tracing::info;
 
@@ -119,7 +119,7 @@ pub(crate) fn get_all_channels(
             id: channel.id(),
             name: channel.name().clone(),
             gain: channel.gain().load(std::sync::atomic::Ordering::Relaxed),
-            tone_stack: crate::domain::tone_stack_dto::ToneStackDto {
+            tone_stack: ToneStackDto {
                 bass: channel
                     .tone_stack()
                     .bass()

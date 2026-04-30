@@ -4,9 +4,10 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {FlipSwitch} from "./selection/FlipSwitch.tsx";
 import {useUIStore} from "../state/UIStore.tsx";
 import {
-    type AlgorithmicLatencyDto, type ExecutionTimingDto,
+    type AlgorithmicLatencyDto,
+    type ExecutionTimingDto,
     measureAllDspAlgorithmicLatency,
-    measureAllDspTimings
+    measureAllDspCpuTimings
 } from "../domain";
 import {useEffect, useState} from "react";
 
@@ -44,7 +45,7 @@ export function DefaultAmpControls() {
                 try {
                     const promises: Promise<any>[] = [
                         measureAllDspAlgorithmicLatency(),
-                        measureAllDspTimings()
+                        measureAllDspCpuTimings()
                     ];
 
                     const results = await Promise.all(promises);

@@ -5,7 +5,7 @@ use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
 use atomic_float::AtomicF32;
-use cpal::{Device, StreamConfig};
+use cpal::{BufferSize, Device, StreamConfig};
 use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
@@ -402,6 +402,40 @@ impl AudioService {
         if was_on {
             self.start_loopback();
         }
+    }
+
+    /// Returns the current buffer size in frames.
+    ///
+    /// If the handler uses `BufferSize::Default`, returns 256 as a practical fallback.
+    pub fn buffer_size_frames(&self) -> u32 {
+        match self.audio_handler.input_config().buffer_size {
+            BufferSize::Fixed(frames) => frames,
+            BufferSize::Default => 256,
+        }
+    }
+
+    /// Updates the buffer size for both input and output streams.
+    ///
+    /// Rebuilds the audio handler with a `BufferSize::Fixed(frames)` config and
+    /// restarts the loopback if it was active.
+    ///
+    /// # Arguments
+    ///
+    /// * `frames` - The desired buffer size in frames.
+    pub fn set_buffer_size_frames(&mut self, frames: u32) -> Result<(), String> {
+        let old = self.audio_handler.clone();
+        let mut input_config = old.input_config().clone();
+        let mut output_config = old.output_config().clone();
+        input_config.buffer_size = BufferSize::Fixed(frames);
+        output_config.buffer_size = BufferSize::Fixed(frames);
+        let new_handler = AudioHandler::new(
+            old.input_device().clone(),
+            old.output_device().clone(),
+            input_config,
+            output_config,
+        );
+        self.set_audio_handler(std::sync::Arc::new(new_handler));
+        Ok(())
     }
 }
 

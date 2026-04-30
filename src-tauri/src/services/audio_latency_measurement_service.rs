@@ -21,13 +21,17 @@ pub struct AudioLatencyMeasurementService;
 impl AudioLatencyMeasurementService {
     /// Measures gain processor execution cost in microseconds per sample.
     pub fn measure_gain_latency(audio_service: &AudioService, block_size: usize) -> f64 {
-        let mut gain = GainProcessor::new(audio_service.channel().gain());
+        let channel = audio_service.channels().iter()
+            .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
+        let mut gain = GainProcessor::new(channel.gain().clone());
         LatencyAnalyzer::measure_effect_added_execution_us(&mut gain, 256, block_size)
     }
 
     /// Measures tone stack processor execution cost in microseconds per sample.
     pub fn measure_tone_stack_latency(audio_service: &AudioService, block_size: usize) -> f64 {
-        let mut tone_stack = ToneStackProcessor::new(audio_service.channel().tone_stack());
+        let channel = audio_service.channels().iter()
+            .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
+        let mut tone_stack = ToneStackProcessor::new(channel.tone_stack().clone());
         LatencyAnalyzer::measure_effect_added_execution_us(&mut tone_stack, 256, block_size)
     }
 
@@ -41,7 +45,7 @@ impl AudioLatencyMeasurementService {
         let gain_us = Self::measure_gain_latency(audio_service, block_size);
         let tone_stack_us = Self::measure_tone_stack_latency(audio_service, block_size);
         let master_volume_us = {
-            let mut master_volume = GainProcessor::new(audio_service.channel().master_volume());
+            let mut master_volume = GainProcessor::new(audio_service.master_volume().clone());
             LatencyAnalyzer::measure_effect_added_execution_us(&mut master_volume, 256, block_size)
         };
 

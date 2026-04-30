@@ -1,6 +1,8 @@
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
+use crate::domain::effect::Effect;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
@@ -168,10 +170,12 @@ impl AudioService {
                 let mut volume = GainProcessor::new(volume_arc);
                 let mut master_volume = GainProcessor::new(master_volume_arc);
                 let mut tone_stack = ToneStackProcessor::new(tone_stack_arc);
+                let mut hc_distortion = HCDistortion::new(1,"Hard clipping Distortion".to_string(),true, 0.5);
 
                 let mut run_dsp = |sample: f32| -> f32 {
                     let sample = gain.process(sample);
                     let sample = tone_stack.process(sample);
+                    let sample = hc_distortion.process_if_active(sample);
                     let sample = volume.process(sample);
                     master_volume.process(sample)
                 };

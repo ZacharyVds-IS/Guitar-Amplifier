@@ -209,29 +209,26 @@ impl Channel {
         self.id
     }
 
+    /// Returns a reference to the effect chain for this channel.
     pub fn effect_chain(&self) -> &[Box<dyn Effect>] {
         &self.effect_chain
     }
 
-
+    /// Takes ownership of the effect chain, replacing it with an empty vector.
+    /// This is useful for transferring the chain to another component without cloning.
     pub fn take_effect_chain(&mut self) -> Vec<Box<dyn Effect>> {
         take(&mut self.effect_chain)
     }
 
-
+    /// Adds an effect to the end of the channel's effect chain.
+    ///
+    /// # Arguments
+    ///
+    /// * `effect` - The effect to add to the chain.  Must implement the `Effect` trait.
     pub fn add_effect_to_chain(&mut self, effect: Box<dyn Effect>) {
         info!("Added effect: {} to chain", effect.name());
         self.effect_chain.push(effect);
     }
-
-    pub fn process_effects(&mut self, mut sample: f32) -> f32 {
-        for effect in self.effect_chain.iter_mut() {
-            sample = effect.process_if_active(sample);
-        }
-        sample
-
-    }
-
 }
 
 #[cfg(test)]

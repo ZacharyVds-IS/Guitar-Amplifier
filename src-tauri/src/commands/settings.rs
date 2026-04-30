@@ -1,4 +1,4 @@
-use crate::domain::audio_device_dto::AudioDeviceDto;
+use crate::domain::dto::audio_device_dto::AudioDeviceDto;
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
 use cpal::traits::DeviceTrait;
@@ -63,12 +63,15 @@ pub fn set_input_device(
     let device = device_service
         .find_input_device_by_id(&device_id)
         .ok_or("Device not found")?;
+
     let input_config = device
         .default_input_config()
-        .map_err(|e| format!("Failed to get input config: {e}"))?
+        .map_err(|e| format!("Failed to get default input config: {e}"))?
         .config();
 
-    let mut audio = audio_service.lock().unwrap();
+    let mut audio = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
     audio.set_input_device(device, input_config);
 
     Ok(())
@@ -99,15 +102,37 @@ pub fn set_output_device(
     let device = device_service
         .find_output_device_by_id(&device_id)
         .ok_or("Device not found")?;
+
     let output_config = device
         .default_output_config()
-        .map_err(|e| format!("Failed to get output config: {e}"))?
+        .map_err(|e| format!("Failed to get default output config: {e}"))?
         .config();
 
-    let mut audio = audio_service.lock().unwrap();
+    let mut audio = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
     audio.set_output_device(device, output_config);
 
     Ok(())
 }
 
+#[tauri::command]
+pub fn get_buffer_size_frames(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+) -> Result<u32, String> {
+    let audio = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
+    Ok(audio.buffer_size_frames())
+}
 
+#[tauri::command]
+pub fn set_buffer_size_frames(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+    frames: u32,
+) -> Result<(), String> {
+    let mut audio = audio_service
+        .lock()
+        .map_err(|_| "Failed to lock audio service".to_string())?;
+    audio.set_buffer_size_frames(frames)
+}

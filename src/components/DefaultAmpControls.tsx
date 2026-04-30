@@ -69,7 +69,7 @@ export function DefaultAmpControls() {
 
     const getCpuTimeValue = (processorName: string): string => {
         const timing = cpuTimings.find(t => t.processor_name === processorName);
-        return timing ? `${timing.execution_us_per_sample.toFixed(3)} us/sample` : "-";
+        return timing ? `${timing.execution_us_per_sample.toFixed(3)} µs/sample` : "-";
     };
 
     return (
@@ -86,14 +86,26 @@ export function DefaultAmpControls() {
         >
             <Stack direction="row" spacing={4} sx={{alignItems: 'center'}}>
                 <FlipSwitch label={"On/Off"} value={isActive} onChange={setIsActive}/>
-                <Knob
-                    label="Volume"
-                    value={volume}
-                    min={0}
-                    max={11}
-                    step={1}
-                    onChange={setVolume}
-                />
+                <Stack>
+                    <Knob
+                        label="Volume"
+                        value={volume}
+                        min={0}
+                        max={11}
+                        step={1}
+                        onChange={setVolume}
+                    />
+                    {developerMode && (
+                        <Stack spacing={0}>
+                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                latency: {getTimingValue("Volume")}
+                            </Typography>
+                            <Typography variant="caption" sx={{fontSize: "0.62rem", color: "text.secondary"}}>
+                                cpu: {getCpuTimeValue("Volume")}
+                            </Typography>
+                        </Stack>
+                    )}
+                </Stack>
                 <Stack>
                     <Knob
                         label="Gain"
@@ -114,59 +126,61 @@ export function DefaultAmpControls() {
                         </Stack>
                     )}
                 </Stack>
-                <Box
-                    sx={{
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        p: 2,
-                        borderRadius: 2,
-                        position: 'relative'
-                    }}
-                >
-                    <Typography
+                <Stack>
+                    <Box
                         sx={{
-                            position: 'absolute',
-                            top: -10,
-                            left: 10,
-                            bgcolor: 'background.paper',
-                            px: 1,
-                            fontSize: '0.7rem',
-                            fontWeight: 'bold',
-                            color: 'text.secondary',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05rem'
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            p: 2,
+                            borderRadius: 2,
+                            position: 'relative'
                         }}
                     >
-                        Tone stack
-                    </Typography>
+                        <Typography
+                            sx={{
+                                position: 'absolute',
+                                top: -10,
+                                left: 10,
+                                bgcolor: 'background.paper',
+                                px: 1,
+                                fontSize: '0.7rem',
+                                fontWeight: 'bold',
+                                color: 'text.secondary',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05rem'
+                            }}
+                        >
+                            Tone stack
+                        </Typography>
 
-                    <Stack direction="row" spacing={2}>
-                        <Knob label="Bass" min={0} max={100} value={bass} size={50} onChange={setBass}/>
-                        <Knob label="Middle" min={0} max={100} value={middle} size={50} onChange={setMiddle}/>
-                        <Knob label="Treble" min={0} max={100} value={treble} size={50} onChange={setTreble}/>
-                    </Stack>
-                </Box>
-                {developerMode && (
-                    <Stack spacing={0}>
-                        <Typography variant="caption" sx={{
-                            fontSize: "0.62rem",
-                            color: "text.secondary",
-                            mt: 1,
-                            display: "block",
-                            textAlign: "center"
-                        }}>
-                            latency: {getTimingValue("Tone Stack")}
-                        </Typography>
-                        <Typography variant="caption" sx={{
-                            fontSize: "0.62rem",
-                            color: "text.secondary",
-                            display: "block",
-                            textAlign: "center"
-                        }}>
-                            cpu: {getCpuTimeValue("Tone Stack")}
-                        </Typography>
-                    </Stack>
-                )}
+                        <Stack direction="row" spacing={2}>
+                            <Knob label="Bass" min={0} max={100} value={bass} size={50} onChange={setBass}/>
+                            <Knob label="Middle" min={0} max={100} value={middle} size={50} onChange={setMiddle}/>
+                            <Knob label="Treble" min={0} max={100} value={treble} size={50} onChange={setTreble}/>
+                        </Stack>
+                    </Box>
+                    {developerMode && (
+                        <Stack spacing={0}>
+                            <Typography variant="caption" sx={{
+                                fontSize: "0.62rem",
+                                color: "text.secondary",
+                                mt: 1,
+                                display: "block",
+                                textAlign: "center"
+                            }}>
+                                latency: {getTimingValue("Tone Stack")}
+                            </Typography>
+                            <Typography variant="caption" sx={{
+                                fontSize: "0.62rem",
+                                color: "text.secondary",
+                                display: "block",
+                                textAlign: "center"
+                            }}>
+                                cpu: {getCpuTimeValue("Tone Stack")}
+                            </Typography>
+                        </Stack>
+                    )}
+                </Stack>
                 <Stack>
                     <Knob label={"Master"} min={0} max={11} step={1} value={masterVolume} onChange={setMasterVolume}/>
                     {developerMode && (

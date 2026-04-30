@@ -82,11 +82,33 @@ impl AudioLatencyMeasurementService {
         LatencyAnalyzer::measure_effect_added_execution_us(&mut tone_stack, 256, block_size)
     }
 
+    /// Measures the CPU execution cost added by the per-channel volume [`GainProcessor`].
+    ///
+    /// The channel volume is a separate gain stage that sits after the tone stack and before
+    /// the master volume in the DSP chain.  Its cost is benchmarked the same way as the
+    /// input gain — baseline-subtracted and clamped to `≥ 0`.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_service` — Service snapshot used to read the current channel's volume arc.
+    /// * `block_size` — Number of samples per benchmark iteration.
+    ///
+    /// # Returns
+    ///
+    /// Added execution cost in **microseconds per sample** (µs/sample), clamped to `≥ 0`.
+    ///
+    /// [`GainProcessor`]: crate::services::processors::gain::gain_processor::GainProcessor
+    pub fn measure_volume_latency(audio_service: &AudioService, block_size: usize) -> f64 {
+        let channel = audio_service.channels().iter()
+            .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
+        let mut volume = GainProcessor::new(channel.volume().clone());
+        LatencyAnalyzer::measure_effect_added_execution_us(&mut volume, 256, block_size)
+    }
+
     /// Measures the CPU execution cost of every processor in the active DSP chain.
     ///
-    /// Runs [`measure_gain_latency`] and [`measure_tone_stack_latency`] for the current
-    /// channel, plus an equivalent benchmark for the master-volume [`GainProcessor`].
-    /// Results are returned in **signal-chain order**.
+    /// Runs individual benchmarks for all four processors in signal-chain order and
+    /// returns the results as a vector.
     ///
     /// # Arguments
     ///
@@ -95,20 +117,23 @@ impl AudioLatencyMeasurementService {
     ///
     /// # Returns
     ///
-    /// A `Vec<ExecutionTimingDto>` with exactly three entries, in this order:
+    /// A `Vec<ExecutionTimingDto>` with exactly four entries, in signal-chain order:
     ///
     /// | Index | Processor |
     /// |---|---|
     /// | 0 | Gain |
     /// | 1 | Tone Stack |
-    /// | 2 | Master Volume |
+    /// | 2 | Volume |
+    /// | 3 | Master Volume |
     ///
     /// [`measure_gain_latency`]: AudioLatencyMeasurementService::measure_gain_latency
     /// [`measure_tone_stack_latency`]: AudioLatencyMeasurementService::measure_tone_stack_latency
+    /// [`measure_volume_latency`]: AudioLatencyMeasurementService::measure_volume_latency
     /// [`GainProcessor`]: crate::services::processors::gain::gain_processor::GainProcessor
     pub fn measure_all_dsp_timings(audio_service: &AudioService, block_size: usize) -> Vec<ExecutionTimingDto> {
         let gain_us = Self::measure_gain_latency(audio_service, block_size);
         let tone_stack_us = Self::measure_tone_stack_latency(audio_service, block_size);
+        let volume_us = Self::measure_volume_latency(audio_service, block_size);
         let master_volume_us = {
             let mut master_volume = GainProcessor::new(audio_service.master_volume().clone());
             LatencyAnalyzer::measure_effect_added_execution_us(&mut master_volume, 256, block_size)
@@ -117,20 +142,15 @@ impl AudioLatencyMeasurementService {
         vec![
             ExecutionTimingDto::new("Gain", gain_us),
             ExecutionTimingDto::new("Tone Stack", tone_stack_us),
+            ExecutionTimingDto::new("Volume", volume_us),
             ExecutionTimingDto::new("Master Volume", master_volume_us),
         ]
     }
 
     /// Returns the algorithmic (design-inherent) delay for every processor in the DSP chain.
     ///
-    /// Algorithmic latency is the sample delay that an effect *inherently* introduces by design —
-    /// for example a lookahead limiter that buffers N samples before outputting them adds N
-    /// samples of algorithmic latency regardless of CPU speed.
-    ///
-    /// For the current chain (Gain → Tone Stack → Master Volume) every processor is a
-    /// sample-by-sample filter with no lookahead or delay line, so all values are **zero**.
-    /// This function exists to make that explicit and to provide the correct structure for the
-    /// frontend even when future processors with non-zero delay are added.
+    /// For the current chain (Gain → Tone Stack → Volume → Master Volume) every processor
+    /// is a sample-by-sample filter with no lookahead or delay line, so all values are **zero**.
     ///
     /// # Arguments
     ///
@@ -138,7 +158,7 @@ impl AudioLatencyMeasurementService {
     ///
     /// # Returns
     ///
-    /// A `Vec<AlgorithmicLatencyDto>` with exactly three entries (Gain, Tone Stack,
+    /// A `Vec<AlgorithmicLatencyDto>` with exactly four entries (Gain, Tone Stack, Volume,
     /// Master Volume), each reporting `latency_samples = 0` and `latency_ms = 0.0`.
     pub fn measure_all_dsp_algorithmic_latency(audio_service: &AudioService) -> Vec<AlgorithmicLatencyDto> {
         let sample_rate_hz = audio_service.audio_handler().output_sample_rate();
@@ -146,6 +166,7 @@ impl AudioLatencyMeasurementService {
         vec![
             AlgorithmicLatencyDto::new("Gain", 0, sample_rate_hz),
             AlgorithmicLatencyDto::new("Tone Stack", 0, sample_rate_hz),
+            AlgorithmicLatencyDto::new("Volume", 0, sample_rate_hz),
             AlgorithmicLatencyDto::new("Master Volume", 0, sample_rate_hz),
         ]
     }
@@ -296,10 +317,11 @@ mod tests {
 
             let timings = AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 512);
 
-            assert_eq!(timings.len(), 3);
+            assert_eq!(timings.len(), 4);
             assert_eq!(timings[0].processor_name, "Gain");
             assert_eq!(timings[1].processor_name, "Tone Stack");
-            assert_eq!(timings[2].processor_name, "Master Volume");
+            assert_eq!(timings[2].processor_name, "Volume");
+            assert_eq!(timings[3].processor_name, "Master Volume");
             assert!(timings.iter().all(|t| t.execution_us_per_sample.is_finite()));
             assert!(timings.iter().all(|t| t.execution_us_per_sample >= 0.0));
         }
@@ -315,10 +337,11 @@ mod tests {
 
             let latency = AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
 
-            assert_eq!(latency.len(), 3);
+            assert_eq!(latency.len(), 4);
             assert_eq!(latency[0].processor_name, "Gain");
             assert_eq!(latency[1].processor_name, "Tone Stack");
-            assert_eq!(latency[2].processor_name, "Master Volume");
+            assert_eq!(latency[2].processor_name, "Volume");
+            assert_eq!(latency[3].processor_name, "Master Volume");
             assert!(latency.iter().all(|item| item.latency_samples == 0));
             assert!(latency.iter().all(|item| item.latency_ms == 0.0));
         }

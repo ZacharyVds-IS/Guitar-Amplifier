@@ -74,13 +74,22 @@ mod latency_measurement_tests {
             }
 
             #[test]
+            fn measure_volume_latency_returns_non_negative_value() {
+                let service = default_service();
+                let result = AudioLatencyMeasurementService::measure_volume_latency(&service, 512);
+                assert!(result >= 0.0, "volume latency must be non-negative, got {result}");
+                assert!(result.is_finite(), "volume latency must be finite");
+            }
+
+            #[test]
             fn measure_all_dsp_timings_returns_three_entries_in_chain_order() {
                 let service = default_service();
                 let timings = AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 512);
-                assert_eq!(timings.len(), 3);
+                assert_eq!(timings.len(), 4);
                 assert_eq!(timings[0].processor_name, "Gain");
                 assert_eq!(timings[1].processor_name, "Tone Stack");
-                assert_eq!(timings[2].processor_name, "Master Volume");
+                assert_eq!(timings[2].processor_name, "Volume");
+                assert_eq!(timings[3].processor_name, "Master Volume");
             }
 
             #[test]
@@ -119,6 +128,8 @@ mod latency_measurement_tests {
             fn all_current_processors_have_zero_algorithmic_latency() {
                 let service = default_service();
                 let latency = AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
+                assert_eq!(latency.len(), 4);
+                assert_eq!(latency[2].processor_name, "Volume");
                 assert!(latency.iter().all(|d| d.latency_samples == 0));
                 assert!(latency.iter().all(|d| d.latency_ms == 0.0));
             }

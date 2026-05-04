@@ -6,18 +6,10 @@ pub mod services;
 #[cfg(test)]
 pub mod tests;
 
-use crate::commands::channels::{
-    add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id,
-};
-use crate::commands::default_controls::{
-    get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume,
-    toggle_on_off,
-};
-use crate::commands::effects::{add_effect, remove_effect};
-use crate::commands::latency_testing::{
-    measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency,
-    measure_round_trip_latency, test_gain_latency,
-};
+use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
+use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume, toggle_on_off};
+use crate::commands::effects::{set_hc_distortion_level, set_hc_distortion_threshold, toggle_effect};
+use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{
     get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames,
@@ -96,9 +88,11 @@ pub fn run() {
             measure_all_dsp_algorithmic_latency,
             measure_buffer_latency,
             measure_round_trip_latency,
+            toggle_effect,
+            set_hc_distortion_threshold,
+            set_hc_distortion_level,
             add_effect,
             remove_effect,
-        ])
-        .run(tauri::generate_context!())
+        ]).run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

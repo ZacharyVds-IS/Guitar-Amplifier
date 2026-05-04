@@ -284,6 +284,27 @@ mod tests {
             channel.set_volume(0.5);
             assert_eq!(channel.volume().load(Ordering::Relaxed), 0.5);
         }
+
+        #[test]
+        fn adding_effect_to_effect_chain_should_add_an_effect_to_effect_chain() {
+            let mut channel = Channel::new(1, "Test".to_string(), None, None);
+            channel.add_effect_to_chain(Box::new(FlipEffect::new(channel.next_effect_id,"Test Effect".to_string(), "#FFFFFF".to_string())));
+            assert_eq!(channel.effect_chain().len(), 1);
+        }
+
+        #[test]
+        fn removing_effect_from_effect_chain_should_remove_an_effect_from_effect_chain() {
+            let mut channel = Channel::new(1, "Test".to_string(), None, None);
+            let effect_id = channel.next_effect_id();
+            let effect = Box::new(FlipEffect::new(effect_id,"Test Effect".to_string(), "#FFFFFF".to_string()));
+
+            channel.add_effect_to_chain(effect);
+            let len_before = channel.effect_chain().len();
+
+            channel.remove_effect_from_chain(effect_id);
+            assert_ne!(channel.effect_chain().len(), len_before);
+            assert_eq!(channel.effect_chain().len(), 0);
+        }
     }
 
     #[cfg(test)]
@@ -302,6 +323,19 @@ mod tests {
         fn volume_set_to_negative_value_should_panic() {
             let channel = Channel::new(1, "Test".to_string(), None, None);
             channel.set_volume(-0.5);
+        }
+
+        #[test]
+        fn removing_invalid_effect_id_should_not_remove_any_effect() {
+            let mut channel = Channel::new(1, "Test".to_string(), None, None);
+            let effect_id = channel.next_effect_id();
+            let effect = Box::new(FlipEffect::new(effect_id,"Test Effect".to_string(), "#FFFFFF".to_string()));
+
+            channel.add_effect_to_chain(effect);
+            let len_before = channel.effect_chain().len();
+
+            channel.remove_effect_from_chain(effect_id + 1);
+            assert_eq!(channel.effect_chain().len(), len_before);
         }
     }
 }

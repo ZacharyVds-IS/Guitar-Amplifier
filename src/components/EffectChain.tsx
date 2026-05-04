@@ -2,6 +2,9 @@ import {Box, IconButton, Paper, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
 import {EffectDto} from "../domain";
 import {AddCircle, Delete} from "@mui/icons-material";
+import {DeleteConfirmationDialog} from "./DeleteConfirmationDialog.tsx";
+import {useState} from "react";
+import {AddEffectDialog} from "./AddEffectDialog.tsx";
 
 
 export interface EffectChainProps {
@@ -9,6 +12,19 @@ export interface EffectChainProps {
 }
 
 export function EffectChain({effects}: EffectChainProps) {
+    let [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+    let [addDialogOpen, setAddDialogOpen] = useState(false);
+
+    const handleEffectRemove = () => {
+        setRemoveDialogOpen(false);
+        console.log("You tried removing an effect but it isn't wired yet")
+    }
+
+    const handleAdd = () => {
+        setAddDialogOpen(false);
+        console.log("You tried to add an effect it isn't wired yet")
+    }
+
     return (
         <Box
             component="section"
@@ -106,7 +122,7 @@ export function EffectChain({effects}: EffectChainProps) {
                         <IconButton
                             className="remove-button"
                             size="small"
-                            onClick={() => console.log("You tried removing " + item.name + " effect but it isn't wired yet")}
+                            onClick={() => setRemoveDialogOpen(true)}
                             sx={{
                                 position: 'absolute',
                                 top: -15,
@@ -124,6 +140,13 @@ export function EffectChain({effects}: EffectChainProps) {
                         >
                             <Delete/>
                         </IconButton>
+                        <DeleteConfirmationDialog
+                            open={removeDialogOpen}
+                            onClose={()=> setRemoveDialogOpen(false)}
+                            onConfirm={handleEffectRemove}
+                            title={`Remove effect "${item.name}"?`}
+                            description={"Are you sure you want to remove this effect from the chain? This action cannot be undone."}
+                        />
 
                         <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
                             <EffectPedalPreview mainColor={item.color}/>
@@ -149,7 +172,7 @@ export function EffectChain({effects}: EffectChainProps) {
                     justifyContent: 'center',
                     height: 70
                 }}>
-                    <IconButton onClick={()=>{console.log("You tried to add an effect it isn't wired yet")}} sx={{
+                    <IconButton onClick={()=> setAddDialogOpen(true)} sx={{
                         p: 0,
                         bgcolor: 'white',
                         '&:hover': {bgcolor: 'white', transform: 'scale(1.2)'},
@@ -161,6 +184,7 @@ export function EffectChain({effects}: EffectChainProps) {
                     }}>
                         <AddCircle fontSize="large" color="primary"/>
                     </IconButton>
+                    <AddEffectDialog open={addDialogOpen} onClose={()=> setAddDialogOpen(false)} onCreate={handleAdd}/>
                 </Box>
             </Stack>
         </Box>

@@ -8,34 +8,87 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-/// Hard-clipping distortion effect.
+/// # Hard-Clipping Distortion Effect
 ///
-/// Any sample whose absolute value exceeds `threshold` is clamped to `±threshold`,
-/// producing the flat-top waveform characteristic of hard clipping.
-/// After clipping the signal is passed through a [`GainProcessor`] whose gain is
-/// controlled by `level` — a normalised value in `[0.0, 1.0]` that maps to a
-/// linear boost of `1.0` (unity, no boost) .. `2.0` (double amplitude).
+/// `HCDistortion` implements a classic hard-clipping distortion pedal with two
+/// controllable parameters: **Drive** (clipping threshold) and **Level** (output boost).
 ///
-/// `is_active`, `limit`, and `level` are stored as `Arc<Atomic*>` so the audio
-/// thread and command handlers share them without any lock.
+/// ## Signal Chain
+///
+/// The processing happens in two stages:
+///
+/// 1. **Hard Clipping**
+///    - Any sample whose absolute value exceeds the `threshold` is clamped to `±threshold`
+///    - This produces the characteristic flat-top waveform of hard clipping distortion
+///    - Lower thresholds produce heavier distortion (more clipping)
+///    - Higher thresholds produce lighter distortion (less clipping)
+///
+/// 2. **Output Level Boost** (via [`GainProcessor`])
+///    - After clipping, the signal passes through a [`GainProcessor`]
+///    - The gain is controlled by a normalised `level` parameter `[0.0, 1.0]`
+///    - Maps to a linear gain range of `1.0` (unity) to `2.0` (double amplitude)
+///    - Uses smoothed transitions (one-pole filter) to avoid clicks and pops
+///
+/// ## Parameter Ranges
+///
+/// | Parameter  | Range      | UI Display | Effect |
+/// |-----------|----------|------------|--------|
+/// | `threshold` | `(0.0, 1.0]` | Drive 0–100% | Lower = heavier distortion |
+/// | `level`  | `[0.0, 1.0]`   | Level 0–100% | 0 = no boost, 1.0 = ×2 boost |
+///
+/// ## Thread-Safe Atomic Updates
+///
+/// All mutable parameters are stored as lock-free atomics:
+/// - `is_active`: [`Arc<AtomicBool>`] — enable/bypass the effect
+/// - `limit`: [`Arc<AtomicF32>`] — clipping threshold (shared with [`f32_params`](Self::f32_params))
+/// - `level`: [`Arc<AtomicF32>`] — internal gain value `[1.0, 2.0]` (shared with [`GainProcessor`])
+///
+/// This allows the audio thread to read parameter changes from command handlers
+/// without any locks or synchronisation overhead.
+
 pub struct HCDistortion {
     id: u32,
     name: String,
     is_active: Arc<AtomicBool>,
-    /// Clip level in `(0.0, 1.0]`.
+    /// Clip level in `(0.0, 1.0]`. Lower = heavier distortion.
+    /// Shared with command infrastructure via [`f32_params`](Self::f32_params).
     limit: Arc<AtomicF32>,
-    /// Internal gain atomic shared with `level_gain`. Stores [1.0, 2.0].
+    /// Internal gain atomic shared with `level_gain`. Stores gain in range `[1.0, 2.0]`.
+    /// Accessed externally via normalised [`level`](Self::level) method.
     level: Arc<AtomicF32>,
-    /// GainProcessor that applies the smoothed level boost after clipping.
+    /// GainProcessor that applies smoothed level boost after hard clipping.
+    /// Reads gain value from `level` atomic lock-free on each sample.
     level_gain: GainProcessor,
     /// UI chassis colour (hex string, e.g. `"#e67e22"`).
     color: String,
 }
 
 impl HCDistortion {
-    /// * `threshold` — clip level in `(0.0, 1.0]`
-    /// * `level`     — normalised output boost in `[0.0, 1.0]`
-    ///                 (`0.0` = unity gain, `1.0` = ×2.0 boost)
+    /// Creates a new `HCDistortion` effect.
+    ///
+    /// # Parameters
+    ///
+    /// * `id` — Unique identifier for this effect instance
+    /// * `name` — Human-readable name (e.g., "Distortion")
+    /// * `is_active` — Whether the effect is initially enabled
+    /// * `threshold` — Clip level in `(0.0, 1.0]`. Will be clamped to `[0.001, 1.0]`.
+    ///                 Lower values produce heavier distortion.
+    /// * `level` — Initial output boost in `[0.0, 1.0]`. Will be clamped to `[0.0, 1.0]`.
+    ///             Maps internally to gain `[1.0, 2.0]`.
+    /// * `color` — Hex colour string for UI pedal chassis (e.g., `"#e67e22"`)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let distortion = HCDistortion::new(
+    ///     6,                           // id
+    ///     "Distortion".to_string(),    // name
+    ///     false,                       // inactive on startup
+    ///     0.5,                         // medium clipping threshold
+    ///     0.0,                         // no level boost initially
+    ///     "#e67e22".to_string(),       // orange chassis
+    /// );
+    /// ```
     pub fn new(id: u32, name: String, is_active: bool, threshold: f32, level: f32, color: String) -> Self {
         let gain_value = 1.0 + level.clamp(0.0, 1.0); // map [0,1] → [1,2]
         let level_arc = Arc::new(AtomicF32::new(gain_value));
@@ -51,24 +104,72 @@ impl HCDistortion {
         }
     }
 
+    /// Returns the current clipping threshold in range `(0.0, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// The threshold value; lower values produce heavier clipping.
     pub fn threshold(&self) -> f32 { self.limit.load(Ordering::Relaxed) }
 
+    /// Sets the clipping threshold. Value is clamped to `[0.001, 1.0]`.
+    ///
+    /// The change takes effect on the very next audio sample — no synchronisation needed.
+    ///
+    /// # Parameters
+    ///
+    /// * `threshold` — New clipping level in `(0.0, 1.0]`
     pub fn set_threshold(&self, threshold: f32) {
         self.limit.store(threshold.clamp(0.001, 1.0), Ordering::Relaxed);
     }
 
-    /// Returns the normalised level `[0.0, 1.0]` (reverses the internal [1, 2] mapping).
+    /// Returns the normalised output level in range `[0.0, 1.0]`.
+    ///
+    /// Internally the gain is stored as `[1.0, 2.0]`; this method reverses that mapping
+    /// to give the external normalised value.
+    ///
+    /// # Returns
+    ///
+    /// Normalised level: `0.0` = no boost (unity gain), `1.0` = ×2.0 boost
     pub fn level(&self) -> f32 {
         (self.level.load(Ordering::Relaxed) - 1.0).clamp(0.0, 1.0)
     }
 
-    /// Sets the level from a normalised value `[0.0, 1.0]`.
+    /// Sets the output level from a normalised value `[0.0, 1.0]`.
+    ///
+    /// Internally maps to gain `[1.0, 2.0]` and stores it in the atomic.
+    /// The change takes effect on the very next audio sample — no synchronisation needed.
+    ///
+    /// # Parameters
+    ///
+    /// * `level` — Normalised level in `[0.0, 1.0]`. Will be clamped.
     pub fn set_level(&self, level: f32) {
         self.level.store(1.0 + level.clamp(0.0, 1.0), Ordering::Relaxed);
     }
 }
 
 impl AudioProcessor for HCDistortion {
+    /// Processes a single audio sample through hard clipping and level boost.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. **Load clipping threshold** atomically (lock-free)
+    /// 2. **Clamp sample** to `[-threshold, threshold]` (hard clipping)
+    /// 3. **Apply gain boost** via the [`GainProcessor`] with smoothed transitions
+    ///
+    /// # Parameters
+    ///
+    /// * `sample` — Normalised audio sample, typically `-1.0` to `1.0`
+    ///
+    /// # Returns
+    ///
+    /// Processed sample: clipped and boosted by the level knob
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let mut distortion = HCDistortion::new(1, "D".to_string(), true, 0.5, 0.0, "#e67e22".to_string());
+    /// let output = distortion.process(0.9); // input 0.9 → clamps to 0.5 → boost by ×1.0 → ≈0.5
+    /// ```
     fn process(&mut self, sample: f32) -> f32 {
         let limit = self.limit.load(Ordering::Relaxed);
         let clipped = sample.clamp(-limit, limit);
@@ -82,6 +183,21 @@ impl Effect for HCDistortion {
     fn get_color(&self) -> String { self.color.clone() }
     fn active_flag(&self) -> Arc<AtomicBool> { Arc::clone(&self.is_active) }
 
+    /// Returns a map of named f32 parameters for command infrastructure.
+    ///
+    /// This enables the generic command dispatcher to update effect parameters
+    /// without needing to know about specific effect types.
+    ///
+    /// # Returns
+    ///
+    /// HashMap with keys:
+    /// * `"threshold"` — points to `limit` atomic; external code can write new thresholds
+    /// * `"level"` — points to internal gain atomic `[1.0, 2.0]`
+    ///
+    /// # Note
+    ///
+    /// The `"level"` key stores the raw gain value. Command handlers should convert
+    /// the external normalised `[0, 1]` range to internal gain `[1, 2]` before writing.
     fn f32_params(&self) -> HashMap<&'static str, Arc<AtomicF32>> {
         let mut map = HashMap::new();
         map.insert("threshold", Arc::clone(&self.limit));
@@ -90,6 +206,13 @@ impl Effect for HCDistortion {
         map
     }
 
+    /// Converts this effect into its serialisable DTO representation.
+    ///
+    /// Called when sending effect state to the frontend or external clients.
+    ///
+    /// # Returns
+    ///
+    /// [`EffectDto::HCDistortion`] with all current parameters
     fn to_dto(&self) -> EffectDto {
         EffectDto::HCDistortion(HcDistortionDto {
             id: self.id,
@@ -101,6 +224,17 @@ impl Effect for HCDistortion {
         })
     }
 
+    /// Processes a sample only if the effect is currently active.
+    ///
+    /// If inactive (bypassed), the sample is returned unchanged.
+    ///
+    /// # Parameters
+    ///
+    /// * `sample` — Input audio sample
+    ///
+    /// # Returns
+    ///
+    /// Processed sample if active, otherwise the input unchanged (unity bypass)
     fn process_if_active(&mut self, sample: f32) -> f32 {
         if self.is_active() { self.process(sample) } else { sample }
     }

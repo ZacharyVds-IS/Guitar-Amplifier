@@ -244,7 +244,24 @@ impl Channel {
     // ── Effect controls (written from command handlers) ───────────────────────
 
     /// Toggles the active state of an effect.
-    /// Returns the **new** active state, or `Err` if the id is unknown.
+    ///
+    /// Enables or disables audio processing for a specific effect in this channel's
+    /// effect chain. The change takes effect immediately on the audio thread (lock-free).
+    ///
+    /// # Arguments
+    /// * `effect_id` — Unique identifier of the effect to toggle
+    ///
+    /// # Returns
+    /// * `Ok(bool)` — The new active state (`true` = now active, `false` = now bypassed)
+    /// * `Err(String)` — Error message if effect ID not found in this channel
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let channel = Channel::new(...);
+    /// let new_state = channel.toggle_effect(6)?; // Toggle effect with ID 6
+    /// assert_eq!(new_state, true); // Effect is now active
+    /// ```
     pub fn toggle_effect(&self, effect_id: u32) -> Result<bool, String> {
         let h = self.effect_handles.get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;
@@ -254,8 +271,32 @@ impl Channel {
         Ok(next)
     }
 
-    /// Sets a named f32 parameter on an effect (e.g. `"threshold"` on HCDistortion).
-    /// Returns `Err` if the effect id or parameter name is unknown.
+    /// # Sets a Named Float32 Parameter on an Effect
+    /// Generic parameter update mechanism for effect settings. Parameters are identified
+    /// by string names and stored as lock-free atomics (`Arc<AtomicF32>`).
+    ///
+    /// ## Lock-Free Operation
+    ///
+    /// Uses `Ordering::Relaxed` atomic store — no synchronisation overhead:
+    /// - Write happens immediately on the calling thread
+    /// - Audio thread reads the updated value on next sample
+    /// - No locks or condition variables
+    ///
+    /// ## Parameter Discovery
+    ///
+    /// Parameters are exposed via `Effect::f32_params()` which returns a HashMap.
+    ///
+    /// # Arguments
+    /// * `effect_id` — ID of the effect to modify
+    /// * `param` — Parameter name string (e.g., `"threshold"`, `"level"`)
+    /// * `value` — New parameter value as `f32`
+    ///
+    /// # Returns
+    /// * `Ok(())` — Parameter updated successfully
+    /// * `Err(String)` — Error if:
+    ///   - Effect with given ID not found
+    ///   - Parameter name not recognised by the effect
+    ///
     pub fn set_effect_param(&self, effect_id: u32, param: &str, value: f32) -> Result<(), String> {
         let h = self.effect_handles.get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;

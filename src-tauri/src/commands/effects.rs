@@ -3,14 +3,22 @@ use std::sync::Mutex;
 use tracing::info;
 
 /// Toggles an effect's active state on the current channel.
+/// Enables or disables audio processing for a specific effect. The change takes effect
+/// on the very next audio sample — no loopback restart needed.
 ///
-/// The change takes effect on the very next audio sample — no loopback restart needed.
+/// This is a generic command that works with any effect type.
 ///
 /// # Arguments
-/// * `effect_id` — ID of the effect to toggle.
+/// * `effect_id` — Unique ID of the effect to toggle
 ///
 /// # Returns
-/// The new active state (`true` = processing, `false` = bypassed).
+/// * `Ok(bool)` — The new active state (`true` = processing, `false` = bypassed)
+/// * `Err(String)` — Error message if effect ID is invalid or channel not found
+///
+/// # Implementation Details
+///
+/// - Updates the effect's [`Arc<AtomicBool>`] active flag
+/// - Changes apply immediately to audio processing thread
 #[tauri::command]
 pub fn toggle_effect(
     audio_service: tauri::State<Mutex<AudioService>>,
@@ -32,14 +40,20 @@ pub fn toggle_effect(
     Ok(new_state)
 }
 
-/// Sets the threshold parameter on an `HCDistortion` effect.
+/// # Sets the Clipping Threshold on an HC Distortion Effect
 ///
-/// The value is clamped to `[0.001, 1.0]` by the effect itself.
-/// The change takes effect on the very next audio sample.
+/// Adjusts the Drive parameter: lower thresholds produce heavier distortion.
 ///
 /// # Arguments
-/// * `effect_id`  — ID of the HCDistortion effect.
-/// * `threshold`  — New clip threshold in the range `(0.0, 1.0]`.
+/// * `effect_id` — ID of the HCDistortion effect to modify
+/// * `threshold` — Clipping level in range `(0.0, 1.0]`
+///                 * Values < 0.001 are clamped to 0.001
+///                 * Values > 1.0 are clamped to 1.0
+///
+/// # Returns
+/// * `Ok(())` — Threshold updated successfully
+/// * `Err(String)` — Error if effect not found or parameter update fails
+
 #[tauri::command]
 pub fn set_hc_distortion_threshold(
     audio_service: tauri::State<Mutex<AudioService>>,
@@ -62,17 +76,21 @@ pub fn set_hc_distortion_threshold(
     Ok(())
 }
 
-/// Sets the output level parameter on an `HCDistortion` effect.
+/// # Sets the Output Level (Boost) on an HC Distortion Effect
 ///
-/// `level` is a normalised value in `[0.0, 1.0]`:
-///   * `0.0` → unity gain (no boost)
-///   * `1.0` → ×2.0 boost
-///
-/// The change takes effect on the very next audio sample.
+/// Adjusts the Level parameter: controls output amplitude after clipping.
 ///
 /// # Arguments
-/// * `effect_id` — ID of the HCDistortion effect.
-/// * `level`     — Normalised level in `[0.0, 1.0]`.
+/// * `effect_id` — ID of the HCDistortion effect to modify
+/// * `level` — Normalised level in range `[0.0, 1.0]`
+///            * `0.0` = unity gain (no boost)
+///            * `1.0` = ×2.0 boost
+///            * Values outside range are clamped
+///
+/// # Returns
+/// * `Ok(())` — Level updated successfully
+/// * `Err(String)` — Error if effect not found or parameter update fails
+
 #[tauri::command]
 pub fn set_hc_distortion_level(
     audio_service: tauri::State<Mutex<AudioService>>,
@@ -85,7 +103,6 @@ pub fn set_hc_distortion_level(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    // Map normalised [0, 1] → internal gain [1, 2] before storing.
     let gain = 1.0 + level.clamp(0.0, 1.0);
     channel.set_effect_param(effect_id, "level", gain)?;
     info!(
@@ -96,3 +113,5 @@ pub fn set_hc_distortion_level(
     );
     Ok(())
 }
+
+

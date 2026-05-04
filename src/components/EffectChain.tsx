@@ -120,7 +120,7 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
                                 transition: 'border 0.15s, box-shadow 0.15s',
                                 ...(isEffectSelected(item) && selectedBorder),
                             }}>
-                                <EffectPedalPreview mainColor={item.data.color}/>
+                                <EffectPedalPreview mainColor={item.data.color} isActive={item.data.is_active}/>
                             </Box>
                         </Box>
                         <Typography

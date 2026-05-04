@@ -4,6 +4,7 @@ import {Knob} from "./selection/Knob.tsx";
 import {EffectDto, HcDistortionDto} from "../domain";
 import {setHcDistortionLevel, setHcDistortionThreshold, toggleEffect} from "../domain/commands";
 import {useState} from "react";
+import {useAmpStore} from "../state/AmpConfigStore.tsx";
 
 interface EffectPedalProps {
     effect: EffectDto;
@@ -58,14 +59,16 @@ function knobsForEffect(
             return null;
     }
 }
-
 export function EffectPedal({effect, onToggle}: EffectPedalProps) {
+    // Local mirror of is_active so the LED reacts instantly without waiting for a full AmpConfig reload
     const [isActive, setIsActive] = useState(effect.data.is_active);
+    const updateEffectActiveState = useAmpStore((state) => state.updateEffectActiveState);
     const chassisColor = chroma(effect.data.color).hex();
 
     async function handleFootswitchClick() {
         const newActive = await toggleEffect({ effectId: effect.data.id });
         setIsActive(newActive);
+        updateEffectActiveState(effect.data.id, newActive);
         onToggle?.(effect.data.id, newActive);
     }
     function handleParamChange(_name: string, _value: number) {}

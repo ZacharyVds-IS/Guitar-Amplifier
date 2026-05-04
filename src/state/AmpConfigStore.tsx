@@ -28,6 +28,7 @@ interface AmpState extends AmpConfigDto {
     setBass: (val: number) => void;
     setMiddle: (val: number) => void;
     setTreble: (val: number) => void;
+    updateEffectActiveState: (effectId: number, isActive: boolean) => void;
 }
 
 export const useAmpStore = create<AmpState>((set) => ({
@@ -203,6 +204,23 @@ export const useAmpStore = create<AmpState>((set) => ({
                                 ...c.tone_stack,
                                 treble: val,
                             },
+                        }
+                        : c
+                ),
+            }));
+        },
+
+        updateEffectActiveState: (effectId: number, isActive: boolean) => {
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {
+                            ...c,
+                            effect_chain: c.effect_chain.map((effect) =>
+                                effect.data.id === effectId
+                                    ? {...effect, data: {...effect.data, is_active: isActive}}
+                                    : effect
+                            ),
                         }
                         : c
                 ),

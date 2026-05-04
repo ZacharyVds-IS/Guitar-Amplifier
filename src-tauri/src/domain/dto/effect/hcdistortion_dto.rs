@@ -13,4 +13,7 @@ pub struct HcDistortionDto {
     /// Hard-clip threshold in the range `(0.0, 1.0]`.
     /// Lower values produce heavier distortion.
     pub threshold: f32,
+    /// Normalised output level boost in `[0.0, 1.0]`.
+    /// `0.0` = unity gain (no boost), `1.0` = ×2.0 boost.
+    pub level: f32,
 }

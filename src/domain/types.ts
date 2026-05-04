@@ -181,3 +181,10 @@ export interface SetHcDistortionThresholdParams {
 }
 
 
+export interface SetHcDistortionLevelParams {
+  effectId: number;
+  level: number;
+  [key: string]: unknown;
+}
+
+

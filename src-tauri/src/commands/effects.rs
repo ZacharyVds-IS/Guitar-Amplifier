@@ -62,5 +62,37 @@ pub fn set_hc_distortion_threshold(
     Ok(())
 }
 
-
-
+/// Sets the output level parameter on an `HCDistortion` effect.
+///
+/// `level` is a normalised value in `[0.0, 1.0]`:
+///   * `0.0` → unity gain (no boost)
+///   * `1.0` → ×2.0 boost
+///
+/// The change takes effect on the very next audio sample.
+///
+/// # Arguments
+/// * `effect_id` — ID of the HCDistortion effect.
+/// * `level`     — Normalised level in `[0.0, 1.0]`.
+#[tauri::command]
+pub fn set_hc_distortion_level(
+    audio_service: tauri::State<Mutex<AudioService>>,
+    effect_id: u32,
+    level: f32,
+) -> Result<(), String> {
+    let service = audio_service.lock().map_err(|_| "Failed to lock audio service".to_string())?;
+    let channel = service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .ok_or("No active channel")?;
+    // Map normalised [0, 1] → internal gain [1, 2] before storing.
+    let gain = 1.0 + level.clamp(0.0, 1.0);
+    channel.set_effect_param(effect_id, "level", gain)?;
+    info!(
+        channel_id = *service.current_channel_id(),
+        effect_id,
+        level,
+        "HCDistortion level updated"
+    );
+    Ok(())
+}

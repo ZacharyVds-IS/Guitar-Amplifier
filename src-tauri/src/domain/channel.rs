@@ -77,6 +77,7 @@ impl Channel {
                 "Distortion".to_string(),
                 false,
                 0.5,
+                0.0,
                 "#e67e22".to_string(),
             )));
         }

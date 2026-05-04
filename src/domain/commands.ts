@@ -162,3 +162,8 @@ export async function setHcDistortionThreshold(params: types.SetHcDistortionThre
 }
 
 
+export async function setHcDistortionLevel(params: types.SetHcDistortionLevelParams): Promise<void> {
+  return invoke('set_hc_distortion_level', params);
+}
+
+

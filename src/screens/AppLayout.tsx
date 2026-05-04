@@ -5,7 +5,7 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {useState} from "react";
 import {AddChannelDialog} from "../components/AddChannelDialog.tsx";
 import DeleteIcon from '@mui/icons-material/Delete';
-import {DeleteChannelConfirmationDialog} from "../components/DeleteConfirmationDialog.tsx";
+import {DeleteConfirmationDialog} from "../components/DeleteConfirmationDialog.tsx";
 
 export function AppLayout() {
     const navigate = useNavigate();
@@ -67,7 +67,13 @@ export function AppLayout() {
                                                   onCreate={handleAddChannel}/>
                                 {currentChannelId != 0 &&
                                     <IconButton onClick={() => setConfirmOpen(true)}><DeleteIcon/></IconButton>}
-                                <DeleteChannelConfirmationDialog confirmOpen={confirmOpen} setConfirmOpen={setConfirmOpen} handleDelete={handleDeleteChannel}/>
+                                <DeleteConfirmationDialog
+                                    open={confirmOpen}
+                                    onClose={() => setConfirmOpen(false)}
+                                    onConfirm={handleDeleteChannel}
+                                    title={`Delete channel "${currentChannel.name}"?`}
+                                    description={"Are you sure you want to remove this channel? This action cannot be undone."}
+                                />
                             </>
 
                         ) : (

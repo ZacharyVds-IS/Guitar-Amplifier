@@ -1,40 +1,55 @@
-import {Button, Dialog, DialogActions, DialogContent, DialogTitle} from "@mui/material";
+import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
 
-interface DeleteChannelConfirmationDialogProps {
-    confirmOpen: boolean;
-    setConfirmOpen: (open: boolean) => void;
-    handleDelete: () => void;
+interface DeleteConfirmationDialogProps {
+    open: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+    title?: string;
+    description?: string;
+    confirmLabel?: string;
 }
 
-export function DeleteChannelConfirmationDialog({confirmOpen, setConfirmOpen, handleDelete}: DeleteChannelConfirmationDialogProps) {
+export function DeleteConfirmationDialog({
+                                             open,
+                                             onClose,
+                                             onConfirm,
+                                             title = "Confirm Delete",
+                                             description = "This action cannot be undone. Are you sure you want to proceed?",
+                                             confirmLabel = "Delete"
+                                         }: DeleteConfirmationDialogProps) {
     return (
         <Dialog
-            open={confirmOpen}
-            onClose={() => setConfirmOpen(false)}
+            open={open}
+            onClose={onClose}
+            aria-labelledby="delete-dialog-title"
         >
-            <DialogTitle>Delete channel?</DialogTitle>
+            <DialogTitle id="delete-dialog-title">
+                {title}
+            </DialogTitle>
 
             <DialogContent>
-                This action cannot be undone. Are you sure you want to delete this channel?
+                <DialogContentText>
+                    {description}
+                </DialogContentText>
             </DialogContent>
 
-            <DialogActions>
-                <Button onClick={() => setConfirmOpen(false)}>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+                <Button onClick={onClose} color="inherit">
                     Cancel
                 </Button>
 
                 <Button
                     color="error"
                     variant="contained"
+                    autoFocus
                     onClick={() => {
-                        handleDelete();
-                        setConfirmOpen(false);
+                        onConfirm();
+                        onClose();
                     }}
                 >
-                    Delete
+                    {confirmLabel}
                 </Button>
             </DialogActions>
         </Dialog>
-
-    )
+    );
 }

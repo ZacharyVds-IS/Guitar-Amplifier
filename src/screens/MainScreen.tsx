@@ -3,15 +3,23 @@ import {EffectChain} from "../components/EffectChain.tsx";
 import {DefaultAmpControls} from "../components/DefaultAmpControls.tsx";
 import {EffectPedal} from "../components/EffectPedal.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {EffectDto} from "../domain";
 
 export function MainScreen() {
     const activeChannel = useAmpStore((state) =>
         state.channels.find((c) => c.id === state.current_channel)
     );
+    const currentChannelId = useAmpStore((state) => state.current_channel);
 
-    const [selection, setSelection] = useState<EffectDto | "amp">("amp");
+    const [selection, setSelection] = useState<number | "amp">("amp");
+    useEffect(() => {
+        setSelection("amp");
+    }, [currentChannelId]);
+    const resolvedSelection: EffectDto | "amp" | undefined =
+        selection === "amp"
+            ? "amp"
+            : activeChannel?.effect_chain.find((e) => e.data.id === selection);
 
     return (
         <Box
@@ -28,14 +36,16 @@ export function MainScreen() {
             {activeChannel &&
                 <EffectChain
                     effects={activeChannel.effect_chain}
-                    selected={selection}
-                    onSelectionChange={setSelection}
+                    selected={resolvedSelection ?? "amp"}
+                    onSelectionChange={(selected) => {
+                        setSelection(selected === "amp" ? "amp" : selected.data.id);
+                    }}
                 />
             }
 
-            {selection === "amp"
+            {resolvedSelection === "amp" || !resolvedSelection
                 ? <DefaultAmpControls/>
-                : <EffectPedal effect={selection}/>
+                : <EffectPedal effect={resolvedSelection}/>
             }
         </Box>
     );

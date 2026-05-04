@@ -3,7 +3,7 @@ import chroma from "chroma-js";
 import {Knob} from "./selection/Knob.tsx";
 import {EffectDto, HcDistortionDto} from "../domain";
 import {setHcDistortionLevel, setHcDistortionThreshold, toggleEffect} from "../domain/commands";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 
 interface EffectPedalProps {
@@ -12,14 +12,13 @@ interface EffectPedalProps {
 }
 
 function knobsForEffect(
-    effect: EffectDto,
-    onParamChange: (name: string, value: number) => void
+    effect: EffectDto
 ): React.ReactNode {
     switch (effect.kind) {
         case "HCDistortion": {
             const data = effect.data as HcDistortionDto;
             const THRESHOLD_CLEAN = 1.0;
-            const THRESHOLD_HOT   = 0.5;
+            const THRESHOLD_HOT   = 0.05;
             const driveKnobValue = (1 - (data.threshold - THRESHOLD_HOT) / (THRESHOLD_CLEAN - THRESHOLD_HOT)) * 100;
             const levelKnobValue = data.level * 100;
             return (
@@ -35,7 +34,6 @@ function knobsForEffect(
                         onChange={(v) => {
                             const threshold = THRESHOLD_CLEAN - (v / 100) * (THRESHOLD_CLEAN - THRESHOLD_HOT);
                             setHcDistortionThreshold({ effectId: data.id, threshold });
-                            onParamChange("threshold", threshold);
                         }}
                     />
                     <Knob
@@ -49,7 +47,6 @@ function knobsForEffect(
                         onChange={(v) => {
                             const level = v / 100;
                             setHcDistortionLevel({ effectId: data.id, level });
-                            onParamChange("level", level);
                         }}
                     />
                 </>
@@ -59,11 +56,18 @@ function knobsForEffect(
             return null;
     }
 }
+
 export function EffectPedal({effect, onToggle}: EffectPedalProps) {
     // Local mirror of is_active so the LED reacts instantly without waiting for a full AmpConfig reload
     const [isActive, setIsActive] = useState(effect.data.is_active);
     const updateEffectActiveState = useAmpStore((state) => state.updateEffectActiveState);
     const chassisColor = chroma(effect.data.color).hex();
+
+    // Sync local isActive state when the effect prop changes
+    // Prevents stale state if parent re-renders with a different effect
+    useEffect(() => {
+        setIsActive(effect.data.is_active);
+    }, [effect.data.id, effect.data.is_active]);
 
     async function handleFootswitchClick() {
         const newActive = await toggleEffect({ effectId: effect.data.id });
@@ -71,7 +75,6 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
         updateEffectActiveState(effect.data.id, newActive);
         onToggle?.(effect.data.id, newActive);
     }
-    function handleParamChange(_name: string, _value: number) {}
 
     return (
         <Box
@@ -113,7 +116,7 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
                 />
 
                 <Stack direction="row" spacing={1} sx={{justifyContent: 'center'}}>
-                    {knobsForEffect(effect, handleParamChange)}
+                    {knobsForEffect(effect)}
                 </Stack>
 
                 <Typography

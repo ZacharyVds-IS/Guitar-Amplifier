@@ -52,7 +52,16 @@ pub fn toggle_effect(
 ///
 /// # Returns
 /// * `Ok(())` — Threshold updated successfully
-/// * `Err(String)` — Error if effect not found or parameter update fails
+/// * `Err(String)` — Error if:
+///   - Effect not found or parameter update fails
+///   - Threshold is NaN or infinite (audio thread safety)
+///
+/// # Validation
+///
+/// This command validates the threshold before forwarding to the audio thread:
+/// - Rejects NaN and infinite values (would panic in audio processor)
+/// - Clamps finite values to safe range `[0.001, 1.0]`
+/// - Prevents audio thread crashes from invalid clamp operations
 
 #[tauri::command]
 pub fn set_hc_distortion_threshold(
@@ -60,17 +69,26 @@ pub fn set_hc_distortion_threshold(
     effect_id: u32,
     threshold: f32,
 ) -> Result<(), String> {
+    if !threshold.is_finite() {
+        return Err(format!(
+            "Invalid threshold: {} (must be finite, not NaN or infinite)",
+            threshold
+        ));
+    }
+    
+    let safe_threshold = threshold.clamp(0.001, 1.0);
+
     let service = audio_service.lock().map_err(|_| "Failed to lock audio service".to_string())?;
     let channel = service
         .channels()
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(effect_id, "threshold", threshold)?;
+    channel.set_effect_param(effect_id, "threshold", safe_threshold)?;
     info!(
         channel_id = *service.current_channel_id(),
         effect_id,
-        threshold,
+        threshold = safe_threshold,
         "HCDistortion threshold updated"
     );
     Ok(())
@@ -89,7 +107,17 @@ pub fn set_hc_distortion_threshold(
 ///
 /// # Returns
 /// * `Ok(())` — Level updated successfully
-/// * `Err(String)` — Error if effect not found or parameter update fails
+/// * `Err(String)` — Error if:
+///   - Effect not found or parameter update fails
+///   - Level is NaN or infinite (audio thread safety)
+///
+/// # Validation
+///
+/// This command validates the level before forwarding to the audio thread:
+/// - Rejects NaN and infinite values (would create invalid gain multiplier)
+/// - Clamps finite values to range `[0.0, 1.0]`
+/// - Maps to internal gain `[1.0, 2.0]` after validation
+/// - Prevents audio thread crashes from invalid gain operations
 
 #[tauri::command]
 pub fn set_hc_distortion_level(
@@ -97,18 +125,30 @@ pub fn set_hc_distortion_level(
     effect_id: u32,
     level: f32,
 ) -> Result<(), String> {
+    // Validate level before forwarding to audio thread
+    if !level.is_finite() {
+        return Err(format!(
+            "Invalid level: {} (must be finite, not NaN or infinite)",
+            level
+        ));
+    }
+
+    // Clamp to safe range [0.0, 1.0] then map to internal gain [1.0, 2.0]
+    let safe_level = level.clamp(0.0, 1.0);
+    let gain = 1.0 + safe_level;
+
     let service = audio_service.lock().map_err(|_| "Failed to lock audio service".to_string())?;
     let channel = service
         .channels()
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    let gain = 1.0 + level.clamp(0.0, 1.0);
     channel.set_effect_param(effect_id, "level", gain)?;
     info!(
         channel_id = *service.current_channel_id(),
         effect_id,
-        level,
+        level = safe_level,
+        gain,
         "HCDistortion level updated"
     );
     Ok(())

@@ -1,6 +1,7 @@
-import {Box, Paper, Stack, Typography} from "@mui/material";
+import {Box, IconButton, Paper, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
 import {EffectDto} from "../domain";
+import {AddCircle, Delete} from "@mui/icons-material";
 
 
 export interface EffectChainProps {
@@ -66,16 +67,16 @@ export function EffectChain({effects}: EffectChainProps) {
             >
                 <Box key={0} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
                     <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
-                    <Box
-                        sx={{
-                            width: 60,
-                            height: 60,
-                            bgcolor: 'background.paper',
-                            border: '1px solid',
-                            borderColor: 'text.secondary',
-                            borderRadius: 2
-                        }}
-                    />
+                        <Box
+                            sx={{
+                                width: 60,
+                                height: 60,
+                                bgcolor: 'background.paper',
+                                border: '1px solid',
+                                borderColor: 'text.secondary',
+                                borderRadius: 2
+                            }}
+                        />
                     </Box>
                     <Typography
                         variant="caption"
@@ -91,7 +92,39 @@ export function EffectChain({effects}: EffectChainProps) {
                     </Typography>
                 </Box>
                 {effects.map((item) => (
-                    <Box key={"effect-"+item.id} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                    <Box key={"effect-" + item.id}
+                         sx={{
+                             display: 'flex',
+                             flexDirection: 'column',
+                             alignItems: 'center',
+                             position: 'relative',
+                             '&:hover .remove-button': {
+                                 opacity: 1,
+                                 transform: 'scale(1)',
+                             }
+                         }}>
+                        <IconButton
+                            className="remove-button"
+                            size="small"
+                            onClick={() => console.log("You tried removing " + item.name + " effect but it isn't wired yet")}
+                            sx={{
+                                position: 'absolute',
+                                top: -15,
+                                right: -10,
+                                zIndex: 10,
+                                opacity: 0,
+                                transform: 'scale(0.8)',
+                                transition: 'all 0.2s ease-in-out',
+                                bgcolor: 'error.main',
+                                color: 'white',
+                                '&:hover': { bgcolor: 'error.dark' },
+                                width: 25,
+                                height: 25
+                            }}
+                        >
+                            <Delete/>
+                        </IconButton>
+
                         <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
                             <EffectPedalPreview mainColor={item.color}/>
                         </Box>
@@ -109,6 +142,26 @@ export function EffectChain({effects}: EffectChainProps) {
                         </Typography>
                     </Box>
                 ))}
+                <Box key={"add-effect-wrapper"} sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: 70
+                }}>
+                    <IconButton onClick={()=>{console.log("You tried to add an effect it isn't wired yet")}} sx={{
+                        p: 0,
+                        bgcolor: 'white',
+                        '&:hover': {bgcolor: 'white', transform: 'scale(1.2)'},
+                        overflow: 'hidden',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <AddCircle fontSize="large" color="primary"/>
+                    </IconButton>
+                </Box>
             </Stack>
         </Box>
     );

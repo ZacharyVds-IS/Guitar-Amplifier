@@ -22,7 +22,6 @@ use tracing::{error, info};
 /// set a negative or zero value will panic.
 ///
 /// Tone stack values are validated to be between 0.0 and 1.0; attempting to set a value outside this range will panic.
-#[derive()]
 pub struct Channel {
     id: u32,
     name: String,

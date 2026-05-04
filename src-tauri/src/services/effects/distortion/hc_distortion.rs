@@ -76,19 +76,6 @@ impl HCDistortion {
     /// * `level` — Initial output boost in `[0.0, 1.0]`. Will be clamped to `[0.0, 1.0]`.
     ///             Maps internally to gain `[1.0, 2.0]`.
     /// * `color` — Hex colour string for UI pedal chassis (e.g., `"#e67e22"`)
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let distortion = HCDistortion::new(
-    ///     6,                           // id
-    ///     "Distortion".to_string(),    // name
-    ///     false,                       // inactive on startup
-    ///     0.5,                         // medium clipping threshold
-    ///     0.0,                         // no level boost initially
-    ///     "#e67e22".to_string(),       // orange chassis
-    /// );
-    /// ```
     pub fn new(id: u32, name: String, is_active: bool, threshold: f32, level: f32, color: String) -> Self {
         let gain_value = 1.0 + level.clamp(0.0, 1.0); // map [0,1] → [1,2]
         let level_arc = Arc::new(AtomicF32::new(gain_value));
@@ -161,15 +148,7 @@ impl AudioProcessor for HCDistortion {
     /// * `sample` — Normalised audio sample, typically `-1.0` to `1.0`
     ///
     /// # Returns
-    ///
     /// Processed sample: clipped and boosted by the level knob
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let mut distortion = HCDistortion::new(1, "D".to_string(), true, 0.5, 0.0, "#e67e22".to_string());
-    /// let output = distortion.process(0.9); // input 0.9 → clamps to 0.5 → boost by ×1.0 → ≈0.5
-    /// ```
     fn process(&mut self, sample: f32) -> f32 {
         let limit = self.limit.load(Ordering::Relaxed);
         let clipped = sample.clamp(-limit, limit);

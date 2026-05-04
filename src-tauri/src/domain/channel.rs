@@ -254,14 +254,6 @@ impl Channel {
     /// # Returns
     /// * `Ok(bool)` — The new active state (`true` = now active, `false` = now bypassed)
     /// * `Err(String)` — Error message if effect ID not found in this channel
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let channel = Channel::new(...);
-    /// let new_state = channel.toggle_effect(6)?; // Toggle effect with ID 6
-    /// assert_eq!(new_state, true); // Effect is now active
-    /// ```
     pub fn toggle_effect(&self, effect_id: u32) -> Result<bool, String> {
         let h = self.effect_handles.get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;
@@ -296,7 +288,6 @@ impl Channel {
     /// * `Err(String)` — Error if:
     ///   - Effect with given ID not found
     ///   - Parameter name not recognised by the effect
-    ///
     pub fn set_effect_param(&self, effect_id: u32, param: &str, value: f32) -> Result<(), String> {
         let h = self.effect_handles.get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;

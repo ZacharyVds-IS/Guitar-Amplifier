@@ -2,12 +2,22 @@ use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::domain::effect::Effect;
 use crate::domain::tone_stack::ToneStack;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
-use crate::services::processors::gain::gain_processor::GainProcessor;
 use atomic_float::AtomicF32;
+use std::collections::HashMap;
 use std::mem::take;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::{error, info};
+
+/// Atomic handles retained by `Channel` after the effect chain is moved to the
+/// audio worker thread.  Commands write through these Arcs; the audio thread
+/// reads from the same Arcs on every sample — completely lock-free.
+struct EffectHandles {
+    is_active: Arc<AtomicBool>,
+    /// Named f32 parameters (e.g. `"threshold"`). The Effect trait's
+    /// `f32_params()` method populates this, so no downcasting is needed.
+    f32_params: HashMap<&'static str, Arc<AtomicF32>>,
+}
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///
@@ -30,6 +40,9 @@ pub struct Channel {
     tone_stack: Arc<ToneStack>,
     volume: Arc<AtomicF32>,
     effect_chain: Vec<Box<dyn Effect>>,
+    /// Retained per-effect Arc handles indexed by effect id.
+    /// Stays populated even after `take_effect_chain` moves the effects to the audio thread.
+    effect_handles: HashMap<u32, EffectHandles>,
 }
 
 impl Channel {
@@ -54,6 +67,7 @@ impl Channel {
             tone_stack: Arc::new(ToneStack::new()),
             volume: Arc::new(AtomicF32::new(volume)),
             effect_chain: Vec::new(),
+            effect_handles: HashMap::new(),
         };
 
         //this is temp to test effects in the chain UI
@@ -63,11 +77,13 @@ impl Channel {
                 "Distortion".to_string(),
                 false,
                 0.5,
-                "#e62cdc".to_string(),
+                "#e67e22".to_string(),
             )));
         }
         channel
     }
+
+    // ── Gain ─────────────────────────────────────────────────────────────────
 
     /// Sets the gain value for this channel.
     ///
@@ -89,6 +105,14 @@ impl Channel {
             panic!("Gain must be positive");
         }
     }
+
+    /// Returns a cloned [`Arc`] to the atomic gain value.
+    ///
+    /// Allows independent threads to share and read/write the gain parameter
+    /// without contention.
+    pub fn gain(&self) -> Arc<AtomicF32> { Arc::clone(&self.gain) }
+
+    // ── Tone stack ────────────────────────────────────────────────────────────
 
     /// Sets the tone stack parameters from a [`ToneStackDto`].
     ///
@@ -118,9 +142,7 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_bass(&self, bass: f32) {
-        self.tone_stack.set_bass(bass / 100.0);
-    }
+    pub fn set_bass(&self, bass: f32) { self.tone_stack.set_bass(bass / 100.0); }
 
     /// Sets the middle level for the tone stack.
     ///
@@ -133,9 +155,7 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_middle(&self, middle: f32) {
-        self.tone_stack.set_middle(middle / 100.0);
-    }
+    pub fn set_middle(&self, middle: f32) { self.tone_stack.set_middle(middle / 100.0); }
 
     /// Sets the treble level for the tone stack.
     ///
@@ -148,18 +168,14 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_treble(&self, treble: f32) {
-        self.tone_stack.set_treble(treble / 100.0);
-    }
+    pub fn set_treble(&self, treble: f32) { self.tone_stack.set_treble(treble / 100.0); }
 
-    /// Sets the name of the Channel
+    /// Returns a cloned [`Arc`] to the tone stack.
     ///
-    /// # Arguments
-    ///
-    /// * `name` - The name
-    pub fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
+    /// Allows independent threads to access the tone stack parameters for audio processing.
+    pub fn tone_stack(&self) -> Arc<ToneStack> { Arc::clone(&self.tone_stack) }
+
+    // ── Volume ────────────────────────────────────────────────────────────────
 
     /// Sets the volume for this channel.
     ///
@@ -179,57 +195,74 @@ impl Channel {
         }
     }
 
-    /// Returns a cloned [`Arc`] to the atomic gain value.
-    ///
-    /// Allows independent threads to share and read/write the gain parameter
-    /// without contention.
-    pub fn gain(&self) -> Arc<AtomicF32> {
-        Arc::clone(&self.gain)
-    }
-
-    /// Returns a cloned [`Arc`] to the tone stack.
-    ///
-    /// Allows independent threads to access the tone stack parameters for audio processing.
-    pub fn tone_stack(&self) -> Arc<ToneStack> {
-        Arc::clone(&self.tone_stack)
-    }
-
-    /// Returns the name of the channel.
-    pub fn name(&self) -> &String {
-        &self.name
-    }
-
     /// Returns a cloned [`Arc`] to the atomic volume value.
     ///
     /// Allows independent threads to share and read/write the volume parameter without contention.
-    pub fn volume(&self) -> Arc<AtomicF32> {
-        Arc::clone(&self.volume)
-    }
+    pub fn volume(&self) -> Arc<AtomicF32> { Arc::clone(&self.volume) }
+
+    // ── Metadata ──────────────────────────────────────────────────────────────
+
+    /// Sets the name of the Channel
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name
+    pub fn set_name(&mut self, name: String) { self.name = name; }
+
+    /// Returns the name of the channel.
+    pub fn name(&self) -> &String { &self.name }
 
     /// Returns the unique identifier of the channel.
-    pub fn id(&self) -> u32 {
-        self.id
-    }
+    pub fn id(&self) -> u32 { self.id }
+
+    // ── Effect chain ──────────────────────────────────────────────────────────
 
     /// Returns a reference to the effect chain for this channel.
-    pub fn effect_chain(&self) -> &[Box<dyn Effect>] {
-        &self.effect_chain
-    }
+    pub fn effect_chain(&self) -> &[Box<dyn Effect>] { &self.effect_chain }
 
-    /// Takes ownership of the effect chain, replacing it with an empty vector.
-    /// This is useful for transferring the chain to another component without cloning.
+    /// Moves the effect chain to the audio thread.
+    /// The `effect_handles` Arcs are retained so commands can still mutate effect state.
     pub fn take_effect_chain(&mut self) -> Vec<Box<dyn Effect>> {
         take(&mut self.effect_chain)
     }
 
-    /// Adds an effect to the end of the channel's effect chain.
+    /// Adds an effect, capturing its shared atomic handles so commands can reach
+    /// them after the chain has been moved to the audio thread.
     ///
-    /// # Arguments
-    ///
-    /// * `effect` - The effect to add to the chain.  Must implement the `Effect` trait.
+    /// No downcasting — every effect self-reports its parameters via
+    /// [`Effect::f32_params`](crate::domain::effect::Effect::f32_params).
     pub fn add_effect_to_chain(&mut self, effect: Box<dyn Effect>) {
-        info!("Added effect: {} to chain", effect.name());
+        info!("Added effect '{}' (id={}) to chain", effect.name(), effect.id());
+        self.effect_handles.insert(effect.id(), EffectHandles {
+            is_active: effect.active_flag(),
+            f32_params: effect.f32_params(),
+        });
         self.effect_chain.push(effect);
+    }
+
+    // ── Effect controls (written from command handlers) ───────────────────────
+
+    /// Toggles the active state of an effect.
+    /// Returns the **new** active state, or `Err` if the id is unknown.
+    pub fn toggle_effect(&self, effect_id: u32) -> Result<bool, String> {
+        let h = self.effect_handles.get(&effect_id)
+            .ok_or_else(|| format!("No effect with id {effect_id}"))?;
+        let next = !h.is_active.load(Ordering::Relaxed);
+        h.is_active.store(next, Ordering::Relaxed);
+        info!("Effect {effect_id} → {}", if next { "active" } else { "bypassed" });
+        Ok(next)
+    }
+
+    /// Sets a named f32 parameter on an effect (e.g. `"threshold"` on HCDistortion).
+    /// Returns `Err` if the effect id or parameter name is unknown.
+    pub fn set_effect_param(&self, effect_id: u32, param: &str, value: f32) -> Result<(), String> {
+        let h = self.effect_handles.get(&effect_id)
+            .ok_or_else(|| format!("No effect with id {effect_id}"))?;
+        let arc = h.f32_params.get(param)
+            .ok_or_else(|| format!("Effect {effect_id} has no param '{param}'"))?;
+        arc.store(value, Ordering::Relaxed);
+        info!("Effect {effect_id} param '{param}' → {value:.4}");
+        Ok(())
     }
 }
 
@@ -237,7 +270,6 @@ impl Channel {
 mod tests {
     use super::*;
 
-    #[cfg(test)]
     mod success_path {
         use super::*;
 
@@ -254,9 +286,24 @@ mod tests {
             channel.set_volume(0.5);
             assert_eq!(channel.volume().load(Ordering::Relaxed), 0.5);
         }
+
+        #[test]
+        fn toggle_effect_flips_active_state() {
+            let channel = Channel::new(0, "Test".to_string(), None, None);
+            let was = channel.effect_handles[&6].is_active.load(Ordering::Relaxed);
+            let next = channel.toggle_effect(6).unwrap();
+            assert_eq!(next, !was);
+        }
+
+        #[test]
+        fn set_effect_param_updates_threshold() {
+            let channel = Channel::new(0, "Test".to_string(), None, None);
+            channel.set_effect_param(6, "threshold", 0.3).unwrap();
+            let v = channel.effect_handles[&6].f32_params["threshold"].load(Ordering::Relaxed);
+            assert!((v - 0.3).abs() < 1e-6);
+        }
     }
 
-    #[cfg(test)]
     mod failure_path {
         use super::*;
 
@@ -272,6 +319,12 @@ mod tests {
         fn volume_set_to_negative_value_should_panic() {
             let channel = Channel::new(1, "Test".to_string(), None, None);
             channel.set_volume(-0.5);
+        }
+
+        #[test]
+        fn toggle_unknown_effect_returns_err() {
+            let channel = Channel::new(1, "Test".to_string(), None, None);
+            assert!(channel.toggle_effect(999).is_err());
         }
     }
 }

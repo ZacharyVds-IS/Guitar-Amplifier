@@ -4,7 +4,5 @@ pub mod dto;
 pub mod channel;
 pub mod audio_processor;
 pub mod tone_stack;
-pub mod channel_dto;
 
 pub mod effect;
-pub mod effect_dto;

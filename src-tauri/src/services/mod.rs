@@ -6,3 +6,5 @@ pub mod device_service;
 pub mod processors;
 pub mod analyzers;
 pub mod round_trip_latency_session;
+
+pub mod effects;

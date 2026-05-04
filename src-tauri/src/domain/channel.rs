@@ -1,9 +1,12 @@
 use crate::domain::dto::tone_stack_dto::ToneStackDto;
+use crate::domain::effect::Effect;
 use crate::domain::tone_stack::ToneStack;
+use crate::services::effects::flip_effect::FlipEffect;
 use atomic_float::AtomicF32;
+use std::mem::take;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{error, info};
 
 /// Represents an audio channel with atomic gain, master volume, and tone stack parameters.
 ///
@@ -19,13 +22,13 @@ use tracing::error;
 /// set a negative or zero value will panic.
 ///
 /// Tone stack values are validated to be between 0.0 and 1.0; attempting to set a value outside this range will panic.
-#[derive(Clone)]
 pub struct Channel {
     id: u32,
     name: String,
     gain: Arc<AtomicF32>,
     tone_stack: Arc<ToneStack>,
     volume: Arc<AtomicF32>,
+    effect_chain: Vec<Box<dyn Effect>>,
 }
 
 impl Channel {
@@ -39,17 +42,28 @@ impl Channel {
     /// * `name` - A human-readable name for the channel (e.g., "Main", "Overdrive").
     /// * `gain` - Optional initial gain value. Defaults to `1.0` if `None`.
     /// * `master_volume` - Optional initial master volume value. Defaults to `1.0` if `None`.
-    pub fn new(id: u32,name: String, gain: Option<f32>, volume: Option<f32> ) -> Self {
+    pub fn new(id: u32, name: String, gain: Option<f32>, volume: Option<f32>) -> Self {
         let gain = gain.unwrap_or(1.0);
         let volume = volume.unwrap_or(1.0);
 
-        Self {
+        let mut channel = Self {
             id,
             name,
             gain: Arc::new(AtomicF32::new(gain)),
             tone_stack: Arc::new(ToneStack::new()),
             volume: Arc::new(AtomicF32::new(volume)),
+            effect_chain: Vec::new(),
+        };
+
+        //this is temp to test effects in the chain UI
+        if id == 0 {
+            channel.add_effect_to_chain(Box::new(FlipEffect::new(
+                5,
+                "Flipper".to_string(),
+                "#21CC00".to_string(),
+            )));
         }
+        channel
     }
 
     /// Sets the gain value for this channel.
@@ -102,7 +116,7 @@ impl Channel {
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
     pub fn set_bass(&self, bass: f32) {
-        self.tone_stack.set_bass(bass/100.0);
+        self.tone_stack.set_bass(bass / 100.0);
     }
 
     /// Sets the middle level for the tone stack.
@@ -117,7 +131,7 @@ impl Channel {
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
     pub fn set_middle(&self, middle: f32) {
-        self.tone_stack.set_middle(middle/100.0);
+        self.tone_stack.set_middle(middle / 100.0);
     }
 
     /// Sets the treble level for the tone stack.
@@ -132,7 +146,7 @@ impl Channel {
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
     pub fn set_treble(&self, treble: f32) {
-        self.tone_stack.set_treble(treble/100.0);
+        self.tone_stack.set_treble(treble / 100.0);
     }
 
     /// Sets the name of the Channel
@@ -193,6 +207,27 @@ impl Channel {
     pub fn id(&self) -> u32 {
         self.id
     }
+
+    /// Returns a reference to the effect chain for this channel.
+    pub fn effect_chain(&self) -> &[Box<dyn Effect>] {
+        &self.effect_chain
+    }
+
+    /// Takes ownership of the effect chain, replacing it with an empty vector.
+    /// This is useful for transferring the chain to another component without cloning.
+    pub fn take_effect_chain(&mut self) -> Vec<Box<dyn Effect>> {
+        take(&mut self.effect_chain)
+    }
+
+    /// Adds an effect to the end of the channel's effect chain.
+    ///
+    /// # Arguments
+    ///
+    /// * `effect` - The effect to add to the chain.  Must implement the `Effect` trait.
+    pub fn add_effect_to_chain(&mut self, effect: Box<dyn Effect>) {
+        info!("Added effect: {} to chain", effect.name());
+        self.effect_chain.push(effect);
+    }
 }
 
 #[cfg(test)]
@@ -205,14 +240,14 @@ mod tests {
 
         #[test]
         fn gain_set_to_positive_value_should_succeed() {
-            let channel = Channel::new(1,"Test".to_string(), None, None);
+            let channel = Channel::new(1, "Test".to_string(), None, None);
             channel.set_gain(0.5);
             assert_eq!(channel.gain().load(Ordering::Relaxed), 0.5);
         }
 
         #[test]
         fn volume_set_to_positive_value_should_succeed() {
-            let channel = Channel::new(1,"Test".to_string(), None, None);
+            let channel = Channel::new(1, "Test".to_string(), None, None);
             channel.set_volume(0.5);
             assert_eq!(channel.volume().load(Ordering::Relaxed), 0.5);
         }
@@ -225,14 +260,14 @@ mod tests {
         #[test]
         #[should_panic(expected = "Gain must be positive")]
         fn gain_set_to_negative_value_should_panic() {
-            let channel = Channel::new(1,"Test".to_string(), None, None);
+            let channel = Channel::new(1, "Test".to_string(), None, None);
             channel.set_gain(-0.5);
         }
 
         #[test]
         #[should_panic(expected = "Volume must be positive")]
         fn volume_set_to_negative_value_should_panic() {
-            let channel = Channel::new(1,"Test".to_string(), None, None);
+            let channel = Channel::new(1, "Test".to_string(), None, None);
             channel.set_volume(-0.5);
         }
     }

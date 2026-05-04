@@ -1,8 +1,7 @@
 import {Box, Stack, Typography} from "@mui/material";
 import chroma from "chroma-js";
 import {Knob} from "./selection/Knob.tsx";
-import {EffectDto, HcDistortionDto} from "../domain";
-import {setHcDistortionLevel, setHcDistortionThreshold, toggleEffect} from "../domain/commands";
+import {EffectDto, HcDistortionDto, setHcDistortionLevel, setHcDistortionThreshold, toggleEffect} from "../domain";
 import {useEffect, useState} from "react";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 
@@ -12,7 +11,11 @@ interface EffectPedalProps {
 }
 
 function knobsForEffect(
-    effect: EffectDto
+    effect: EffectDto,
+    handlers: {
+        onThresholdChange: (effectId: number, threshold: number, previousThreshold: number) => void;
+        onLevelChange: (effectId: number, level: number, previousLevel: number) => void;
+    }
 ): React.ReactNode {
     switch (effect.kind) {
         case "HCDistortion": {
@@ -33,7 +36,7 @@ function knobsForEffect(
                         valueDisplay="min-max"
                         onChange={(v) => {
                             const threshold = THRESHOLD_CLEAN - (v / 100) * (THRESHOLD_CLEAN - THRESHOLD_HOT);
-                            setHcDistortionThreshold({ effectId: data.id, threshold });
+                            handlers.onThresholdChange(data.id, threshold, data.threshold);
                         }}
                     />
                     <Knob
@@ -46,7 +49,7 @@ function knobsForEffect(
                         valueDisplay="min-max"
                         onChange={(v) => {
                             const level = v / 100;
-                            setHcDistortionLevel({ effectId: data.id, level });
+                            handlers.onLevelChange(data.id, level, data.level);
                         }}
                     />
                 </>
@@ -61,6 +64,7 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
     // Local mirror of is_active so the LED reacts instantly without waiting for a full AmpConfig reload
     const [isActive, setIsActive] = useState(effect.data.is_active);
     const updateEffectActiveState = useAmpStore((state) => state.updateEffectActiveState);
+    const updateHcDistortionParams = useAmpStore((state) => state.updateHcDistortionParams);
     const chassisColor = chroma(effect.data.color).hex();
 
     // Sync local isActive state when the effect prop changes
@@ -70,10 +74,32 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
     }, [effect.data.id, effect.data.is_active]);
 
     async function handleFootswitchClick() {
-        const newActive = await toggleEffect({ effectId: effect.data.id });
-        setIsActive(newActive);
-        updateEffectActiveState(effect.data.id, newActive);
-        onToggle?.(effect.data.id, newActive);
+        try {
+            const newActive = await toggleEffect({ effectId: effect.data.id });
+            setIsActive(newActive);
+            updateEffectActiveState(effect.data.id, newActive);
+            onToggle?.(effect.data.id, newActive);
+        } catch (error) {
+            console.error(`Failed to toggle effect ${effect.data.id}:`, error);
+            // Keep the current local/store state unchanged on failure.
+            // The backend command did not confirm a new state, so we avoid any optimistic UI flip here.
+        }
+    }
+
+    function handleThresholdChange(effectId: number, threshold: number, previousThreshold: number) {
+        updateHcDistortionParams(effectId, { threshold });
+        void setHcDistortionThreshold({ effectId, threshold }).catch((error) => {
+            console.error("Failed to update HC distortion threshold:", error);
+            updateHcDistortionParams(effectId, { threshold: previousThreshold });
+        });
+    }
+
+    function handleLevelChange(effectId: number, level: number, previousLevel: number) {
+        updateHcDistortionParams(effectId, { level });
+        void setHcDistortionLevel({ effectId, level }).catch((error) => {
+            console.error("Failed to update HC distortion level:", error);
+            updateHcDistortionParams(effectId, { level: previousLevel });
+        });
     }
 
     return (
@@ -116,7 +142,10 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
                 />
 
                 <Stack direction="row" spacing={1} sx={{justifyContent: 'center'}}>
-                    {knobsForEffect(effect)}
+                    {knobsForEffect(effect, {
+                        onThresholdChange: handleThresholdChange,
+                        onLevelChange: handleLevelChange,
+                    })}
                 </Stack>
 
                 <Typography

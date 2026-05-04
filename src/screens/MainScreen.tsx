@@ -1,8 +1,14 @@
 import {Box} from "@mui/material";
 import {EffectChain} from "../components/EffectChain.tsx";
 import {DefaultAmpControls} from "../components/DefaultAmpControls.tsx";
+import {useAmpStore} from "../state/AmpConfigStore.tsx";
 
 export function MainScreen() {
+
+    const activeChannel = useAmpStore((state) =>
+        state.channels.find((c) => c.id === state.current_channel)
+    );
+    console.log("MainScreen", activeChannel);
     return (
         <Box
             sx={{
@@ -15,8 +21,10 @@ export function MainScreen() {
                 gap: 4
             }}
         >
-            <EffectChain />
-            <DefaultAmpControls />
+            {activeChannel &&
+                <EffectChain effects={activeChannel?.effect_chain}/>
+            }
+            <DefaultAmpControls/>
             {/*Currently hidden since this will become functional in a future feature but component is ready for use*/}
             {/*<EffectPedal mainColor="#f46616" name="Distortion" />*/}
         </Box>

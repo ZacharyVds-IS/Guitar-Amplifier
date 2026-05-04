@@ -1,4 +1,4 @@
-use crate::domain::audio_device_dto::AudioDeviceDto;
+use crate::domain::dto::audio_device_dto::AudioDeviceDto;
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
 use cpal::{Host, SampleRate};

@@ -1,33 +1,13 @@
 import {Box, Paper, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
+import {EffectDto} from "../domain";
 
-const effects = [
-    {
-        id: 1,
-        type: 'Amp',
-        icon: (
-            <Box
-                sx={{
-                    width: 60,
-                    height: 60,
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'text.secondary',
-                    borderRadius: 2
-                }}
-            />
-        )
-    },
-    {
-        id: 2,
-        type: 'Distortion',
-        icon: (
-            <EffectPedalPreview mainColor={"#f46616"}/>
-        )
-    }
-];
 
-export function EffectChain() {
+export interface EffectChainProps {
+    effects: EffectDto[];
+}
+
+export function EffectChain({effects}: EffectChainProps) {
     return (
         <Box
             component="section"
@@ -40,7 +20,7 @@ export function EffectChain() {
             }}
         >
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 4 }}>
+            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: 4}}>
                 <Paper
                     sx={{
                         bgcolor: 'background.paper',
@@ -84,10 +64,36 @@ export function EffectChain() {
                     zIndex: 2
                 }}
             >
+                <Box key={0} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                    <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
+                    <Box
+                        sx={{
+                            width: 60,
+                            height: 60,
+                            bgcolor: 'background.paper',
+                            border: '1px solid',
+                            borderColor: 'text.secondary',
+                            borderRadius: 2
+                        }}
+                    />
+                    </Box>
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            mt: 1,
+
+                            color: 'text.primary',
+                            fontWeight: 500,
+                            fontSize: '0.75rem'
+                        }}
+                    >
+                        Amp
+                    </Typography>
+                </Box>
                 {effects.map((item) => (
-                    <Box key={item.id} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', height: 75 }}>
-                            {item.icon}
+                    <Box key={"effect-"+item.id} sx={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                        <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
+                            <EffectPedalPreview mainColor={item.color}/>
                         </Box>
                         <Typography
                             variant="caption"
@@ -99,7 +105,7 @@ export function EffectChain() {
                                 fontSize: '0.75rem'
                             }}
                         >
-                            {item.type}
+                            {item.name}
                         </Typography>
                     </Box>
                 ))}

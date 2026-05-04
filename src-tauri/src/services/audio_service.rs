@@ -385,6 +385,11 @@ impl AudioService {
         }
     }
 
+    /// Returns a mutable reference to the channel list, allowing channels to be modified or reordered.
+    pub fn channels_mut(&mut self) -> &mut Vec<Channel> {
+        &mut self.channels
+    }
+
     /// Removes the channel with the given id from the channel list and sets `current_channel_id` to 0 (default channel).
     ///
     /// # Arguments

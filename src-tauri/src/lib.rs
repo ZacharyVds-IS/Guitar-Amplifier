@@ -1,16 +1,28 @@
 pub mod commands;
-pub mod services;
 pub mod domain;
 pub mod infrastructure;
+pub mod services;
 
 #[cfg(test)]
 pub mod tests;
 
-use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
-use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume, toggle_on_off};
-use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
+use crate::commands::channels::{
+    add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id,
+};
+use crate::commands::default_controls::{
+    get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume,
+    toggle_on_off,
+};
+use crate::commands::effects::{add_effect, remove_effect};
+use crate::commands::latency_testing::{
+    measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency,
+    measure_round_trip_latency, test_gain_latency,
+};
 use crate::commands::loopback::start_loopback;
-use crate::commands::settings::{get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames, set_input_device, set_output_device};
+use crate::commands::settings::{
+    get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames,
+    set_input_device, set_output_device,
+};
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
 use cpal::default_host;
@@ -45,13 +57,17 @@ pub fn run() {
 
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info"))
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
     tauri::Builder::default()
-        .manage(Mutex::new(AudioService::new(input, output, input_config, output_config)))
+        .manage(Mutex::new(AudioService::new(
+            input,
+            output,
+            input_config,
+            output_config,
+        )))
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -79,7 +95,10 @@ pub fn run() {
             measure_all_dsp_cpu_timings,
             measure_all_dsp_algorithmic_latency,
             measure_buffer_latency,
-            measure_round_trip_latency
-        ]).run(tauri::generate_context!())
+            measure_round_trip_latency,
+            add_effect,
+            remove_effect,
+        ])
+        .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

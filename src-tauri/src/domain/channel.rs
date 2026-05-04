@@ -5,6 +5,7 @@ use crate::services::effects::flip_effect::FlipEffect;
 use atomic_float::AtomicF32;
 use std::mem::take;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -29,6 +30,8 @@ pub struct Channel {
     tone_stack: Arc<ToneStack>,
     volume: Arc<AtomicF32>,
     effect_chain: Vec<Box<dyn Effect>>,
+    next_effect_id: u32,
+
 }
 
 impl Channel {
@@ -53,12 +56,13 @@ impl Channel {
             tone_stack: Arc::new(ToneStack::new()),
             volume: Arc::new(AtomicF32::new(volume)),
             effect_chain: Vec::new(),
+            next_effect_id: 0,
         };
 
         //this is temp to test effects in the chain UI
         if id == 0 {
             channel.add_effect_to_chain(Box::new(FlipEffect::new(
-                5,
+                channel.next_effect_id,
                 "Flipper".to_string(),
                 "#21CC00".to_string(),
             )));
@@ -219,6 +223,7 @@ impl Channel {
         take(&mut self.effect_chain)
     }
 
+
     /// Adds an effect to the end of the channel's effect chain.
     ///
     /// # Arguments
@@ -227,6 +232,20 @@ impl Channel {
     pub fn add_effect_to_chain(&mut self, effect: Box<dyn Effect>) {
         info!("Added effect: {} to chain", effect.name());
         self.effect_chain.push(effect);
+        self.next_effect_id += 1;
+    }
+
+    pub fn remove_effect_from_chain(&mut self, effect_id: u32) {
+        if let Some(pos) = self.effect_chain.iter().position(|e| e.id() == effect_id) {
+            info!("Removed effect: {} from chain", self.effect_chain[pos].name());
+            self.effect_chain.remove(pos);
+        } else {
+            error!("Effect with id {} not found in chain", effect_id);
+        }
+    }
+
+    pub fn next_effect_id(&self) -> u32 {
+        self.next_effect_id
     }
 }
 

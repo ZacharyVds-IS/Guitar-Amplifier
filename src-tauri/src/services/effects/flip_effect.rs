@@ -1,6 +1,9 @@
 use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::dto::effect::effect_dto::EffectDto;
+use crate::domain::dto::effect::flip_effect_dto::FlipEffectDto;
 use crate::domain::effect::Effect;
 use tracing::info;
+
 //This is a test effect that simply flips the audio signal (multiplies by -1). It is used for UI integration.
 pub struct FlipEffect {
     id: u32,
@@ -45,6 +48,15 @@ impl Effect for FlipEffect {
 
     fn get_color(&self) -> String {
         self.color.clone()
+    }
+
+    fn to_dto(&self) -> EffectDto {
+        EffectDto::Flip(FlipEffectDto {
+            id: self.id,
+            name: self.name.clone(),
+            is_active: self.is_active,
+            color: self.color.clone(),
+        })
     }
 
     fn process_if_active(&mut self, sample: f32) -> f32 {

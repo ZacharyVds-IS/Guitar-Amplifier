@@ -1,4 +1,5 @@
 use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::dto::effect::effect_dto::EffectDto;
 
 /// A trait defining the shared behavior for audio effects within the signal chain.
 ///
@@ -30,6 +31,12 @@ pub trait Effect: AudioProcessor + Send + Sync {
 
     /// Returns a color code (hex) associated with this effect for UI representation.
     fn get_color(&self) -> String;
+
+    /// Converts this effect into its serialisable [`EffectDto`] representation.
+    ///
+    /// Each concrete effect type returns the correct variant of the tagged union,
+    /// carrying its own specific parameters alongside the shared fields.
+    fn to_dto(&self) -> EffectDto;
 
     /// Processes a single audio sample only if the effect is currently active.
     ///

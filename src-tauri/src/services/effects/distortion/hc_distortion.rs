@@ -1,4 +1,6 @@
 use crate::domain::audio_processor::AudioProcessor;
+use crate::domain::dto::effect::effect_dto::EffectDto;
+use crate::domain::dto::effect::hcdistortion_dto::HCDistortionDto;
 use crate::domain::effect::Effect;
 
 /// Hard-clipping distortion effect.
@@ -67,6 +69,20 @@ impl Effect for HCDistortion {
 
     fn set_active(&mut self, active: bool) {
         self.is_active = active;
+    }
+
+    fn get_color(&self) -> String {
+        "#e67e22".to_string()
+    }
+
+    fn to_dto(&self) -> EffectDto {
+        EffectDto::HCDistortion(HCDistortionDto {
+            id: self.id,
+            name: self.name.clone(),
+            is_active: self.is_active,
+            color: self.get_color(),
+            threshold: self.limit,
+        })
     }
 
     fn process_if_active(&mut self, sample: f32) -> f32 {

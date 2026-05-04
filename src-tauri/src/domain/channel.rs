@@ -2,7 +2,6 @@ use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::domain::effect::Effect;
 use crate::domain::tone_stack::ToneStack;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
-use crate::services::effects::flip_effect::FlipEffect;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use atomic_float::AtomicF32;
 use std::mem::take;
@@ -59,11 +58,6 @@ impl Channel {
 
         //this is temp to test effects in the chain UI
         if id == 0 {
-            channel.add_effect_to_chain(Box::new(FlipEffect::new(
-                5,
-                "Flipper".to_string(),
-                "#21CC00".to_string(),
-            )));
             channel.add_effect_to_chain(Box::new(HCDistortion::new(
                 6,
                 "Distortion".to_string(),

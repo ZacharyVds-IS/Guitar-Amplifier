@@ -1,4 +1,3 @@
-use crate::domain::dto::effect::flip_effect_dto::FlipEffectDto;
 use crate::domain::dto::effect::hcdistortion_dto::HcDistortionDto;
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +15,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "data")]
 pub enum EffectDto {
-    /// Phase-flip (polarity inversion) effect.
-    Flip(FlipEffectDto),
     /// Hard-clipping distortion effect.
     HCDistortion(HcDistortionDto),
 }

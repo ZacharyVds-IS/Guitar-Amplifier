@@ -1,14 +1,34 @@
 import {Box, Stack, Typography} from "@mui/material";
 import chroma from "chroma-js";
 import {Knob} from "./selection/Knob.tsx";
+import {EffectDto, HcDistortionDto} from "../domain";
 
 interface EffectPedalProps {
-    mainColor: string;
-    name: string;
+    effect: EffectDto;
 }
 
-export function EffectPedal({ mainColor, name }: EffectPedalProps) {
-    const chassisColor = chroma(mainColor).hex();
+function knobsForEffect(effect: EffectDto): React.ReactNode {
+    switch (effect.kind) {
+        case "HCDistortion": {
+            const data = effect.data as HcDistortionDto;
+            return (
+                <Knob
+                    label="Threshold"
+                    value={data.threshold * 100}
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    size={40}
+                />
+            );
+        }
+        default:
+            return null;
+    }
+}
+
+export function EffectPedal({effect}: EffectPedalProps) {
+    const chassisColor = chroma(effect.data.color).hex();
 
     return (
         <Box
@@ -37,23 +57,21 @@ export function EffectPedal({ mainColor, name }: EffectPedalProps) {
                     zIndex: 2
                 }}
             >
-                {/* Check LED */}
+                {/* Status LED */}
                 <Box
                     sx={{
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        bgcolor: '#ff0000',
-                        boxShadow: '0 0 6px #ff0000',
+                        bgcolor: effect.data.is_active ? '#00ff00' : '#ff0000',
+                        boxShadow: effect.data.is_active ? '0 0 6px #00ff00' : '0 0 6px #ff0000',
                         mb: 2
                     }}
                 />
 
-                {/* Knobs Row */}
-                <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
-                    <Knob label="Level" value={50} size={40} disabled />
-                    <Knob label="Tone" value={50} size={40} disabled />
-                    <Knob label="Dist" value={50} size={40} disabled />
+                {/* Effect-specific knobs */}
+                <Stack direction="row" spacing={1} sx={{justifyContent: 'center'}}>
+                    {knobsForEffect(effect)}
                 </Stack>
 
                 <Typography
@@ -67,16 +85,16 @@ export function EffectPedal({ mainColor, name }: EffectPedalProps) {
                         fontStyle: 'italic'
                     }}
                 >
-                    {name}
+                    {effect.data.name}
                 </Typography>
             </Box>
 
             {/* Wider Boss-Style Footswitch */}
             <Box
                 sx={{
-                    width: 'calc(100% + 8px)', // Slightly wider than chassis
+                    width: 'calc(100% + 8px)',
                     height: '40%',
-                    bgcolor: '#1a1a1a', // Black rubber pad
+                    bgcolor: '#1a1a1a',
                     borderRadius: '2px 2px 8px 8px',
                     border: '2px solid #000',
                     boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.1)',
@@ -87,12 +105,9 @@ export function EffectPedal({ mainColor, name }: EffectPedalProps) {
                     cursor: 'pointer',
                     zIndex: 3,
                     transition: 'transform 0.05s',
-                    '&:active': {
-                        transform: 'scale(0.98) translateY(2px)'
-                    }
+                    '&:active': {transform: 'scale(0.98) translateY(2px)'}
                 }}
             >
-                {/* Thumb Screw Detail */}
                 <Box
                     sx={{
                         width: 12,

@@ -5,9 +5,24 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+/// File-based amp-config repository backed by a single JSON document.
+///
+/// The repository stores one full amplifier snapshot at `config_path`. It is
+/// intentionally simple: every save overwrites the entire file and every load
+/// reads the whole document into memory.
+///
+/// This implementation is useful while the configuration remains relatively
+/// small and the project does not yet need querying, concurrency control, or
+/// schema migrations provided by a database.
 pub struct JsonFileAmpConfigRepository {
     config_path: PathBuf,
 }
+
+/// Persistence-only representation of the amplifier configuration.
+///
+/// This struct deliberately differs from [`AmpConfigDto`]: it excludes
+/// `is_active`, because loopback state is considered runtime-only and the app
+/// should always restart in an "off" state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedAmpConfig {
     master_volume: f32,
@@ -37,12 +52,23 @@ impl From<PersistedAmpConfig> for AmpConfigDto {
 }
 
 impl JsonFileAmpConfigRepository {
+    /// Creates a JSON repository that reads from and writes to `config_path`.
+    ///
+    /// The path is not validated eagerly. Missing parent directories are
+    /// created on the first successful `save` call.
     pub fn new(config_path: PathBuf) -> Self {
         Self { config_path }
     }
 }
 
 impl AmpConfigPersistence for JsonFileAmpConfigRepository {
+    /// Loads and deserializes the persisted JSON file.
+    ///
+    /// Behavior summary:
+    /// - missing file -> `Ok(None)`
+    /// - unreadable file -> `Err(String)`
+    /// - invalid JSON -> `Err(String)`
+    /// - valid JSON -> `Ok(Some(AmpConfigDto))`
     fn load(&self) -> Result<Option<AmpConfigDto>, String> {
         if !self.config_path.exists() {
             return Ok(None);
@@ -57,6 +83,11 @@ impl AmpConfigPersistence for JsonFileAmpConfigRepository {
         Ok(Some(AmpConfigDto::from(persisted)))
     }
 
+    /// Serializes the supplied config snapshot and writes it to disk.
+    ///
+    /// Parent directories are created automatically when necessary. The JSON is
+    /// formatted with `to_string_pretty` so it remains reasonably human-readable
+    /// during development and debugging.
     fn save(&self, config: &AmpConfigDto) -> Result<(), String> {
         if let Some(parent) = self.config_path.parent() {
             if !parent.as_os_str().is_empty() {

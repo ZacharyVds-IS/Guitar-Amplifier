@@ -453,7 +453,20 @@ impl AudioService {
         Ok(())
     }
 
-    /// Applies a persisted amp configuration snapshot.
+    /// Applies a persisted amp configuration snapshot to the live service.
+    ///
+    /// Restore behavior summary:
+    /// - channels are recreated from the persisted DTOs,
+    /// - gain, volume, tone stack, and effect-chain state are restored,
+    /// - if the snapshot contains no channels, a default channel is created,
+    /// - if the stored current channel no longer exists, the first restored
+    ///   channel becomes the active channel,
+    /// - `next_channel_id` is recalculated from the restored set,
+    /// - loopback is toggled according to `config.is_active`.
+    ///
+    /// Note that the current JSON persistence implementation always loads with
+    /// `is_active = false`, so persisted sessions restart with loopback turned
+    /// off even though this method is capable of applying either state.
     pub fn apply_amp_config(&mut self, config: AmpConfigDto) {
         let mut restored_channels = Vec::new();
 

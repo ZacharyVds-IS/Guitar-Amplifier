@@ -2,19 +2,30 @@ use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::infrastructure::persistence::amp_config_persistence_trait::AmpConfigPersistence;
 use crate::services::audio_service::AudioService;
 
+/// Application service coordinating amplifier configuration persistence.
+///
+/// Command handlers should depend on this service rather than on a repository
+/// directly. That keeps infrastructure details out of the command layer and
+/// provides one place to centralize snapshot-related behavior.
 pub struct AmpConfigPersistenceService {
     repository: Box<dyn AmpConfigPersistence>,
 }
 
 impl AmpConfigPersistenceService {
+    /// Creates the service with the chosen persistence backend.
     pub fn new(repository: Box<dyn AmpConfigPersistence>) -> Self {
         Self { repository }
     }
 
+    /// Loads the last persisted amplifier configuration, if any.
     pub fn load_amp_config(&self) -> Result<Option<AmpConfigDto>, String> {
         self.repository.load()
     }
 
+    /// Captures a snapshot from the current [`AudioService`] state and persists it.
+    ///
+    /// This is the primary method used by mutating Tauri commands after they
+    /// successfully update amplifier state.
     pub fn persist_from_audio_service(&self, audio_service: &AudioService) -> Result<(), String> {
         let snapshot = AmpConfigDto::from_service(audio_service);
         self.repository.save(&snapshot)

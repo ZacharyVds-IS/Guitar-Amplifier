@@ -371,7 +371,7 @@ mod tests {
         #[test]
         fn adding_effect_to_effect_chain_should_add_an_effect_to_effect_chain() {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
-            channel.add_effect_to_chain(Box::new(FlipEffect::new(channel.next_effect_id,"Test Effect".to_string(), "#FFFFFF".to_string())));
+            channel.add_effect_to_chain(Box::new(HCDistortion::new(channel.next_effect_id,"Test Effect".to_string(), false, 0.5, 0.0, "#e67e22".to_string())));
             assert_eq!(channel.effect_chain().len(), 1);
         }
 
@@ -379,7 +379,7 @@ mod tests {
         fn removing_effect_from_effect_chain_should_remove_an_effect_from_effect_chain() {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
             let effect_id = channel.next_effect_id();
-            let effect = Box::new(FlipEffect::new(effect_id,"Test Effect".to_string(), "#FFFFFF".to_string()));
+            let effect = Box::new(HCDistortion::new(channel.next_effect_id,"Test Effect".to_string(), false, 0.5, 0.0, "#e67e22".to_string()));
 
             channel.add_effect_to_chain(effect);
             let len_before = channel.effect_chain().len();
@@ -417,7 +417,7 @@ mod tests {
         fn removing_invalid_effect_id_should_not_remove_any_effect() {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
             let effect_id = channel.next_effect_id();
-            let effect = Box::new(FlipEffect::new(effect_id,"Test Effect".to_string(), "#FFFFFF".to_string()));
+            let effect = Box::new(HCDistortion::new(channel.next_effect_id,"Test Effect".to_string(), false, 0.5, 0.0, "#e67e22".to_string()));
 
             channel.add_effect_to_chain(effect);
             let len_before = channel.effect_chain().len();

@@ -3,7 +3,6 @@ use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
-use crate::domain::effect_dto::EffectDto;
 
 /// Data transfer object for a Channel's settings.
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -379,17 +379,37 @@ mod tests {
 
         #[test]
         fn toggle_effect_flips_active_state() {
-            let channel = Channel::new(0, "Test".to_string(), None, None);
-            let was = channel.effect_handles[&6].is_active.load(Ordering::Relaxed);
-            let next = channel.toggle_effect(6).unwrap();
+            let mut channel = Channel::new(0, "Test".to_string(), None, None);
+            let effect_id = channel.next_effect_id();
+            channel.add_effect_to_chain(Box::new(HCDistortion::new(
+                effect_id,
+                "Test Effect".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#e67e22".to_string(),
+            )));
+
+            let was = channel.effect_handles[&effect_id].is_active.load(Ordering::Relaxed);
+            let next = channel.toggle_effect(effect_id).unwrap();
             assert_eq!(next, !was);
         }
 
         #[test]
         fn set_effect_param_updates_threshold() {
-            let channel = Channel::new(0, "Test".to_string(), None, None);
-            channel.set_effect_param(6, "threshold", 0.3).unwrap();
-            let v = channel.effect_handles[&6].f32_params["threshold"].load(Ordering::Relaxed);
+            let mut channel = Channel::new(0, "Test".to_string(), None, None);
+            let effect_id = channel.next_effect_id();
+            channel.add_effect_to_chain(Box::new(HCDistortion::new(
+                effect_id,
+                "Test Effect".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#e67e22".to_string(),
+            )));
+
+            channel.set_effect_param(effect_id, "threshold", 0.3).unwrap();
+            let v = channel.effect_handles[&effect_id].f32_params["threshold"].load(Ordering::Relaxed);
             assert!((v - 0.3).abs() < 1e-6);
         }
 

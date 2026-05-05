@@ -1,6 +1,9 @@
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
+use crate::domain::dto::amp_config_dto::AmpConfigDto;
+use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
@@ -448,6 +451,69 @@ impl AudioService {
         );
         self.set_audio_handler(std::sync::Arc::new(new_handler));
         Ok(())
+    }
+
+    /// Applies a persisted amp configuration snapshot.
+    pub fn apply_amp_config(&mut self, config: AmpConfigDto) {
+        let mut restored_channels = Vec::new();
+
+        for channel_dto in config.channels {
+            let mut channel = Channel::new(
+                channel_dto.id,
+                channel_dto.name,
+                Some(channel_dto.gain.max(0.0001)),
+                Some(channel_dto.volume.max(0.0001)),
+            );
+
+            channel.set_bass(channel_dto.tone_stack.bass);
+            channel.set_middle(channel_dto.tone_stack.middle);
+            channel.set_treble(channel_dto.tone_stack.treble);
+
+            let restored_effects = channel_dto
+                .effect_chain
+                .into_iter()
+                .map(|effect| match effect {
+                    EffectDto::HCDistortion(distortion) => Box::new(HCDistortion::new(
+                        distortion.id,
+                        distortion.name,
+                        distortion.is_active,
+                        distortion.threshold,
+                        distortion.level,
+                        distortion.color,
+                    )) as Box<dyn crate::domain::effect::Effect>,
+                })
+                .collect::<Vec<_>>();
+
+            if !restored_effects.is_empty() {
+                channel.replace_effect_chain(restored_effects);
+            }
+            restored_channels.push(channel);
+        }
+
+        if restored_channels.is_empty() {
+            restored_channels.push(Channel::new(0, "Default".to_string(), None, None));
+        }
+
+        let current_channel = if restored_channels
+            .iter()
+            .any(|c| c.id() == config.current_channel)
+        {
+            config.current_channel
+        } else {
+            restored_channels[0].id()
+        };
+
+        self.channels = restored_channels;
+        self.current_channel_id = current_channel;
+        self.next_channel_id = self.channels.iter().map(|c| c.id()).max().unwrap_or(0) + 1;
+        self.master_volume
+            .store(config.master_volume.max(0.0001), Ordering::Relaxed);
+
+        if config.is_active {
+            self.start_loopback();
+        } else {
+            self.stop_loopback();
+        }
     }
 }
 

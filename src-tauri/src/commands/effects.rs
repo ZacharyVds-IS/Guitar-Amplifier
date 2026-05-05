@@ -1,3 +1,5 @@
+use crate::commands::helpers::persist_amp_config;
+use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
 use std::sync::Mutex;
 use tracing::info;
@@ -22,6 +24,7 @@ use tracing::info;
 #[tauri::command]
 pub fn toggle_effect(
     audio_service: tauri::State<Mutex<AudioService>>,
+    persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     effect_id: u32,
 ) -> Result<bool, String> {
     let service = audio_service.lock().map_err(|_| "Failed to lock audio service".to_string())?;
@@ -37,6 +40,7 @@ pub fn toggle_effect(
         is_active = new_state,
         "Effect toggled"
     );
+    persist_amp_config(&service, &persistence_service);
     Ok(new_state)
 }
 
@@ -66,6 +70,7 @@ pub fn toggle_effect(
 #[tauri::command]
 pub fn set_hc_distortion_threshold(
     audio_service: tauri::State<Mutex<AudioService>>,
+    persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     effect_id: u32,
     threshold: f32,
 ) -> Result<(), String> {
@@ -91,6 +96,7 @@ pub fn set_hc_distortion_threshold(
         threshold = safe_threshold,
         "HCDistortion threshold updated"
     );
+    persist_amp_config(&service, &persistence_service);
     Ok(())
 }
 
@@ -122,6 +128,7 @@ pub fn set_hc_distortion_threshold(
 #[tauri::command]
 pub fn set_hc_distortion_level(
     audio_service: tauri::State<Mutex<AudioService>>,
+    persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     effect_id: u32,
     level: f32,
 ) -> Result<(), String> {
@@ -151,6 +158,7 @@ pub fn set_hc_distortion_level(
         gain,
         "HCDistortion level updated"
     );
+    persist_amp_config(&service, &persistence_service);
     Ok(())
 }
 

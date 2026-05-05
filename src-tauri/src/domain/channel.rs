@@ -241,6 +241,16 @@ impl Channel {
         self.effect_chain.push(effect);
     }
 
+    //TODO: write documentation.
+    pub fn replace_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
+        self.effect_chain.clear();
+        self.effect_handles.clear();
+
+        for effect in effects {
+            self.add_effect_to_chain(effect);
+        }
+    }
+
     // ── Effect controls (written from command handlers) ───────────────────────
 
     /// Toggles the active state of an effect.

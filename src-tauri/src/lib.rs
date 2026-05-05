@@ -7,17 +7,21 @@ pub mod infrastructure;
 pub mod tests;
 
 use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
-use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume, toggle_on_off};
+use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_tone_stack, set_treble, set_volume, toggle_on_off};
 use crate::commands::effects::{set_hc_distortion_level, set_hc_distortion_threshold, toggle_effect};
 use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames, set_input_device, set_output_device};
+use crate::infrastructure::persistence::json_amp_config_repository::JsonFileAmpConfigRepository;
+use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{BufferSize, StreamConfig};
+use std::path::PathBuf;
 use std::sync::Mutex;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -44,6 +48,23 @@ pub fn run() {
         buffer_size: BufferSize::Default,
     };
 
+    let config_path = std::env::current_dir()
+        .map(|dir| dir.join("amp-config.json"))
+        .unwrap_or_else(|_| PathBuf::from("amp-config.json"));
+    let amp_config_persistence_service = AmpConfigPersistenceService::new(Box::new(
+        JsonFileAmpConfigRepository::new(config_path),
+    ));
+
+    let mut audio_service = AudioService::new(input, output, input_config, output_config);
+    match amp_config_persistence_service.load_amp_config() {
+        Ok(Some(config)) => {
+            info!("Loaded persisted amplifier configuration");
+            audio_service.apply_amp_config(config);
+        }
+        Ok(None) => info!("No persisted amplifier configuration found"),
+        Err(err) => error!("Failed to load persisted amplifier configuration: {err}"),
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
@@ -52,7 +73,8 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
-        .manage(Mutex::new(AudioService::new(input, output, input_config, output_config)))
+        .manage(Mutex::new(audio_service))
+        .manage(Mutex::new(amp_config_persistence_service))
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -66,6 +88,7 @@ pub fn run() {
             toggle_on_off,
             get_amp_config,
             set_bass,
+            set_tone_stack,
             set_middle,
             set_treble,
             set_volume,

@@ -3,6 +3,7 @@ use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::Ordering;
+use tracing::error;
 
 /// Data transfer object for a Channel's settings.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,13 +25,21 @@ pub struct ChannelDto {
 
 impl From<&Channel> for ChannelDto {
     fn from(channel: &Channel) -> Self {
+        let effect_dtos = match channel.effect_chain().lock() {
+            Ok(chain) => chain.iter().map(|effect| effect.to_dto()).collect(),
+            Err(poisoned) => {
+                error!("Effect chain mutex poisoned for channel {}", channel.id());
+                poisoned.into_inner().iter().map(|effect| effect.to_dto()).collect()
+            }
+        };
+
         Self {
             id: channel.id(),
             name: channel.name().to_string(),
             gain: channel.gain().load(Ordering::Relaxed),
             tone_stack: ToneStackDto::from(channel.tone_stack().as_ref()),
             volume: channel.volume().load(Ordering::Relaxed),
-            effect_chain: channel.effect_chain().iter().map(|effect| effect.to_dto()).collect(),
+            effect_chain: effect_dtos,
         }
     }
 }

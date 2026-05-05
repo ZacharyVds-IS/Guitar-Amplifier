@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::mem::take;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 
 /// Atomic handles retained by `Channel` after the effect chain is moved to the
@@ -45,12 +45,11 @@ pub struct Channel {
     gain: Arc<AtomicF32>,
     tone_stack: Arc<ToneStack>,
     volume: Arc<AtomicF32>,
-    effect_chain: Vec<Box<dyn Effect>>,
+    effect_chain: Arc<Mutex<Vec<Box<dyn Effect>>>>,
     /// Retained per-effect Arc handles indexed by effect id.
     /// Stays populated even after `take_effect_chain` moves the effects to the audio thread.
     effect_handles: HashMap<u32, EffectHandles>,
     next_effect_id: u32,
-
 }
 
 impl Channel {
@@ -69,29 +68,16 @@ impl Channel {
         let gain = gain.unwrap_or(1.0);
         let volume = volume.unwrap_or(1.0);
 
-        let mut channel = Self {
+        Self {
             id,
             name,
             gain: Arc::new(AtomicF32::new(gain)),
             tone_stack: Arc::new(ToneStack::new()),
             volume: Arc::new(AtomicF32::new(volume)),
-            effect_chain: Vec::new(),
+            effect_chain: Arc::new(Mutex::new(Vec::new())),
             effect_handles: HashMap::new(),
             next_effect_id: 0,
-        };
-
-        //this is temp to test effects in the chain UI
-        if id == 0 {
-            channel.add_effect_to_chain(Box::new(HCDistortion::new(
-                6,
-                "Distortion".to_string(),
-                false,
-                0.5,
-                0.0,
-                "#e67e22".to_string(),
-            )));
         }
-        channel
     }
 
     // ── Gain ─────────────────────────────────────────────────────────────────
@@ -121,7 +107,9 @@ impl Channel {
     ///
     /// Allows independent threads to share and read/write the gain parameter
     /// without contention.
-    pub fn gain(&self) -> Arc<AtomicF32> { Arc::clone(&self.gain) }
+    pub fn gain(&self) -> Arc<AtomicF32> {
+        Arc::clone(&self.gain)
+    }
 
     // ── Tone stack ────────────────────────────────────────────────────────────
 
@@ -153,7 +141,9 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_bass(&self, bass: f32) { self.tone_stack.set_bass(bass / 100.0); }
+    pub fn set_bass(&self, bass: f32) {
+        self.tone_stack.set_bass(bass / 100.0);
+    }
 
     /// Sets the middle level for the tone stack.
     ///
@@ -166,7 +156,9 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_middle(&self, middle: f32) { self.tone_stack.set_middle(middle / 100.0); }
+    pub fn set_middle(&self, middle: f32) {
+        self.tone_stack.set_middle(middle / 100.0);
+    }
 
     /// Sets the treble level for the tone stack.
     ///
@@ -179,12 +171,16 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_treble(&self, treble: f32) { self.tone_stack.set_treble(treble / 100.0); }
+    pub fn set_treble(&self, treble: f32) {
+        self.tone_stack.set_treble(treble / 100.0);
+    }
 
     /// Returns a cloned [`Arc`] to the tone stack.
     ///
     /// Allows independent threads to access the tone stack parameters for audio processing.
-    pub fn tone_stack(&self) -> Arc<ToneStack> { Arc::clone(&self.tone_stack) }
+    pub fn tone_stack(&self) -> Arc<ToneStack> {
+        Arc::clone(&self.tone_stack)
+    }
 
     // ── Volume ────────────────────────────────────────────────────────────────
 
@@ -209,7 +205,9 @@ impl Channel {
     /// Returns a cloned [`Arc`] to the atomic volume value.
     ///
     /// Allows independent threads to share and read/write the volume parameter without contention.
-    pub fn volume(&self) -> Arc<AtomicF32> { Arc::clone(&self.volume) }
+    pub fn volume(&self) -> Arc<AtomicF32> {
+        Arc::clone(&self.volume)
+    }
 
     // ── Metadata ──────────────────────────────────────────────────────────────
 
@@ -218,23 +216,25 @@ impl Channel {
     /// # Arguments
     ///
     /// * `name` - The name
-    pub fn set_name(&mut self, name: String) { self.name = name; }
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
 
     /// Returns the name of the channel.
-    pub fn name(&self) -> &String { &self.name }
+    pub fn name(&self) -> &String {
+        &self.name
+    }
 
     /// Returns the unique identifier of the channel.
-    pub fn id(&self) -> u32 { self.id }
+    pub fn id(&self) -> u32 {
+        self.id
+    }
 
     // ── Effect chain ──────────────────────────────────────────────────────────
 
     /// Returns a reference to the effect chain for this channel.
-    pub fn effect_chain(&self) -> &[Box<dyn Effect>] { &self.effect_chain }
-
-    /// Moves the effect chain to the audio thread.
-    /// The `effect_handles` Arcs are retained so commands can still mutate effect state.
-    pub fn take_effect_chain(&mut self) -> Vec<Box<dyn Effect>> {
-        take(&mut self.effect_chain)
+    pub fn effect_chain(&self) -> Arc<Mutex<Vec<Box<dyn Effect>>>> {
+        Arc::clone(&self.effect_chain)
     }
 
     /// Adds an effect, capturing its shared atomic handles so commands can reach
@@ -243,13 +243,26 @@ impl Channel {
     /// No downcasting — every effect self-reports its parameters via
     /// [`Effect::f32_params`](crate::domain::effect::Effect::f32_params).
     pub fn add_effect_to_chain(&mut self, effect: Box<dyn Effect>) {
-        info!("Added effect '{}' (id={}) to chain", effect.name(), effect.id());
-        self.effect_handles.insert(effect.id(), EffectHandles {
-            is_active: effect.active_flag(),
-            f32_params: effect.f32_params(),
-        });
-        self.effect_chain.push(effect);
-        self.next_effect_id += 1;
+        info!(
+            "Added effect '{}' (id={}) to chain",
+            effect.name(),
+            effect.id()
+        );
+
+        self.effect_handles.insert(
+            effect.id(),
+            EffectHandles {
+                is_active: effect.active_flag(),
+                f32_params: effect.f32_params(),
+            },
+        );
+
+        if let Ok(mut chain) = self.effect_chain.lock() {
+            chain.push(effect);
+            self.next_effect_id += 1;
+        } else {
+            error!("Failed to lock effect chain for adding effect");
+        }
     }
 
     /// Removes an effect from the channel's effect chain by its unique identifier.
@@ -260,11 +273,14 @@ impl Channel {
     ///
     /// * `effect_id` - The unique identifier of the effect to remove from the chain
     pub fn remove_effect_from_chain(&mut self, effect_id: u32) {
-        if let Some(pos) = self.effect_chain.iter().position(|e| e.id() == effect_id) {
-            info!("Removed effect: {} from chain", self.effect_chain[pos].name());
-            self.effect_chain.remove(pos);
-        } else {
-            error!("Effect with id {} not found in chain", effect_id);
+        if let Ok(mut chain) = self.effect_chain.lock() {
+            if let Some(pos) = chain.iter().position(|e| e.id() == effect_id) {
+                info!("Removed effect: {} from chain", chain[pos].name());
+                chain.remove(pos);
+                self.effect_handles.remove(&effect_id);
+            } else {
+                error!("Effect with id {} not found in chain", effect_id);
+            }
         }
     }
 
@@ -287,11 +303,16 @@ impl Channel {
     /// * `Ok(bool)` — The new active state (`true` = now active, `false` = now bypassed)
     /// * `Err(String)` — Error message if effect ID not found in this channel
     pub fn toggle_effect(&self, effect_id: u32) -> Result<bool, String> {
-        let h = self.effect_handles.get(&effect_id)
+        let h = self
+            .effect_handles
+            .get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;
         let next = !h.is_active.load(Ordering::Relaxed);
         h.is_active.store(next, Ordering::Relaxed);
-        info!("Effect {effect_id} → {}", if next { "active" } else { "bypassed" });
+        info!(
+            "Effect {effect_id} → {}",
+            if next { "active" } else { "bypassed" }
+        );
         Ok(next)
     }
 
@@ -321,9 +342,13 @@ impl Channel {
     ///   - Effect with given ID not found
     ///   - Parameter name not recognised by the effect
     pub fn set_effect_param(&self, effect_id: u32, param: &str, value: f32) -> Result<(), String> {
-        let h = self.effect_handles.get(&effect_id)
+        let h = self
+            .effect_handles
+            .get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;
-        let arc = h.f32_params.get(param)
+        let arc = h
+            .f32_params
+            .get(param)
             .ok_or_else(|| format!("Effect {effect_id} has no param '{param}'"))?;
         arc.store(value, Ordering::Relaxed);
         info!("Effect {effect_id} param '{param}' → {value:.4}");
@@ -371,22 +396,46 @@ mod tests {
         #[test]
         fn adding_effect_to_effect_chain_should_add_an_effect_to_effect_chain() {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
-            channel.add_effect_to_chain(Box::new(HCDistortion::new(channel.next_effect_id,"Test Effect".to_string(), false, 0.5, 0.0, "#e67e22".to_string())));
-            assert_eq!(channel.effect_chain().len(), 1);
+            let effect_id = channel.next_effect_id();
+
+            channel.add_effect_to_chain(Box::new(HCDistortion::new(
+                effect_id,
+                "Test Effect".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#e67e22".to_string(),
+            )));
+
+            let chain = channel.effect_chain.lock().unwrap();
+            assert_eq!(chain.len(), 1);
         }
 
         #[test]
         fn removing_effect_from_effect_chain_should_remove_an_effect_from_effect_chain() {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
             let effect_id = channel.next_effect_id();
-            let effect = Box::new(HCDistortion::new(channel.next_effect_id,"Test Effect".to_string(), false, 0.5, 0.0, "#e67e22".to_string()));
+            let effect = Box::new(HCDistortion::new(
+                effect_id,
+                "Test Effect".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#e67e22".to_string(),
+            ));
 
             channel.add_effect_to_chain(effect);
-            let len_before = channel.effect_chain().len();
+
+            {
+                let chain_before = channel.effect_chain.lock().unwrap();
+                assert_eq!(chain_before.len(), 1);
+            }
 
             channel.remove_effect_from_chain(effect_id);
-            assert_ne!(channel.effect_chain().len(), len_before);
-            assert_eq!(channel.effect_chain().len(), 0);
+
+            let chain_after = channel.effect_chain.lock().unwrap();
+            assert_eq!(chain_after.len(), 0);
+            assert!(!channel.effect_handles.contains_key(&effect_id));
         }
     }
 
@@ -417,13 +466,22 @@ mod tests {
         fn removing_invalid_effect_id_should_not_remove_any_effect() {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
             let effect_id = channel.next_effect_id();
-            let effect = Box::new(HCDistortion::new(channel.next_effect_id,"Test Effect".to_string(), false, 0.5, 0.0, "#e67e22".to_string()));
+            let effect = Box::new(HCDistortion::new(
+                effect_id,
+                "Test Effect".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#e67e22".to_string(),
+            ));
 
             channel.add_effect_to_chain(effect);
-            let len_before = channel.effect_chain().len();
 
+            let len_before = channel.effect_chain.lock().unwrap().len();
             channel.remove_effect_from_chain(effect_id + 1);
-            assert_eq!(channel.effect_chain().len(), len_before);
+
+            let len_after = channel.effect_chain.lock().unwrap().len();
+            assert_eq!(len_before, len_after);
         }
     }
 }

@@ -82,6 +82,7 @@ export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps)
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             sx={{ width: 450 }}
+                            slotProps={{ htmlInput: { maxLength: 15 } }}
                         />
                         <TextField
                             type="color"

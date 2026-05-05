@@ -1,10 +1,13 @@
 import {
     addChannel,
+    addEffect,
     AmpConfigDto,
     ChannelDto,
+    EffectDto,
     getAmpConfig,
     HcDistortionDto,
     removeChannel,
+    removeEffect,
     setBass,
     setChannelId,
     setGain,
@@ -31,6 +34,8 @@ interface AmpState extends AmpConfigDto {
     setTreble: (val: number) => void;
     updateEffectActiveState: (effectId: number, isActive: boolean) => void;
     updateHcDistortionParams: (effectId: number, patch: Partial<Pick<HcDistortionDto, "threshold" | "level">>) => void;
+    removeEffect: (effectId: number) => void;
+    AddEffect: (effectDto: EffectDto) => Promise<void>;
 }
 
 export const useAmpStore = create<AmpState>((set) => ({
@@ -250,6 +255,33 @@ export const useAmpStore = create<AmpState>((set) => ({
                         : c
                 ),
             }));
+        },
+
+        removeEffect: async (effectId: number) => {
+            try {
+                console.log("Removing effect:", effectId);
+
+                await removeEffect({effectId: effectId});
+
+                const config = await getAmpConfig();
+                set({...config});
+
+                console.log("Effect removed, store updated:", config);
+            } catch (error) {
+                console.error("Failed to remove Effect:", error);
+            }
+        },
+
+        AddEffect: async (effectDto: EffectDto) => {
+            try {
+                console.log("Adding Effect with name:", effectDto.data.name);
+                await addEffect({effectDto: effectDto});
+                const config = await getAmpConfig();
+                set({...config});
+                console.log("Effect added, store updated:", config);
+            } catch (error) {
+                console.error("Failed to add Effect:", error);
+            }
         },
 
     }))

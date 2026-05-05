@@ -27,14 +27,16 @@ pub trait Effect: AudioProcessor + Send + Sync {
     /// If `false`, the effect should ideally be bypassed to save CPU or maintain
     /// signal transparency.
     fn is_active(&self) -> bool {
-        self.active_flag().load(std::sync::atomic::Ordering::Relaxed)
+        self.active_flag()
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Sets whether the effect is active or bypassed.
     ///
     /// * `active` - `true` to enable the effect, `false` to bypass it.
     fn set_active(&self, active: bool) {
-        self.active_flag().store(active, std::sync::atomic::Ordering::Relaxed);
+        self.active_flag()
+            .store(active, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Returns a color code (hex) associated with this effect for UI representation.

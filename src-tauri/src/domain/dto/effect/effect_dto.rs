@@ -1,4 +1,6 @@
 use crate::domain::dto::effect::hcdistortion_dto::HcDistortionDto;
+use crate::domain::effect::Effect;
+use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use serde::{Deserialize, Serialize};
 
 /// A serialisable, tagged representation of any effect in the signal chain.
@@ -10,4 +12,19 @@ use serde::{Deserialize, Serialize};
 pub enum EffectDto {
     /// Hard-clipping distortion effect.
     HCDistortion(HcDistortionDto),
+}
+
+impl EffectDto {
+    pub fn to_domain(self, next_effect_id: u32) -> Box<dyn Effect> {
+        match self { 
+            EffectDto::HCDistortion(dto) => Box::new(HCDistortion::new(
+                next_effect_id,
+                dto.name,
+                dto.is_active,
+                dto.threshold,
+                dto.level,
+                dto.color,
+            )),
+        }
+    }
 }

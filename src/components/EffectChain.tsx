@@ -1,6 +1,11 @@
-import {Box, Paper, Stack, Typography} from "@mui/material";
+import {Box, IconButton, Paper, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
 import {EffectDto} from "../domain";
+import {AddCircle, Delete} from "@mui/icons-material";
+import {ConfirmationDialog} from "./dialogs/ConfirmationDialog.tsx";
+import {useState} from "react";
+import {AddEffectDialog} from "./dialogs/AddEffectDialog.tsx";
+import {useAmpStore} from "../state/AmpConfigStore.tsx";
 
 export interface EffectChainProps {
     effects: EffectDto[];
@@ -12,6 +17,24 @@ export interface EffectChainProps {
 export function EffectChain({effects, selected, onSelectionChange}: EffectChainProps) {
     function isAmpSelected() {
         return selected === "amp";
+    }
+
+    let [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+    let [addDialogOpen, setAddDialogOpen] = useState(false);
+
+    const handleAdd = (newEffect: EffectDto) => {
+        useAmpStore.getState().AddEffect(newEffect);
+
+        setAddDialogOpen(false);
+        console.log("You tried to add an effect it isn't wired yet")
+    }
+
+    const handleEffectRemove = () => {
+        if (selected != "amp") {
+            useAmpStore.getState().removeEffect(selected.data.id);
+        }
+        onSelectionChange("amp");
+        setRemoveDialogOpen(false);
     }
 
     function isEffectSelected(effect: EffectDto) {
@@ -73,15 +96,15 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
             <Stack
                 direction="row"
                 spacing={6}
-                sx={{ width: '100%', position: 'relative', zIndex: 2 }}
+                sx={{width: '100%', position: 'relative', zIndex: 2}}
             >
                 {/* Amp node — selected by default */}
                 <Box
                     key={0}
                     onClick={() => onSelectionChange("amp")}
-                    sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
+                    sx={{display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer'}}
                 >
-                    <Box sx={{ display: 'flex', alignItems: 'center', height: 75 }}>
+                    <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
                         <Box
                             sx={{
                                 width: 60,
@@ -112,9 +135,46 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
                     <Box
                         key={"effect-" + item.data.id}
                         onClick={() => onSelectionChange(item)}
-                        sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            position: 'relative',
+                            '&:hover .remove-button': {
+                                opacity: 1,
+                                transform: 'scale(1)',
+                            }
+                        }}
                     >
-                        <Box sx={{ display: 'flex', alignItems: 'center', height: 75 }}>
+                        <IconButton
+                            className="remove-button"
+                            size="small"
+                            onClick={() => setRemoveDialogOpen(true)}
+                            sx={{
+                                position: 'absolute',
+                                top: -15,
+                                right: -10,
+                                zIndex: 10,
+                                opacity: 0,
+                                transform: 'scale(0.8)',
+                                transition: 'all 0.2s ease-in-out',
+                                bgcolor: 'error.main',
+                                color: 'white',
+                                '&:hover': {bgcolor: 'error.dark'},
+                                width: 25,
+                                height: 25
+                            }}
+                        >
+                            <Delete/>
+                        </IconButton>
+                        <ConfirmationDialog
+                            open={removeDialogOpen}
+                            onClose={() => setRemoveDialogOpen(false)}
+                            onConfirm={handleEffectRemove}
+                            title={`Remove effect "${item.data.name}"?`}
+                            description={"Are you sure you want to remove this effect from the chain? This action cannot be undone."}
+                        />
+                        <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
                             <Box sx={{
                                 borderRadius: 2,
                                 transition: 'border 0.15s, box-shadow 0.15s',
@@ -136,6 +196,27 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
                         </Typography>
                     </Box>
                 ))}
+                <Box key={"add-effect-wrapper"} sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: 70
+                }}>
+                    <IconButton onClick={() => setAddDialogOpen(true)} sx={{
+                        p: 0,
+                        bgcolor: 'white',
+                        '&:hover': {bgcolor: 'white', transform: 'scale(1.2)'},
+                        overflow: 'hidden',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        <AddCircle fontSize="large" color="primary"/>
+                    </IconButton>
+                    <AddEffectDialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} onCreate={handleAdd}/>
+                </Box>
             </Stack>
         </Box>
     );

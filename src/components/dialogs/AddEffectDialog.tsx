@@ -1,7 +1,8 @@
 import {Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField} from "@mui/material";
 import {DropdownSelector} from "../selection/DropdownSelector.tsx";
-import {type EffectDto, HcDistortionDto} from "../../domain";
+import {type EffectDto} from "../../domain";
 import {useState} from "react";
+import {EFFECT_FACTORIES, EFFECT_METADATA} from "../../config/effects";
 
 interface AddEffectDialogProps {
     open: boolean;
@@ -11,30 +12,10 @@ interface AddEffectDialogProps {
 
 export type EffectKind = EffectDto["kind"];
 
-export const EFFECT_METADATA: Record<EffectKind, { label: string }> = {
-    HCDistortion: {label: "Hard-Clipping Distortion"},
-};
-
 export const EFFECT_OPTIONS = Object.entries(EFFECT_METADATA).map(([kind, meta]) => ({
     label: meta.label,
     value: kind as EffectKind,
 }));
-
-type EffectFactoryMap = {
-    [K in EffectKind]: (params: { name: string; color: string }) => Extract<EffectDto, { kind: K }>["data"];
-};
-
-export const EFFECT_FACTORIES: EffectFactoryMap = {
-    HCDistortion: ({ name, color }): HcDistortionDto => ({
-        id: 0, // Is set to the correct value in the backend
-        name,
-        color,
-        is_active: false,
-        threshold: 1,
-        level: 0,
-    }),
-
-};
 
 export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps) {
     const [selectedEffect, setSelectedEffect] = useState<EffectKind | "">("");

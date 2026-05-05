@@ -1,5 +1,7 @@
+use crate::domain::dto::effect::cabinet_dto::CabinetDto;
 use crate::domain::dto::effect::hcdistortion_dto::HcDistortionDto;
 use crate::domain::effect::Effect;
+use crate::services::effects::cabinet::cabinet::Cabinet;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use serde::{Deserialize, Serialize};
 
@@ -12,6 +14,8 @@ use serde::{Deserialize, Serialize};
 pub enum EffectDto {
     /// Hard-clipping distortion effect.
     HCDistortion(HcDistortionDto),
+    /// Placeholder impulse-response cabinet effect.
+    Cabinet(CabinetDto),
 }
 
 impl EffectDto {
@@ -23,6 +27,12 @@ impl EffectDto {
                 dto.is_active,
                 dto.threshold,
                 dto.level,
+                dto.color,
+            )),
+            EffectDto::Cabinet(dto) => Box::new(Cabinet::new(
+                next_effect_id,
+                dto.name,
+                dto.is_active,
                 dto.color,
             )),
         }

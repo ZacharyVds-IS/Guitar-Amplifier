@@ -3,6 +3,7 @@ use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::effects::cabinet::cabinet::Cabinet;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
@@ -511,6 +512,14 @@ impl AudioService {
                         distortion.color,
                     ))
                         as Box<dyn crate::domain::effect::Effect>,
+                    EffectDto::Cabinet(cabinet) => Box::new(
+                        Cabinet::new(
+                            cabinet.id,
+                            cabinet.name,
+                            cabinet.is_active,
+                            cabinet.color,
+                        ),
+                    ) as Box<dyn crate::domain::effect::Effect>,
                 })
                 .collect::<Vec<_>>();
 

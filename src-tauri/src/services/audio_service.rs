@@ -2,7 +2,6 @@ use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
-use crate::domain::effect::Effect;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
@@ -14,7 +13,7 @@ use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use tracing::{error, info};
@@ -50,11 +49,6 @@ pub struct AudioService {
     current_channel_id: u32,
     master_volume: Arc<AtomicF32>,
     next_channel_id: u32,
-    /// Slot used to hand the effect chain back from the audio worker thread to
-    /// the channel when the loopback stops.  Populated by the worker just before
-    /// it exits; drained by `stop_loopback` immediately after joining.
-    #[getter(skip)]
-    effect_return_slot: Option<Arc<Mutex<Option<Vec<Box<dyn Effect>>>>>>,
 }
 
 impl AudioService {
@@ -96,7 +90,6 @@ impl AudioService {
             master_volume: Arc::new(AtomicF32::new(1.0)),
             current_channel_id: 0,
             next_channel_id: 1,
-            effect_return_slot: None,
         }
     }
 
@@ -130,7 +123,7 @@ impl AudioService {
         let channel_id = self.current_channel_id;
         let master_volume_arc = self.master_volume.clone();
 
-        let (gain_arc, volume_arc, tone_stack_arc, effect_chain) = {
+        let (gain_arc, volume_arc, tone_stack_arc, effect_chain_arc) = {
             let channel = self
                 .channels
                 .iter_mut()
@@ -144,13 +137,6 @@ impl AudioService {
                 channel.effect_chain(),
             )
         };
-
-        // Slot shared between the worker thread and stop_loopback so the
-        // effect chain is handed back to the channel after the thread exits.
-        let return_slot: Arc<Mutex<Option<Vec<Box<dyn Effect>>>>> =
-            Arc::new(Mutex::new(None));
-        let return_slot_for_worker = Arc::clone(&return_slot);
-        self.effect_return_slot = Some(return_slot);
 
         let thread = thread::spawn(move || {
             // How many input samples to batch before the resampler produces output.
@@ -196,51 +182,41 @@ impl AudioService {
                 let mut run_dsp = |sample: f32| -> f32 {
                     let sample = gain.process(sample);
                     let mut sample = tone_stack.process(sample);
-
-                    if let Ok(mut effects) = effect_chain.lock() {
-                        for effect in effects.iter_mut() {
+                    if let Ok(mut chain) = effect_chain_arc.lock() {
+                        for effect in chain.iter_mut() {
                             sample = effect.process_if_active(sample);
                         }
                     }
-
                     let sample = volume.process(sample);
                     master_volume.process(sample)
                 };
 
-                    loop {
-                        if worker_shutdown.load(Ordering::SeqCst) {
-                            break;
-                        }
-
-                        if let Some(sample) = i_consumer.try_pop() {
-                            // `policy.process` applies the resampler at the right moment:
-                            //   PreDsp  → resamples first, then calls `dsp.process` on each result
-                            //   PostDsp → calls `dsp.process` first, then resamples the output
-                            //   Bypass  → calls `dsp.process` directly, returns a single sample
-                            for processed_sample in policy
-                                .process(sample, &mut |resampled_sample| run_dsp(resampled_sample))
-                            {
-                                let _ = o_producer.try_push(processed_sample);
-                            }
-                        } else {
-                            thread::yield_now();
-                        }
+                loop {
+                    if worker_shutdown.load(Ordering::SeqCst) {
+                        break;
                     }
 
-                    // Drain any samples still sitting in the resampler's input buffer
-                    // when the loopback is stopped so we don't lose the tail.
-                    for processed_sample in
-                        policy.flush(&mut |resampled_sample| run_dsp(resampled_sample))
-                    {
-                        let _ = o_producer.try_push(processed_sample);
+                    if let Some(sample) = i_consumer.try_pop() {
+                        // `policy.process` applies the resampler at the right moment:
+                        //   PreDsp  → resamples first, then calls `dsp.process` on each result
+                        //   PostDsp → calls `dsp.process` first, then resamples the output
+                        //   Bypass  → calls `dsp.process` directly, returns a single sample
+                        for processed_sample in policy
+                            .process(sample, &mut |resampled_sample| run_dsp(resampled_sample))
+                        {
+                            let _ = o_producer.try_push(processed_sample);
+                        }
+                    } else {
+                        thread::yield_now();
                     }
-                } // run_dsp dropped here — mutable borrow on effects released
+                }
 
-                // Hand the effect chain back so stop_loopback can restore it
-                // to the channel, keeping the chain visible to the UI and the
-                // next serialization call.
-                if let Ok(mut slot) = return_slot_for_worker.lock() {
-                    *slot = Some(effects);
+                // Drain any samples still sitting in the resampler's input buffer
+                // when the loopback is stopped so we don't lose the tail.
+                for processed_sample in
+                    policy.flush(&mut |resampled_sample| run_dsp(resampled_sample))
+                {
+                    let _ = o_producer.try_push(processed_sample);
                 }
             });
 
@@ -273,19 +249,6 @@ impl AudioService {
             let _ = handle.join();
         }
 
-        // The worker thread has finished and placed the effect chain into the
-        // return slot.  Move it back into the channel so the chain is visible
-        // to the UI and to any subsequent serialization call.
-        if let Some(slot) = self.effect_return_slot.take() {
-            if let Ok(mut guard) = slot.lock() {
-                if let Some(effects) = guard.take() {
-                    let ch_id = self.current_channel_id;
-                    if let Some(ch) = self.channels.iter_mut().find(|c| c.id() == ch_id) {
-                        ch.restore_effect_chain(effects);
-                    }
-                }
-            }
-        }
 
         self.is_active = false;
     }

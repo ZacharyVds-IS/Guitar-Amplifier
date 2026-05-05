@@ -1,8 +1,9 @@
+use crate::commands::helpers::persist_amp_config;
 use crate::domain::dto::effect::effect_dto::EffectDto;
+use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use tracing::info;
-use crate::domain::channel::Channel;
 
 #[tauri::command]
 pub(crate) fn add_effect(

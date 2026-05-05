@@ -4,9 +4,7 @@ use crate::domain::tone_stack::ToneStack;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use atomic_float::AtomicF32;
 use std::collections::HashMap;
-use std::mem::take;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info};
 
@@ -142,7 +140,7 @@ impl Channel {
     ///
     /// Panics if the scaled value is not between 0.0 and 1.0.
     pub fn set_bass(&self, bass: f32) {
-        self.tone_stack.set_bass(bass / 100.0);
+        self.tone_stack.set_bass(bass);
     }
 
     /// Sets the middle level for the tone stack.
@@ -240,7 +238,9 @@ impl Channel {
     /// Arcs were never cleared, so parameter and toggle commands remain valid
     /// before and after this call.
     pub fn restore_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
-        self.effect_chain = effects;
+        if let Ok(mut chain) = self.effect_chain.lock() {
+            *chain = effects;
+        }
     }
 
     /// Adds an effect, capturing its shared atomic handles so commands can reach
@@ -298,7 +298,9 @@ impl Channel {
     /// Replaces the entire effect chain with a new chain of events.
     /// Typically used when loading a preset/ saved configuration.
     pub fn replace_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
-        self.effect_chain.clear();
+        if let Ok(mut chain) = self.effect_chain.lock() {
+            chain.clear();
+        }
         self.effect_handles.clear();
 
         for effect in effects {

@@ -7,11 +7,13 @@ pub mod services;
 pub mod tests;
 
 use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
-use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_treble, set_volume, toggle_on_off};
-use crate::commands::effects::{set_hc_distortion_level, set_hc_distortion_threshold, toggle_effect};
+use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_tone_stack, set_treble, set_volume, toggle_on_off};
+use crate::commands::effects::{add_effect, remove_effect, set_hc_distortion_level, set_hc_distortion_threshold, toggle_effect};
 use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames, set_input_device, set_output_device};
+use crate::infrastructure::persistence::json_amp_config_repository::JsonFileAmpConfigRepository;
+use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
 use cpal::default_host;

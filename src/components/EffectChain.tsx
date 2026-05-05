@@ -66,7 +66,7 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 height: reorderOpen ? 600 : "auto",
             }}
         >
-            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: 0.75}}>
+            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: reorderOpen? 23.75 :0.75}}>
                 {!reorderOpen &&
                     <Button
                         sx={{
@@ -234,7 +234,7 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 </Box>
             </Stack>
             {reorderOpen &&
-                <Stack direction={"row"}>
+                <Stack direction={"row"} sx={{justifyContent:"end"}}>
                     <Button onClick={handleToggleEffectReorder}>Cancel</Button>
                     <Button>Apply Changes</Button>
                 </Stack>

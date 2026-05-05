@@ -158,6 +158,7 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
                         textTransform: 'uppercase',
                         fontStyle: 'italic'
                     }}
+                    noWrap={true}
                 >
                     {effect.data.name}
                 </Typography>

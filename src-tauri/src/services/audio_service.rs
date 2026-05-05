@@ -141,7 +141,7 @@ impl AudioService {
                 channel.gain(),
                 channel.volume(),
                 channel.tone_stack(),
-                channel.take_effect_chain(),
+                channel.effect_chain(),
             )
         };
 
@@ -193,18 +193,19 @@ impl AudioService {
                 let mut master_volume = GainProcessor::new(master_volume_arc);
                 let mut tone_stack = ToneStackProcessor::new(tone_stack_arc);
 
-                let mut effects = effect_chain;
+                let mut run_dsp = |sample: f32| -> f32 {
+                    let sample = gain.process(sample);
+                    let mut sample = tone_stack.process(sample);
 
-                {
-                    let mut run_dsp = |sample: f32| -> f32 {
-                        let sample = gain.process(sample);
-                        let mut sample = tone_stack.process(sample);
+                    if let Ok(mut effects) = effect_chain.lock() {
                         for effect in effects.iter_mut() {
                             sample = effect.process_if_active(sample);
                         }
-                        let sample = volume.process(sample);
-                        master_volume.process(sample)
-                    };
+                    }
+
+                    let sample = volume.process(sample);
+                    master_volume.process(sample)
+                };
 
                     loop {
                         if worker_shutdown.load(Ordering::SeqCst) {
@@ -421,6 +422,11 @@ impl AudioService {
             error!("Channel name must be 30 characters or less");
             panic!("Channel name must be 30 characters or less");
         }
+    }
+
+    /// Returns a mutable reference to the channel list, allowing channels to be modified or reordered.
+    pub fn channels_mut(&mut self) -> &mut Vec<Channel> {
+        &mut self.channels
     }
 
     /// Removes the channel with the given id from the channel list and sets `current_channel_id` to 0 (default channel).

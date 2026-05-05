@@ -1,8 +1,32 @@
-use crate::commands::helpers::persist_amp_config;
-use crate::services::amp_config_service::AmpConfigPersistenceService;
+use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::services::audio_service::AudioService;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tracing::info;
+use crate::domain::channel::Channel;
+
+#[tauri::command]
+pub(crate) fn add_effect(
+    audio_service: tauri::State<Mutex<AudioService>>,
+    effect_dto: EffectDto, ) -> Result<(), String> {
+    let mut service = audio_service.inner().lock().unwrap();
+    let target_channel_id = *service.current_channel_id();
+
+    if let Some(channel) = service.channels_mut().iter_mut().find(|c| c.id() == target_channel_id) {
+        let effect = effect_dto.to_domain(channel.next_effect_id());
+        channel.add_effect_to_chain(effect);
+        Ok(())
+    } else {
+        Err("Channel not found".into())
+    }
+}
+
+#[tauri::command]
+pub(crate) fn remove_effect(audio_service: tauri::State<Mutex<AudioService>>, effect_id: u32) {
+    let mut service = audio_service.inner().lock().unwrap();
+    let channel_id = *service.current_channel_id();
+    let current_channel = service.channels_mut().iter_mut().find(|c| c.id() == channel_id).unwrap();
+    current_channel.remove_effect_from_chain(effect_id);
+}
 
 /// Toggles an effect's active state on the current channel.
 /// Enables or disables audio processing for a specific effect. The change takes effect
@@ -80,7 +104,7 @@ pub fn set_hc_distortion_threshold(
             threshold
         ));
     }
-    
+
     let safe_threshold = threshold.clamp(0.001, 1.0);
 
     let service = audio_service.lock().map_err(|_| "Failed to lock audio service".to_string())?;
@@ -161,5 +185,3 @@ pub fn set_hc_distortion_level(
     persist_amp_config(&service, &persistence_service);
     Ok(())
 }
-
-

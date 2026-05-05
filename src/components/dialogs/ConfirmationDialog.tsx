@@ -1,6 +1,6 @@
 import {Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
 
-interface DeleteConfirmationDialogProps {
+interface ConfirmationDialogProps {
     open: boolean;
     onClose: () => void;
     onConfirm: () => void;
@@ -9,14 +9,14 @@ interface DeleteConfirmationDialogProps {
     confirmLabel?: string;
 }
 
-export function DeleteConfirmationDialog({
+export function ConfirmationDialog({
                                              open,
                                              onClose,
                                              onConfirm,
                                              title = "Confirm Delete",
                                              description = "This action cannot be undone. Are you sure you want to proceed?",
                                              confirmLabel = "Delete"
-                                         }: DeleteConfirmationDialogProps) {
+                                         }: ConfirmationDialogProps) {
     return (
         <Dialog
             open={open}

@@ -2,7 +2,7 @@ import {Box, IconButton, Paper, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
 import {EffectDto} from "../domain";
 import {AddCircle, Delete} from "@mui/icons-material";
-import {DeleteConfirmationDialog} from "./dialogs/DeleteConfirmationDialog.tsx";
+import {ConfirmationDialog} from "./dialogs/ConfirmationDialog.tsx";
 import {useState} from "react";
 import {AddEffectDialog} from "./dialogs/AddEffectDialog.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
@@ -167,7 +167,7 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
                         >
                             <Delete/>
                         </IconButton>
-                        <DeleteConfirmationDialog
+                        <ConfirmationDialog
                             open={removeDialogOpen}
                             onClose={() => setRemoveDialogOpen(false)}
                             onConfirm={handleEffectRemove}

@@ -1,4 +1,4 @@
-import {Box, IconButton, Paper, Stack, Typography} from "@mui/material";
+import {Box, Button, IconButton, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
 import {EffectDto} from "../domain";
 import {AddCircle, Delete} from "@mui/icons-material";
@@ -21,6 +21,7 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
 
     let [removeDialogOpen, setRemoveDialogOpen] = useState(false);
     let [addDialogOpen, setAddDialogOpen] = useState(false);
+    let [editOpen, setEditOpen] = useState(false);
 
     const handleAdd = (newEffect: EffectDto) => {
         useAmpStore.getState().AddEffect(newEffect);
@@ -59,7 +60,8 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
             }}
         >
             <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: 4}}>
-                <Paper
+                {!editOpen &&
+                <Button
                     sx={{
                         bgcolor: 'background.paper',
                         color: 'primary.main',
@@ -76,9 +78,11 @@ export function EffectChain({effects, selected, onSelectionChange}: EffectChainP
                             cursor: 'pointer'
                         }
                     }}
+                    onClick={() => setEditOpen(true)}
                 >
-                    Edit order
-                </Paper>
+                   Edit Order
+                </Button>
+                }
             </Box>
 
             <Box

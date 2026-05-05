@@ -134,42 +134,42 @@ impl Channel {
 
     /// Sets the bass level for the tone stack.
     ///
-    /// The input value is expected to be in the range 0-100 and is internally scaled to 0-1.
+    /// The input value is expected to be normalized in the range 0.0-1.0.
     ///
     /// # Arguments
     ///
-    /// * `bass` - The bass level (0-100).
+    /// * `bass` - The bass level (0.0-1.0).
     ///
     /// # Panics
     ///
-    /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_bass(&self, bass: f32) { self.tone_stack.set_bass(bass / 100.0); }
+    /// Panics if the value is not between 0.0 and 1.0.
+    pub fn set_bass(&self, bass: f32) { self.tone_stack.set_bass(bass); }
 
     /// Sets the middle level for the tone stack.
     ///
-    /// The input value is expected to be in the range 0-100 and is internally scaled to 0-1.
+    /// The input value is expected to be normalized in the range 0.0-1.0.
     ///
     /// # Arguments
     ///
-    /// * `middle` - The middle level (0-100).
+    /// * `middle` - The middle level (0.0-1.0).
     ///
     /// # Panics
     ///
-    /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_middle(&self, middle: f32) { self.tone_stack.set_middle(middle / 100.0); }
+    /// Panics if the value is not between 0.0 and 1.0.
+    pub fn set_middle(&self, middle: f32) { self.tone_stack.set_middle(middle); }
 
     /// Sets the treble level for the tone stack.
     ///
-    /// The input value is expected to be in the range 0-100 and is internally scaled to 0-1.
+    /// The input value is expected to be normalized in the range 0.0-1.0.
     ///
     /// # Arguments
     ///
-    /// * `treble` - The treble level (0-100).
+    /// * `treble` - The treble level (0.0-1.0).
     ///
     /// # Panics
     ///
-    /// Panics if the scaled value is not between 0.0 and 1.0.
-    pub fn set_treble(&self, treble: f32) { self.tone_stack.set_treble(treble / 100.0); }
+    /// Panics if the value is not between 0.0 and 1.0.
+    pub fn set_treble(&self, treble: f32) { self.tone_stack.set_treble(treble); }
 
     /// Returns a cloned [`Arc`] to the tone stack.
     ///
@@ -227,6 +227,16 @@ impl Channel {
         take(&mut self.effect_chain)
     }
 
+    /// Returns a previously taken effect chain back to the channel.
+    ///
+    /// Called by `AudioService::stop_loopback` after the audio worker thread
+    /// has exited and returned ownership of the effects. The `effect_handles`
+    /// Arcs were never cleared, so parameter and toggle commands remain valid
+    /// before and after this call.
+    pub fn restore_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
+        self.effect_chain = effects;
+    }
+
     /// Adds an effect, capturing its shared atomic handles so commands can reach
     /// them after the chain has been moved to the audio thread.
     ///
@@ -241,7 +251,8 @@ impl Channel {
         self.effect_chain.push(effect);
     }
 
-    //TODO: write documentation.
+    /// Replaces the entire effect chain with a new chain of events.
+    /// Typically used when loading a preset/ saved configuration.
     pub fn replace_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
         self.effect_chain.clear();
         self.effect_handles.clear();

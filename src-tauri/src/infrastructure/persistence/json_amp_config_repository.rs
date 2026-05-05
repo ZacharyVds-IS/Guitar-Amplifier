@@ -3,6 +3,7 @@ use crate::domain::dto::channel_dto::ChannelDto;
 use crate::infrastructure::persistence::amp_config_persistence_trait::AmpConfigPersistence;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 /// File-based amp-config repository backed by a single JSON document.
@@ -83,30 +84,56 @@ impl AmpConfigPersistence for JsonFileAmpConfigRepository {
         Ok(Some(AmpConfigDto::from(persisted)))
     }
 
-    /// Serializes the supplied config snapshot and writes it to disk.
+    /// Serializes the supplied config snapshot and writes it to disk **atomically**.
+    ///
+    /// The write strategy is:
+    /// 1. Serialize the snapshot to JSON.
+    /// 2. Write the JSON to a sibling temporary file (same directory as the target,
+    ///    so the subsequent rename stays on the same filesystem/volume).
+    /// 3. `sync_all` the temporary file so the bytes are flushed to the OS.
+    /// 4. `rename` the temporary file over the target path. On all major OSes this
+    ///    rename is atomic at the filesystem level, so a crash between steps 2-3
+    ///    leaves the old file intact and a crash between steps 3-4 leaves a
+    ///    harmless temporary file that is cleaned up on the next successful save.
     ///
     /// Parent directories are created automatically when necessary. The JSON is
     /// formatted with `to_string_pretty` so it remains reasonably human-readable
     /// during development and debugging.
     fn save(&self, config: &AmpConfigDto) -> Result<(), String> {
-        if let Some(parent) = self.config_path.parent() {
-            if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    format!(
-                        "Failed to create config directory '{}': {e}",
-                        parent.display()
-                    )
-                })?;
-            }
+        let parent = self.config_path.parent().filter(|p| !p.as_os_str().is_empty());
+
+        if let Some(dir) = parent {
+            fs::create_dir_all(dir).map_err(|e| {
+                format!("Failed to create config directory '{}': {e}", dir.display())
+            })?;
         }
 
         let persisted = PersistedAmpConfig::from(config);
         let json = serde_json::to_string_pretty(&persisted)
             .map_err(|e| format!("Failed to serialize amp config: {e}"))?;
 
-        fs::write(&self.config_path, json).map_err(|e| {
+        // Build a temp-file path in the same directory so rename is always
+        // same-volume (cross-device rename would fail with EXDEV on Unix).
+        let tmp_path = self.config_path.with_extension("json.tmp");
+
+        {
+            let mut tmp_file = fs::File::create(&tmp_path).map_err(|e| {
+                format!("Failed to create temp file '{}': {e}", tmp_path.display())
+            })?;
+
+            tmp_file.write_all(json.as_bytes()).map_err(|e| {
+                format!("Failed to write temp file '{}': {e}", tmp_path.display())
+            })?;
+
+            // Flush kernel buffers to disk before we rename.
+            tmp_file.sync_all().map_err(|e| {
+                format!("Failed to sync temp file '{}': {e}", tmp_path.display())
+            })?;
+        } // file handle is dropped (closed) here before rename
+
+        fs::rename(&tmp_path, &self.config_path).map_err(|e| {
             format!(
-                "Failed to write amp config '{}': {e}",
+                "Failed to atomically replace config '{}': {e}",
                 self.config_path.display()
             )
         })
@@ -124,6 +151,26 @@ mod tests {
             .expect("time should be monotonic")
             .as_nanos();
         std::env::temp_dir().join(format!("rustriff-amp-config-{nanos}.json"))
+    }
+
+    #[test]
+    fn save_leaves_no_tmp_file_after_success() {
+        let path = unique_test_path();
+        let repo = JsonFileAmpConfigRepository::new(path.clone());
+
+        let config = AmpConfigDto {
+            master_volume: 0.5,
+            is_active: false,
+            channels: Vec::new(),
+            current_channel: 0,
+        };
+
+        repo.save(&config).expect("save should succeed");
+
+        let tmp = path.with_extension("json.tmp");
+        assert!(!tmp.exists(), "temp file should be gone after a successful save");
+
+        let _ = fs::remove_file(path);
     }
 
     #[test]

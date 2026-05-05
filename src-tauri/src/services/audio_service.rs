@@ -2,6 +2,7 @@ use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
+use crate::domain::effect::Effect;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
@@ -13,7 +14,7 @@ use derive_getters::Getters;
 use ringbuf::consumer::Consumer;
 use ringbuf::producer::Producer;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use tracing::{error, info};
@@ -49,6 +50,11 @@ pub struct AudioService {
     current_channel_id: u32,
     master_volume: Arc<AtomicF32>,
     next_channel_id: u32,
+    /// Slot used to hand the effect chain back from the audio worker thread to
+    /// the channel when the loopback stops.  Populated by the worker just before
+    /// it exits; drained by `stop_loopback` immediately after joining.
+    #[getter(skip)]
+    effect_return_slot: Option<Arc<Mutex<Option<Vec<Box<dyn Effect>>>>>>,
 }
 
 impl AudioService {
@@ -90,6 +96,7 @@ impl AudioService {
             master_volume: Arc::new(AtomicF32::new(1.0)),
             current_channel_id: 0,
             next_channel_id: 1,
+            effect_return_slot: None,
         }
     }
 
@@ -138,6 +145,13 @@ impl AudioService {
             )
         };
 
+        // Slot shared between the worker thread and stop_loopback so the
+        // effect chain is handed back to the channel after the thread exits.
+        let return_slot: Arc<Mutex<Option<Vec<Box<dyn Effect>>>>> =
+            Arc::new(Mutex::new(None));
+        let return_slot_for_worker = Arc::clone(&return_slot);
+        self.effect_return_slot = Some(return_slot);
+
         let thread = thread::spawn(move || {
             // How many input samples to batch before the resampler produces output.
             // Larger = better quality, more latency. Smaller = lower latency, cheaper.
@@ -181,42 +195,51 @@ impl AudioService {
 
                 let mut effects = effect_chain;
 
-                let mut run_dsp = |sample: f32| -> f32 {
-                    let sample = gain.process(sample);
-                    let mut sample = tone_stack.process(sample);
-                    for effect in effects.iter_mut() {
-                        sample = effect.process_if_active(sample);
-                    }
-                    let sample = volume.process(sample);
-                    master_volume.process(sample)
-                };
-
-                loop {
-                    if worker_shutdown.load(Ordering::SeqCst) {
-                        break;
-                    }
-
-                    if let Some(sample) = i_consumer.try_pop() {
-                        // `policy.process` applies the resampler at the right moment:
-                        //   PreDsp  → resamples first, then calls `dsp.process` on each result
-                        //   PostDsp → calls `dsp.process` first, then resamples the output
-                        //   Bypass  → calls `dsp.process` directly, returns a single sample
-                        for processed_sample in policy
-                            .process(sample, &mut |resampled_sample| run_dsp(resampled_sample))
-                        {
-                            let _ = o_producer.try_push(processed_sample);
-                        }
-                    } else {
-                        thread::yield_now();
-                    }
-                }
-
-                // Drain any samples still sitting in the resampler's input buffer
-                // when the loopback is stopped so we don't lose the tail.
-                for processed_sample in
-                    policy.flush(&mut |resampled_sample| run_dsp(resampled_sample))
                 {
-                    let _ = o_producer.try_push(processed_sample);
+                    let mut run_dsp = |sample: f32| -> f32 {
+                        let sample = gain.process(sample);
+                        let mut sample = tone_stack.process(sample);
+                        for effect in effects.iter_mut() {
+                            sample = effect.process_if_active(sample);
+                        }
+                        let sample = volume.process(sample);
+                        master_volume.process(sample)
+                    };
+
+                    loop {
+                        if worker_shutdown.load(Ordering::SeqCst) {
+                            break;
+                        }
+
+                        if let Some(sample) = i_consumer.try_pop() {
+                            // `policy.process` applies the resampler at the right moment:
+                            //   PreDsp  → resamples first, then calls `dsp.process` on each result
+                            //   PostDsp → calls `dsp.process` first, then resamples the output
+                            //   Bypass  → calls `dsp.process` directly, returns a single sample
+                            for processed_sample in policy
+                                .process(sample, &mut |resampled_sample| run_dsp(resampled_sample))
+                            {
+                                let _ = o_producer.try_push(processed_sample);
+                            }
+                        } else {
+                            thread::yield_now();
+                        }
+                    }
+
+                    // Drain any samples still sitting in the resampler's input buffer
+                    // when the loopback is stopped so we don't lose the tail.
+                    for processed_sample in
+                        policy.flush(&mut |resampled_sample| run_dsp(resampled_sample))
+                    {
+                        let _ = o_producer.try_push(processed_sample);
+                    }
+                } // run_dsp dropped here — mutable borrow on effects released
+
+                // Hand the effect chain back so stop_loopback can restore it
+                // to the channel, keeping the chain visible to the UI and the
+                // next serialization call.
+                if let Ok(mut slot) = return_slot_for_worker.lock() {
+                    *slot = Some(effects);
                 }
             });
 
@@ -247,6 +270,20 @@ impl AudioService {
         if let Some(handle) = self.loopback_thread.take() {
             handle.thread().unpark();
             let _ = handle.join();
+        }
+
+        // The worker thread has finished and placed the effect chain into the
+        // return slot.  Move it back into the channel so the chain is visible
+        // to the UI and to any subsequent serialization call.
+        if let Some(slot) = self.effect_return_slot.take() {
+            if let Ok(mut guard) = slot.lock() {
+                if let Some(effects) = guard.take() {
+                    let ch_id = self.current_channel_id;
+                    if let Some(ch) = self.channels.iter_mut().find(|c| c.id() == ch_id) {
+                        ch.restore_effect_chain(effects);
+                    }
+                }
+            }
         }
 
         self.is_active = false;
@@ -470,6 +507,16 @@ impl AudioService {
     pub fn apply_amp_config(&mut self, config: AmpConfigDto) {
         let mut restored_channels = Vec::new();
 
+        // Backward compatibility: older snapshots stored tone values as 0..100.
+        // New normalized format is 0.0..1.0 end-to-end.
+        let normalize_tone_value = |value: f32| -> f32 {
+            if value > 1.0 {
+                (value / 100.0).clamp(0.0, 1.0)
+            } else {
+                value.clamp(0.0, 1.0)
+            }
+        };
+
         for channel_dto in config.channels {
             let mut channel = Channel::new(
                 channel_dto.id,
@@ -478,9 +525,9 @@ impl AudioService {
                 Some(channel_dto.volume.max(0.0001)),
             );
 
-            channel.set_bass(channel_dto.tone_stack.bass);
-            channel.set_middle(channel_dto.tone_stack.middle);
-            channel.set_treble(channel_dto.tone_stack.treble);
+            channel.set_bass(normalize_tone_value(channel_dto.tone_stack.bass));
+            channel.set_middle(normalize_tone_value(channel_dto.tone_stack.middle));
+            channel.set_treble(normalize_tone_value(channel_dto.tone_stack.treble));
 
             let restored_effects = channel_dto
                 .effect_chain
@@ -493,7 +540,8 @@ impl AudioService {
                         distortion.threshold,
                         distortion.level,
                         distortion.color,
-                    )) as Box<dyn crate::domain::effect::Effect>,
+                    ))
+                        as Box<dyn crate::domain::effect::Effect>,
                 })
                 .collect::<Vec<_>>();
 
@@ -533,9 +581,63 @@ impl AudioService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::dto::amp_config_dto::AmpConfigDto;
+    use crate::domain::dto::channel_dto::ChannelDto;
+    use crate::domain::dto::effect::effect_dto::EffectDto;
+    use crate::domain::dto::effect::hcdistortion_dto::HcDistortionDto;
+    use crate::domain::dto::tone_stack_dto::ToneStackDto;
     use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
+    use crate::tests::mock::make_mock_handler;
     use std::sync::atomic::Ordering;
     use std::sync::Arc;
+
+    fn build_service(handler: MockAudioHandlerTrait) -> AudioService {
+        AudioService::new_with_handler(Arc::new(handler))
+    }
+
+    fn tone_stack(bass: f32, middle: f32, treble: f32) -> ToneStackDto {
+        ToneStackDto {
+            bass,
+            middle,
+            treble,
+        }
+    }
+
+    fn distortion_effect(
+        id: u32,
+        name: &str,
+        is_active: bool,
+        threshold: f32,
+        level: f32,
+        color: &str,
+    ) -> EffectDto {
+        EffectDto::HCDistortion(HcDistortionDto {
+            id,
+            name: name.to_string(),
+            is_active,
+            color: color.to_string(),
+            threshold,
+            level,
+        })
+    }
+
+    fn channel_dto(
+        id: u32,
+        name: &str,
+        gain: f32,
+        volume: f32,
+        tone_stack: ToneStackDto,
+        effect_chain: Vec<EffectDto>,
+    ) -> ChannelDto {
+        ChannelDto {
+            id,
+            name: name.to_string(),
+            gain,
+            tone_stack,
+            volume,
+            effect_chain,
+        }
+    }
 
     #[cfg(test)]
     mod success_path {
@@ -550,25 +652,39 @@ mod tests {
         }
 
         #[test]
-        fn add_channel_should_add_a_channel_with_correct_values_and_sets_current_channel_id_to_new_id() {
+        fn add_channel_should_add_a_channel_with_correct_values_and_sets_current_channel_id_to_new_id(
+        ) {
             let mock = MockAudioHandlerTrait::new();
             let mut service = AudioService::new_with_handler(Arc::new(mock));
             let test_channel_id = service.add_channel("TestChannel".to_string());
-            let test_channel = service.channels.iter().find(|c| c.id() == test_channel_id).unwrap();
+            let test_channel = service
+                .channels
+                .iter()
+                .find(|c| c.id() == test_channel_id)
+                .unwrap();
 
             assert_eq!(service.channels.len(), 2);
             assert_eq!(test_channel.name(), "TestChannel");
             assert_eq!(test_channel.id(), 1);
             assert_eq!(test_channel.gain().load(Ordering::Relaxed), 1.0);
             assert_eq!(test_channel.volume().load(Ordering::Relaxed), 1.0);
-            assert_eq!(test_channel.tone_stack().bass().load(Ordering::Relaxed),1.0);
-            assert_eq!(test_channel.tone_stack().middle().load(Ordering::Relaxed),1.0);
-            assert_eq!(test_channel.tone_stack().treble().load(Ordering::Relaxed),1.0);
+            assert_eq!(
+                test_channel.tone_stack().bass().load(Ordering::Relaxed),
+                1.0
+            );
+            assert_eq!(
+                test_channel.tone_stack().middle().load(Ordering::Relaxed),
+                1.0
+            );
+            assert_eq!(
+                test_channel.tone_stack().treble().load(Ordering::Relaxed),
+                1.0
+            );
             assert_eq!(*service.current_channel_id(), test_channel.id());
         }
 
         #[test]
-        fn remove_channel_removes_channel_and_sets_current_channel_id_to_0 () {
+        fn remove_channel_removes_channel_and_sets_current_channel_id_to_0() {
             let mock = MockAudioHandlerTrait::new();
             let mut service = AudioService::new_with_handler(Arc::new(mock));
             let test_channel_id = service.add_channel("TestChannel".to_string());
@@ -576,6 +692,149 @@ mod tests {
 
             assert_eq!(service.channels.len(), 1);
             assert_eq!(*service.current_channel_id(), 0);
+        }
+
+        #[test]
+        fn apply_amp_config_restores_channels_tones_effects_and_master_volume() {
+            let mut service = build_service(MockAudioHandlerTrait::new());
+            let config = AmpConfigDto {
+                master_volume: 0.42,
+                is_active: false,
+                channels: vec![
+                    channel_dto(4, "Clean", 1.25, 0.8, tone_stack(25.0, 0.45, 130.0), vec![]),
+                    channel_dto(
+                        7,
+                        "Lead",
+                        2.0,
+                        0.65,
+                        tone_stack(0.6, 80.0, -0.5),
+                        vec![distortion_effect(11, "Drive", true, 0.33, 0.7, "#ff6600")],
+                    ),
+                ],
+                current_channel: 7,
+            };
+
+            service.apply_amp_config(config);
+
+            let snapshot = AmpConfigDto::from_service(&service);
+            let clean = snapshot
+                .channels
+                .iter()
+                .find(|channel| channel.id == 4)
+                .unwrap();
+            let lead = snapshot
+                .channels
+                .iter()
+                .find(|channel| channel.id == 7)
+                .unwrap();
+
+            assert_eq!(snapshot.channels.len(), 2);
+            assert_eq!(snapshot.current_channel, 7);
+            assert!(!snapshot.is_active);
+            assert_eq!(service.next_channel_id, 8);
+            assert!((snapshot.master_volume - 0.42).abs() < f32::EPSILON);
+
+            assert_eq!(clean.name, "Clean");
+            assert!((clean.gain - 1.25).abs() < f32::EPSILON);
+            assert!((clean.volume - 0.8).abs() < f32::EPSILON);
+            assert!((clean.tone_stack.bass - 0.25).abs() < 1e-6);
+            assert!((clean.tone_stack.middle - 0.45).abs() < 1e-6);
+            assert!((clean.tone_stack.treble - 1.0).abs() < 1e-6);
+
+            assert_eq!(lead.name, "Lead");
+            assert!((lead.tone_stack.bass - 0.6).abs() < 1e-6);
+            assert!((lead.tone_stack.middle - 0.8).abs() < 1e-6);
+            assert!((lead.tone_stack.treble - 0.0).abs() < 1e-6);
+            assert_eq!(lead.effect_chain.len(), 1);
+            // Compare effect fields individually so floating-point round-trips through
+            // the internal gain mapping (level → 1.0+level → level-1.0) don't fail.
+            if let EffectDto::HCDistortion(dto) = &lead.effect_chain[0] {
+                assert_eq!(dto.id, 11);
+                assert_eq!(dto.name, "Drive");
+                assert!(dto.is_active);
+                assert_eq!(dto.color, "#ff6600");
+                assert!((dto.threshold - 0.33).abs() < 1e-6);
+                assert!((dto.level - 0.7).abs() < 1e-5);
+            } else {
+                panic!("Expected HCDistortion effect");
+            }
+        }
+
+        #[test]
+        fn apply_amp_config_clamps_non_positive_levels_and_falls_back_to_first_channel() {
+            let mut service = build_service(MockAudioHandlerTrait::new());
+            let config = AmpConfigDto {
+                master_volume: 0.0,
+                is_active: false,
+                channels: vec![channel_dto(
+                    4,
+                    "Crunch",
+                    -2.0,
+                    0.0,
+                    tone_stack(0.2, 0.4, 0.6),
+                    vec![],
+                )],
+                current_channel: 999,
+            };
+
+            service.apply_amp_config(config);
+
+            let channel = service
+                .channels
+                .iter()
+                .find(|channel| channel.id() == 4)
+                .unwrap();
+
+            assert_eq!(service.channels.len(), 1);
+            assert_eq!(*service.current_channel_id(), 4);
+            assert_eq!(service.next_channel_id, 5);
+            assert!((channel.gain().load(Ordering::Relaxed) - 0.0001).abs() < 1e-6);
+            assert!((channel.volume().load(Ordering::Relaxed) - 0.0001).abs() < 1e-6);
+            assert!((service.master_volume().load(Ordering::Relaxed) - 0.0001).abs() < 1e-6);
+        }
+
+        #[test]
+        fn apply_amp_config_with_no_channels_creates_default_channel() {
+            let mut service = build_service(MockAudioHandlerTrait::new());
+
+            service.apply_amp_config(AmpConfigDto {
+                master_volume: 0.75,
+                is_active: false,
+                channels: vec![],
+                current_channel: 321,
+            });
+
+            assert_eq!(service.channels.len(), 1);
+            assert_eq!(service.channels[0].id(), 0);
+            assert_eq!(service.channels[0].name(), "Default");
+            assert_eq!(*service.current_channel_id(), 0);
+            assert_eq!(service.next_channel_id, 1);
+            assert!((service.master_volume().load(Ordering::Relaxed) - 0.75).abs() < f32::EPSILON);
+        }
+
+        #[test]
+        fn apply_amp_config_with_active_flag_starts_loopback() {
+            let mut service = build_service(make_mock_handler());
+
+            service.apply_amp_config(AmpConfigDto {
+                master_volume: 0.9,
+                is_active: true,
+                channels: vec![channel_dto(
+                    2,
+                    "Loopback",
+                    1.0,
+                    1.0,
+                    tone_stack(0.5, 0.5, 0.5),
+                    vec![],
+                )],
+                current_channel: 2,
+            });
+
+            assert!(*service.is_active());
+
+            service.stop_loopback();
+
+            assert!(!*service.is_active());
         }
     }
 
@@ -605,7 +864,8 @@ mod tests {
         fn add_channel_should_panic_with_to_long_name() {
             let mock = MockAudioHandlerTrait::new();
             let mut service = AudioService::new_with_handler(Arc::new(mock));
-            let test_channel = service.add_channel("Hippopotomonstrosesquippedaliophobia".to_string());
+            let test_channel =
+                service.add_channel("Hippopotomonstrosesquippedaliophobia".to_string());
         }
     }
 }

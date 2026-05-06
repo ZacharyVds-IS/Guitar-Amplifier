@@ -11,9 +11,10 @@ pub(crate) fn add_effect(
     effect_dto: EffectDto, ) -> Result<(), String> {
     let mut service = audio_service.inner().lock().unwrap();
     let target_channel_id = *service.current_channel_id();
+    let dsp_sample_rate = service.dsp_chain_sample_rate();
 
     if let Some(channel) = service.channels_mut().iter_mut().find(|c| c.id() == target_channel_id) {
-        let effect = effect_dto.to_domain(channel.next_effect_id());
+        let effect = effect_dto.to_domain(channel.next_effect_id(), dsp_sample_rate);
         channel.add_effect_to_chain(effect);
         Ok(())
     } else {

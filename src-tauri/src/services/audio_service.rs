@@ -53,6 +53,15 @@ pub struct AudioService {
 }
 
 impl AudioService {
+    /// Returns the sample rate at which the DSP chain effectively runs.
+    ///
+    /// With current resampling policy, DSP executes at the lower of input/output rates.
+    pub fn dsp_chain_sample_rate(&self) -> u32 {
+        self.audio_handler
+            .input_sample_rate()
+            .min(self.audio_handler.output_sample_rate())
+    }
+
     /// Creates a new `AudioService` using the provided CPAL input/output devices and stream config.
     ///
     /// An [`AudioHandler`] is constructed internally from the given parameters.
@@ -476,6 +485,7 @@ impl AudioService {
     /// off even though this method is capable of applying either state.
     pub fn apply_amp_config(&mut self, config: AmpConfigDto) {
         let mut restored_channels = Vec::new();
+        let dsp_sample_rate = self.dsp_chain_sample_rate();
 
         // Backward compatibility: older snapshots stored tone values as 0..100.
         // New normalized format is 0.0..1.0 end-to-end.
@@ -518,6 +528,7 @@ impl AudioService {
                             cabinet.name,
                             cabinet.is_active,
                             cabinet.color,
+                            dsp_sample_rate,
                         ),
                     ) as Box<dyn crate::domain::effect::Effect>,
                 })

@@ -12,6 +12,10 @@ impl FileLoader {
 }
 
 impl FileLoaderTrait for FileLoader {
+    fn read_wav_sample_rate(&self, path: &Path) -> Option<u32> {
+        WavReader::open(path).ok().map(|reader| reader.spec().sample_rate)
+    }
+
     fn read_wav_to_buffer(&self, path: &Path) -> Vec<f32> {
         match WavReader::open(path) {
             Ok(mut reader) => {

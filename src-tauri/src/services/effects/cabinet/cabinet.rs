@@ -32,7 +32,7 @@ impl Cabinet {
 			.join(DEFAULT_IR_FILE);
 
 		let ir_buffer = file_loader.read_wav_to_buffer(&temp_file_path);
-		let ir_sample_rate = Self::read_wav_sample_rate(&temp_file_path).unwrap_or(dsp_sample_rate);
+		let ir_sample_rate = file_loader.read_wav_sample_rate(&temp_file_path).unwrap_or(dsp_sample_rate);
 		let (ir_buffer, resampling_applied) =
 			Self::resample_if_needed(ir_buffer, ir_sample_rate, dsp_sample_rate);
 
@@ -51,10 +51,6 @@ impl Cabinet {
 			ir_buffer,
 			dsp_sample_rate,
 		}
-	}
-
-	fn read_wav_sample_rate(path: &PathBuf) -> Option<u32> {
-		WavReader::open(path).ok().map(|reader| reader.spec().sample_rate)
 	}
 
 	fn resample_if_needed(buffer: Vec<f32>, source_rate: u32, target_rate: u32) -> (Vec<f32>, bool) {

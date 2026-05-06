@@ -43,6 +43,7 @@ export default defineConfig({
         items:[
           {text:'Effect chain', link:'/guide/effects/chain'},
           {text:'Cabinet Simulation (IR)', link:'/guide/effects/cabinet_simulation_ir'},
+          {text:'Recording an impulse response', link:'/guide/effects/custom_ir_recording'},
         ]
       },
       {

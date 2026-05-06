@@ -1,7 +1,7 @@
 # Cabinet Simulation (Impulse Response)
 Impulse Response (IR) is a digital snapshot of how a speaker's cabinet, room or space responds to sound.
 
-In simple terms: If I record sound in my bathroom and make someone gues what room I was in, most people will gues the bathroom correctly. 
+In simple terms: If I record sound in my bathroom and make someone gues what room I was in, most people will gues the bathroom correctly.
 This is because they recognize the impulse response of this room.
 
 ## IR in digital signal processing.
@@ -34,7 +34,7 @@ M: the length of your IR (6 in the example above).
 h[k]: The k-th value of the IR buffer.
 
 ### Limitations of Convolution
-The above example works fine with small buffers. But in DSP IR buffers easily go up to 2048 and more. 
+The above example works fine with small buffers. But in DSP IR buffers easily go up to 2048 and more.
 This maps to a verry cpu intensive operation.
 
 ### A solution to this problem

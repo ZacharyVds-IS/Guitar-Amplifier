@@ -98,10 +98,10 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 borderRadius: 4,
                 p: 2,
                 position: 'relative',
-                height: reorderOpen ? 600 : "auto",
+                height: reorderOpen ? 600 : 300,
             }}
         >
-            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: reorderOpen ? 23.75 : 0.75}}>
+            <Box sx={{display: 'flex', justifyContent: 'flex-end'}}>
                 {!reorderOpen &&
                     <Button
                         sx={{
@@ -126,162 +126,197 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                     </Button>
                 }
             </Box>
-
-            {/* The Horizontal Line */}
+            {/*Scrollable Wrapper*/}
             <Box
                 sx={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    top: reorderOpen ? '40%' : "50%",
-                    transform: 'translateY(-50%)',
-                    height: '6px',
-                    bgcolor: 'secondary.main',
-                    zIndex: 1
+                    height: "80%",
+                    width: '100%',
+                    overflowX: 'auto',
+                    position: 'relative',
+                    pb: 2,
+                    '&::-webkit-scrollbar': {height: '8px'},
+                    '&::-webkit-scrollbar-thumb': {
+                        bgcolor: 'rgba(0,0,0,0.1)',
+                        borderRadius: '4px',
+                    },
+                    mt: reorderOpen ? 10 : 0.75,
+                    pt: reorderOpen ? 17 : 8.25
                 }}
-            />
-            {/* The Chain Stack */}
-            <DragDropContext onDragEnd={onDragEnd}>
-                <Droppable droppableId="pedal-board" direction="horizontal">
-                    {(provided) => (
-                        <Stack
-                            {...provided.droppableProps}
-                            ref={provided.innerRef}
-                            direction="row"
-                            spacing={6}
-                            sx={{width: '100%', position: 'relative', zIndex: 2, minHeight: 120}}
-                        >
-                            <AmpBox onSelectionChange={onSelectionChange} isAmpSelected={isAmpSelected}
-                                    selectedBorder={selectedBorder}/>
-
-                            {effects.map((item, index) => (
-                                <Draggable
-                                    key={item.data.id}
-                                    draggableId={item.data.id.toString()}
-                                    index={index}
-                                    isDragDisabled={!reorderOpen}
+            >
+                <Box sx={{position: 'relative', width: 'max-content', minWidth: '100%'}}>
+                    {/* The Horizontal Line */}
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            top: "30%",
+                            transform: 'translateY(-50%)',
+                            height: '6px',
+                            bgcolor: 'secondary.main',
+                            zIndex: 1,
+                        }}
+                    />
+                    {/* The Chain Stack */}
+                    <DragDropContext onDragEnd={onDragEnd}>
+                        <Droppable droppableId="pedal-board" direction="horizontal">
+                            {(provided) => (
+                                <Stack
+                                    {...provided.droppableProps}
+                                    ref={provided.innerRef}
+                                    direction="row"
+                                    spacing={6}
+                                    sx={{
+                                        width: 'max-content',
+                                        minWidth: '100%',
+                                        position: 'relative',
+                                        zIndex: 2,
+                                        minHeight: 120,
+                                        px: 2
+                                    }}
                                 >
-                                    { (provided, snapshot) => (
-                                    <Box
-                                        key={"effect-" + item.data.id}
-                                        onClick={() => onSelectionChange(item)}
-                                        ref={provided.innerRef}
-                                        {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        sx={{
+                                    <AmpBox onSelectionChange={onSelectionChange} isAmpSelected={isAmpSelected}
+                                            selectedBorder={selectedBorder}/>
+
+                                    {effects.map((item, index) => (
+                                        <Draggable
+                                            key={item.data.id}
+                                            draggableId={item.data.id.toString()}
+                                            index={index}
+                                            isDragDisabled={!reorderOpen}
+                                        >
+                                            {(provided, snapshot) => (
+                                                <Box
+                                                    key={"effect-" + item.data.id}
+                                                    onClick={() => onSelectionChange(item)}
+                                                    ref={provided.innerRef}
+                                                    {...provided.draggableProps}
+                                                    {...provided.dragHandleProps}
+                                                    sx={{
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        position: 'relative',
+                                                        '&:hover .remove-button': {
+                                                            opacity: 1,
+                                                            transform: 'scale(1)',
+                                                        },
+                                                        gap: 1,
+                                                        ...provided.draggableProps.style,
+                                                        opacity: snapshot.isDragging ? 0.8 : 1,
+                                                        cursor: reorderOpen ? 'grab' : 'pointer'
+                                                    }}
+                                                >
+                                                    <IconButton
+                                                        className="remove-button"
+                                                        size="small"
+                                                        onClick={() => setRemoveDialogOpen(true)}
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: -15,
+                                                            right: -10,
+                                                            zIndex: 10,
+                                                            opacity: 0,
+                                                            transform: 'scale(0.8)',
+                                                            transition: 'all 0.2s ease-in-out',
+                                                            bgcolor: 'error.main',
+                                                            color: 'white',
+                                                            '&:hover': {bgcolor: 'error.dark'},
+                                                            width: 25,
+                                                            height: 25
+                                                        }}
+                                                    >
+                                                        <Delete/>
+                                                    </IconButton>
+                                                    <ConfirmationDialog
+                                                        open={removeDialogOpen}
+                                                        onClose={() => setRemoveDialogOpen(false)}
+                                                        onConfirm={handleEffectRemove}
+                                                        title={`Remove effect "${item.data.name}"?`}
+                                                        description={"Are you sure you want to remove this effect from the chain? This action cannot be undone."}
+                                                    />
+                                                    <Box sx={{
+                                                        display: 'flex',
+                                                        flexDirection: "column",
+                                                        alignItems: 'center',
+                                                        height: 75,
+                                                        width: 60
+                                                    }}>
+                                                        <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
+                                                            <Box sx={{
+                                                                borderRadius: 2,
+                                                                transition: 'border 0.15s, box-shadow 0.15s',
+                                                                ...(isEffectSelected(item) && selectedBorder),
+                                                            }}>
+                                                                <EffectPedalPreview mainColor={item.data.color}
+                                                                                    isActive={item.data.is_active}/>
+                                                            </Box>
+                                                        </Box>
+                                                        <Typography
+                                                            variant="caption"
+                                                            sx={{
+                                                                mt: 1,
+                                                                color: isEffectSelected(item) ? 'primary.main' : 'text.primary',
+                                                                fontWeight: isEffectSelected(item) ? 700 : 500,
+                                                                fontSize: '0.75rem',
+                                                            }}
+                                                        >
+                                                            {item.data.name}
+                                                        </Typography>
+                                                        {reorderOpen && isEffectSelected(item) &&
+                                                            <Box sx={{
+                                                                display: "flex",
+                                                                flexDirection: "row",
+                                                                alignItems: "center"
+                                                            }}>
+                                                                <IconButton
+                                                                    onClick={() => handleMovePedal(item.data.id, "left")}>
+                                                                    <KeyboardArrowLeft/>
+                                                                </IconButton>
+                                                                <IconButton
+                                                                    onClick={() => handleMovePedal(item.data.id, "right")}>
+                                                                    <KeyboardArrowRight/>
+                                                                </IconButton>
+                                                            </Box>
+                                                        }
+                                                    </Box>
+                                                </Box>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+
+                                    {!reorderOpen &&
+                                        <Box key={"add-effect-wrapper"} sx={{
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
-                                            position: 'relative',
-                                            '&:hover .remove-button': {
-                                                opacity: 1,
-                                                transform: 'scale(1)',
-                                            },
-                                            gap: 1,
-                                            ...provided.draggableProps.style,
-                                            opacity: snapshot.isDragging ? 0.8 : 1,
-                                            cursor: reorderOpen ? 'grab' : 'pointer'
-                                        }}
-                                    >
-                                        <IconButton
-                                            className="remove-button"
-                                            size="small"
-                                            onClick={() => setRemoveDialogOpen(true)}
-                                            sx={{
-                                                position: 'absolute',
-                                                top: -15,
-                                                right: -10,
-                                                zIndex: 10,
-                                                opacity: 0,
-                                                transform: 'scale(0.8)',
-                                                transition: 'all 0.2s ease-in-out',
-                                                bgcolor: 'error.main',
-                                                color: 'white',
-                                                '&:hover': {bgcolor: 'error.dark'},
-                                                width: 25,
-                                                height: 25
-                                            }}
-                                        >
-                                            <Delete/>
-                                        </IconButton>
-                                        <ConfirmationDialog
-                                            open={removeDialogOpen}
-                                            onClose={() => setRemoveDialogOpen(false)}
-                                            onConfirm={handleEffectRemove}
-                                            title={`Remove effect "${item.data.name}"?`}
-                                            description={"Are you sure you want to remove this effect from the chain? This action cannot be undone."}
-                                        />
-                                        <Box sx={{
-                                            display: 'flex',
-                                            flexDirection: "column",
-                                            alignItems: 'center',
-                                            height: 75,
-                                            width: 60
+                                            justifyContent: 'center',
+                                            height: 70
                                         }}>
-                                            <Box sx={{display: 'flex', alignItems: 'center', height: 75}}>
-                                                <Box sx={{
-                                                    borderRadius: 2,
-                                                    transition: 'border 0.15s, box-shadow 0.15s',
-                                                    ...(isEffectSelected(item) && selectedBorder),
-                                                }}>
-                                                    <EffectPedalPreview mainColor={item.data.color}
-                                                                        isActive={item.data.is_active}/>
-                                                </Box>
-                                            </Box>
-                                            <Typography
-                                                variant="caption"
-                                                sx={{
-                                                    mt: 1,
-                                                    color: isEffectSelected(item) ? 'primary.main' : 'text.primary',
-                                                    fontWeight: isEffectSelected(item) ? 700 : 500,
-                                                    fontSize: '0.75rem',
-                                                }}
-                                            >
-                                                {item.data.name}
-                                            </Typography>
-                                            {reorderOpen && isEffectSelected(item) &&
-                                                <Box sx={{display: "flex", flexDirection: "row", alignItems: "center"}}>
-                                                    <IconButton onClick={() => handleMovePedal(item.data.id, "left")}>
-                                                        <KeyboardArrowLeft/>
-                                                    </IconButton>
-                                                    <IconButton onClick={() => handleMovePedal(item.data.id, "right")}>
-                                                        <KeyboardArrowRight/>
-                                                    </IconButton>
-                                                </Box>
-                                            }
+                                            <IconButton onClick={() => setAddDialogOpen(true)} sx={{
+                                                p: 0,
+                                                bgcolor: 'white',
+                                                '&:hover': {bgcolor: 'white', transform: 'scale(1.2)'},
+                                                overflow: 'hidden',
+                                                borderRadius: '50%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <AddCircle fontSize="large" color="primary"/>
+                                            </IconButton>
+                                            <AddEffectDialog open={addDialogOpen}
+                                                             onClose={() => setAddDialogOpen(false)}
+                                                             onCreate={handleAdd}/>
                                         </Box>
-                                    </Box>
-                                    )}
-                                </Draggable>
-                            ))}
-                            {provided.placeholder}
-
-                            <Box key={"add-effect-wrapper"} sx={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                height: 70
-                            }}>
-                                <IconButton onClick={() => setAddDialogOpen(true)} sx={{
-                                    p: 0,
-                                    bgcolor: 'white',
-                                    '&:hover': {bgcolor: 'white', transform: 'scale(1.2)'},
-                                    overflow: 'hidden',
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <AddCircle fontSize="large" color="primary"/>
-                                </IconButton>
-                                <AddEffectDialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)}
-                                                 onCreate={handleAdd}/>
-                            </Box>
-                        </Stack>
-                    )}
-                </Droppable>
-            </DragDropContext>
+                                    }
+                                </Stack>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+                </Box>
+            </Box>
             {reorderOpen &&
                 <Stack direction={"row"} sx={{position: "absolute", bottom: 16, right: 16, zIndex: 3, gap: 3}}>
                     <Button onClick={handleToggleEffectReorder} variant="contained"

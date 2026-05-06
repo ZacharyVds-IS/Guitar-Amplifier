@@ -20,7 +20,7 @@ pub(crate) fn add_effect(
         .iter_mut()
         .find(|c| c.id() == target_channel_id)
     {
-        let effect = effect_dto.add_to_domain(channel.next_effect_id());
+        let effect = effect_dto.add_to_domain(channel.next_effect_id(), dsp_sample_rate);
         channel.add_effect_to_chain(effect);
         Ok(())
     } else {
@@ -46,6 +46,7 @@ pub(crate) fn apply_effect_order_change(
     effects: Vec<EffectDto>,
 ) {
     let mut service = audio_service.inner().lock().unwrap();
+    let dsp_sample_rate = service.dsp_chain_sample_rate();
     let channel_id = *service.current_channel_id();
     let current_channel = service
         .channels_mut()
@@ -53,7 +54,7 @@ pub(crate) fn apply_effect_order_change(
         .find(|c| c.id() == channel_id)
         .unwrap();
     let boxed_effects: Vec<Box<dyn Effect>> =
-        effects.into_iter().map(|dto| dto.to_domain()).collect();
+        effects.into_iter().map(|dto| dto.to_domain(dsp_sample_rate)).collect();
     current_channel.restore_effect_chain(boxed_effects);
 }
 

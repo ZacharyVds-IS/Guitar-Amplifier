@@ -1,7 +1,6 @@
 use crate::domain::dto::tone_stack_dto::ToneStackDto;
 use crate::domain::effect::Effect;
 use crate::domain::tone_stack::ToneStack;
-use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use atomic_float::AtomicF32;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -373,9 +372,11 @@ impl Channel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::effects::distortion::hc_distortion::HCDistortion;
 
     mod success_path {
         use super::*;
+        use crate::services::effects::distortion::hc_distortion::HCDistortion;
 
         #[test]
         fn gain_set_to_positive_value_should_succeed() {
@@ -509,6 +510,7 @@ mod tests {
 
     mod failure_path {
         use super::*;
+        use crate::services::effects::distortion::hc_distortion::HCDistortion;
 
         #[test]
         #[should_panic(expected = "Gain must be positive")]

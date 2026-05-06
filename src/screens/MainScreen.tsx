@@ -2,6 +2,7 @@ import {Box} from "@mui/material";
 import {EffectChain} from "../components/EffectChain.tsx";
 import {DefaultAmpControls} from "../components/DefaultAmpControls.tsx";
 import {EffectPedal} from "../components/EffectPedal.tsx";
+import {CabinetEffect} from "../components/CabinetEffect.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {useEffect, useState} from "react";
 import {EffectDto} from "../domain";
@@ -48,6 +49,8 @@ export function MainScreen() {
             {!editOrderOpen &&
                 ((resolvedSelection === "amp" || !resolvedSelection)
                     ? <DefaultAmpControls/>
+                    : resolvedSelection.kind === "Cabinet"
+                    ? <CabinetEffect effect={resolvedSelection}/>
                     : <EffectPedal effect={resolvedSelection}/>)
             }
         </Box>

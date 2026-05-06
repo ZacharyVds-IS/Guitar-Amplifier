@@ -1,5 +1,6 @@
 import {Box, Button, IconButton, Stack, Typography} from "@mui/material";
 import {EffectPedalPreview} from "./EffectPedalPreview.tsx";
+import {CabinetPreview} from "./CabinetPreview.tsx";
 import {EffectDto} from "../domain";
 import {AddCircle, Delete, KeyboardArrowLeft, KeyboardArrowRight} from "@mui/icons-material";
 import {ConfirmationDialog} from "./dialogs/ConfirmationDialog.tsx";
@@ -246,8 +247,13 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                                                                 transition: 'border 0.15s, box-shadow 0.15s',
                                                                 ...(isEffectSelected(item) && selectedBorder),
                                                             }}>
-                                                                <EffectPedalPreview mainColor={item.data.color}
-                                                                                    isActive={item.data.is_active}/>
+                                                                {item.kind === "Cabinet"
+                                                                    ? <CabinetPreview mainColor={item.data.color} isActive={item.data.is_active}/>
+                                                                    : item.kind === "HCDistortion"
+                                                                    ? <EffectPedalPreview mainColor={item.data.color}
+                                                                                        isActive={item.data.is_active}/>
+                                                                    : null
+                                                                }
                                                             </Box>
                                                         </Box>
                                                         <Typography

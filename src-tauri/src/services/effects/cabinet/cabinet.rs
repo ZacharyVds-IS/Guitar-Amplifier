@@ -52,6 +52,7 @@ pub struct Cabinet {
     fft_inverse: Arc<dyn Fft<f32>>,
     fft_scratch: Vec<Complex<f32>>,
     cabinet_gain: f32,
+    has_logged_ir_unavailable: bool,
     input_block: Vec<f32>,
     output_queue: VecDeque<f32>,
     dsp_sample_rate: u32,
@@ -86,6 +87,11 @@ impl Cabinet {
             .unwrap_or(dsp_sample_rate);
         let (mut ir_buffer, resampling_applied) =
             Self::resample_if_needed(ir_buffer, ir_sample_rate, dsp_sample_rate);
+        if ir_buffer.is_empty() {
+            warn!(
+                "Cabinet IR buffer is empty. IR file may be missing, unreadable, unsupported, or corrupt. Falling back to passthrough."
+            );
+        }
         if ir_buffer.len() > MAX_IR_SAMPLES {
             info!(
                 "Cabinet IR too long ({} samples). Truncating to {} to keep real-time CPU stable.",
@@ -124,6 +130,7 @@ impl Cabinet {
             fft_inverse,
             fft_scratch: vec![Complex::new(0.0_f32, 0.0_f32); ir_fft_size],
             cabinet_gain,
+            has_logged_ir_unavailable: false,
             input_block: Vec::with_capacity(CONV_BLOCK_SIZE),
             output_queue: VecDeque::with_capacity(output_queue_capacity),
             dsp_sample_rate,
@@ -175,8 +182,8 @@ impl Cabinet {
         buffer
     }
 
-    /// Bypass helper used when no IR kernel is available.
-    fn push_passthrough_block(&mut self) {
+    /// Pushes dry samples when IR data is unavailable (missing/unreadable/corrupt).
+    fn push_passthrough_block_for_ir_unavailable(&mut self) {
         for &sample in &self.input_block {
             self.output_queue.push_back(sample);
         }
@@ -205,16 +212,16 @@ impl Cabinet {
     /// - normalizes by FFT size,
     /// - applies cabinet gain,
     /// - accumulates into queued samples so block boundaries remain continuous.
-///
-/// Why "add" and not "replace"?
-///
-/// Convolving one input block with an IR produces an output that is longer than
-/// the input block (`input_len + ir_len - 1`). The tail of the current block
-/// lands in the same timeline region as the start of future blocks.
-///
-/// If we replaced samples, that tail energy would be lost and you would hear
-/// discontinuities (clicks/crackle) at block edges. By adding into existing
-/// queued values, block outputs stitch together into one continuous signal.
+    ///
+    /// Why "add" and not "replace"?
+    ///
+    /// Convolving one input block with an IR produces an output that is longer than
+    /// the input block (`input_len + ir_len - 1`). The tail of the current block
+    /// lands in the same timeline region as the start of future blocks.
+    ///
+    /// If we replaced samples, that tail energy would be lost and you would hear
+    /// discontinuities (clicks/crackle) at block edges. By adding into existing
+    /// queued values, block outputs stitch together into one continuous signal.
     fn overlap_add_ifft_block_into_queue(&mut self) {
         let fft_normalization = self.ir_fft_size as f32;
         let linear_conv_len = self.input_block.len() + self.ir_buffer.len().saturating_sub(1);
@@ -225,7 +232,8 @@ impl Cabinet {
 
         for sample_index in 0..linear_conv_len {
             if let Some(output_slot) = self.output_queue.get_mut(sample_index) {
-                *output_slot += (self.fft_scratch[sample_index].re / fft_normalization) * self.cabinet_gain;
+                *output_slot +=
+                    (self.fft_scratch[sample_index].re / fft_normalization) * self.cabinet_gain;
             }
         }
     }
@@ -248,7 +256,13 @@ impl Cabinet {
         }
 
         if self.ir_fft_kernel.is_empty() {
-            self.push_passthrough_block();
+            if !self.has_logged_ir_unavailable {
+                warn!(
+                    "Cabinet IR kernel is empty. Using passthrough until a valid IR can be loaded."
+                );
+                self.has_logged_ir_unavailable = true;
+            }
+            self.push_passthrough_block_for_ir_unavailable();
             self.input_block.clear();
             return;
         }

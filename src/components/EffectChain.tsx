@@ -234,9 +234,9 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 </Box>
             </Stack>
             {reorderOpen &&
-                <Stack direction={"row"} sx={{justifyContent:"end"}}>
-                    <Button onClick={handleToggleEffectReorder}>Cancel</Button>
-                    <Button>Apply Changes</Button>
+                <Stack direction={"row"} sx={{position:"absolute", bottom:16, right: 16, zIndex: 3, gap: 3}}>
+                    <Button onClick={handleToggleEffectReorder} variant="contained" sx={{bgcolor:"secondary.main"}}>Cancel</Button>
+                    <Button variant="contained" >Apply Changes</Button>
                 </Stack>
             }
         </Box>

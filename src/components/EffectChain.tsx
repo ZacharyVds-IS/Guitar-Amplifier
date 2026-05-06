@@ -6,6 +6,7 @@ import {ConfirmationDialog} from "./dialogs/ConfirmationDialog.tsx";
 import {useState} from "react";
 import {AddEffectDialog} from "./dialogs/AddEffectDialog.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
+import {AmpBox} from "./AmpBox.tsx";
 
 export interface EffectChainProps {
     effects: EffectDto[];
@@ -14,6 +15,7 @@ export interface EffectChainProps {
     onSelectionChange: (selected: EffectDto | "amp") => void;
     onReorderOpen: (open: boolean) => void;
 }
+
 
 export function EffectChain({effects, selected, onSelectionChange, onReorderOpen}: EffectChainProps) {
     function isAmpSelected() {
@@ -66,7 +68,7 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 height: reorderOpen ? 600 : "auto",
             }}
         >
-            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: reorderOpen? 23.75 :0.75}}>
+            <Box sx={{display: 'flex', justifyContent: 'flex-end', mb: reorderOpen ? 23.75 : 0.75}}>
                 {!reorderOpen &&
                     <Button
                         sx={{
@@ -111,40 +113,7 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 spacing={6}
                 sx={{width: '100%', position: 'relative', zIndex: 2, minHeight: 120}}
             >
-                {/* Amp node — selected by default */}
-                <Box
-                    key={0}
-                    onClick={() => onSelectionChange("amp")}
-                    sx={{display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer'}}
-                >
-                    <Box sx={{display: 'flex', flexDirection: "column" ,alignItems: 'center', height: 75}}>
-                        <Box
-                            sx={{
-                                width: 60,
-                                height: 60,
-                                bgcolor: 'background.paper',
-                                border: '1px solid',
-                                borderColor: 'text.secondary',
-                                borderRadius: 2,
-                                transition: 'border 0.15s, box-shadow 0.15s',
-                                ...(isAmpSelected() && selectedBorder),
-                            }}
-                        />
-                    </Box>
-                    <Typography
-                        variant="caption"
-                        sx={{
-                            position: 'absolute',
-                            bottom: 25,
-                            mt: 1,
-                            color: isAmpSelected() ? 'primary.main' : 'text.primary',
-                            fontWeight: isAmpSelected() ? 700 : 500,
-                            fontSize: '0.75rem',
-                        }}
-                    >
-                        Amp
-                    </Typography>
-                </Box>
+                <AmpBox onSelectionChange={onSelectionChange} isAmpSelected={isAmpSelected} selectedBorder={selectedBorder}/>
 
                 {effects.map((item) => (
                     <Box
@@ -234,9 +203,10 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
                 </Box>
             </Stack>
             {reorderOpen &&
-                <Stack direction={"row"} sx={{position:"absolute", bottom:16, right: 16, zIndex: 3, gap: 3}}>
-                    <Button onClick={handleToggleEffectReorder} variant="contained" sx={{bgcolor:"secondary.main"}}>Cancel</Button>
-                    <Button variant="contained" >Apply Changes</Button>
+                <Stack direction={"row"} sx={{position: "absolute", bottom: 16, right: 16, zIndex: 3, gap: 3}}>
+                    <Button onClick={handleToggleEffectReorder} variant="contained"
+                            sx={{bgcolor: "secondary.main"}}>Cancel</Button>
+                    <Button variant="contained">Apply Changes</Button>
                 </Stack>
             }
         </Box>

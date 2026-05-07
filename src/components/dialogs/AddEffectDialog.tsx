@@ -13,6 +13,7 @@ export type EffectKind = EffectDto["kind"];
 
 export const EFFECT_METADATA: Record<EffectKind, { label: string }> = {
     HCDistortion: {label: "Hard-Clipping Distortion"},
+    Delay: {label: "Delay"}
 };
 
 export const EFFECT_OPTIONS = Object.entries(EFFECT_METADATA).map(([kind, meta]) => ({
@@ -33,7 +34,7 @@ export const EFFECT_FACTORIES: EffectFactoryMap = {
         threshold: 1,
         level: 0,
     }),
-
+    Delay: ({name, color}: DelayD)
 };
 
 export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps) {

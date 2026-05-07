@@ -71,7 +71,7 @@ function knobsForEffect(
             // Configurable range for Delay Time (ms)
             // You can adjust these based on your buffer size in Rust
             const MIN_DELAY_MS = 0;
-            const MAX_DELAY_MS = 2000;
+            const MAX_DELAY_MS = 800;
 
             // Mapping level [0.0 - 0.95] to a 0-100 scale for the knob
             const levelKnobValue = (data.level / 0.95) * 100;
@@ -164,10 +164,11 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
     }
 
     function handleDelayTimeChange(effectId: number, delayTime: number, previousDelayTime: number) {
-        updateDelayParams(effectId, {delay_time: delayTime});
+        const sanitizedTime = Math.round(delayTime);
+        updateDelayParams(effectId, {delay_time: sanitizedTime});
         void setDelayDelayTime({effectId, delayTime}).catch((error) => {
             console.error("Failed to update Delay delay time:", error);
-            updateDelayParams(effectId, {level: previousDelayTime});
+            updateDelayParams(effectId, {delay_time: previousDelayTime});
         });
     }
 

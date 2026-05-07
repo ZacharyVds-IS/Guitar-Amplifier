@@ -261,7 +261,7 @@ pub fn set_delay_delay_time(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     effect_id: u32,
-    delay_time: f32,
+    delay_time: u32,
 ) -> Result<(), String> {
     let service = audio_service
         .lock()

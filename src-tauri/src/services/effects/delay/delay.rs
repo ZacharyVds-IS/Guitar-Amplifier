@@ -32,9 +32,9 @@ impl Delay {
         level: f32,
     ) -> Self {
         let level_arc = Arc::new(AtomicF32::new(level.clamp(0.0, 0.95)));
-        let delay_time_arc = Arc::new(AtomicU32::new(delay_time.clamp(20, 300)));
+        let delay_time_arc = Arc::new(AtomicU32::new(delay_time.clamp(20, 800)));
 
-        let max_samples = (300.0 * sample_rate as f32 / 1000.0) as usize;
+        let max_samples = (800.0 * sample_rate as f32 / 1000.0) as usize;
         let delay_buffer = vec![0.0; max_samples + 1];
 
         let mut instance = Self {
@@ -121,13 +121,12 @@ impl AudioProcessor for Delay {
         let f_part = read_pos - i_part as f32;
         let next_i = (i_part + 1) % self.delay_buffer.len();
 
-        let delayed_sample =
-            self.delay_buffer[i_part] * (1.0 - f_part) + self.delay_buffer[next_i] * f_part;
+        let delayed_sample = self.delay_buffer[i_part] * (1.0 - f_part) + self.delay_buffer[next_i] * f_part;
 
         // 4. THE SECRET SAUCE: The Low-Pass Filter
         // This stops the "robotic" high-end buildup.
         // It smooths the delayed signal before it goes back into the buffer.
-        let filtered_feedback = (delayed_sample * 0.7) + (self.last_feedback_output * 0.3);
+        let filtered_feedback = (delayed_sample * 0.3) + (self.last_feedback_output * 0.7);
         self.last_feedback_output = filtered_feedback;
 
         // 5. Write to buffer with filtered feedback

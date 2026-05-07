@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 fn default_ir_file_path() -> String {
-    "reverb_oxford_lean.wav".to_string()
+    "Reverb-oxford-lean.wav".to_string()
 }
 
 /// Data Transfer Object for the placeholder cabinet effect.

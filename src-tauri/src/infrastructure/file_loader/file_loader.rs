@@ -1,5 +1,6 @@
 use crate::infrastructure::file_loader::file_loader_trait::FileLoaderTrait;
 use hound::{SampleFormat, WavReader};
+use std::fs;
 use std::path::Path;
 use tracing::{info, warn};
 
@@ -75,6 +76,28 @@ impl FileLoaderTrait for FileLoader {
                 Vec::new()
             }
         }
+    }
+
+    fn list_ir_profile_file_names(&self, directory: &Path) -> Result<Vec<String>, String> {
+        let entries = fs::read_dir(directory)
+            .map_err(|e| format!("Failed to read directory '{}': {e}", directory.display()))?;
+
+        let mut names: Vec<String> = entries
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| {
+                let path = entry.path();
+                if !path.is_file() {
+                    return None;
+                }
+
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.to_string())
+            })
+            .collect();
+
+        names.sort();
+        Ok(names)
     }
 }
 

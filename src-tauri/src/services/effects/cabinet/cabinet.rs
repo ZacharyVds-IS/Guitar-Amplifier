@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 
 /// Default cabinet impulse-response WAV file loaded at effect startup.
-const DEFAULT_IR_FILE: &str = "100literwinetank-ir.wav";
+const DEFAULT_IR_FILE: &str = "Info-Support-halway.wav";
 /// Chunk size used by IR resampling during initialization.
 const IR_RESAMPLER_CHUNK_SIZE: usize = 256;
 /// Number of input samples collected before one FFT convolution pass.

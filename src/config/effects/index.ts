@@ -1,5 +1,6 @@
 import {CabinetDto, type EffectDto, HcDistortionDto} from "../../domain";
-import {EffectKind} from "../../components/dialogs/AddEffectDialog.tsx";
+
+export type EffectKind = EffectDto["kind"];
 
 type EffectFactoryMap = {
     [K in EffectKind]: (params: { name: string; color: string }) => Extract<EffectDto, { kind: K }>["data"];
@@ -9,6 +10,9 @@ export const EFFECT_METADATA: Record<EffectKind, { label: string }> = {
     HCDistortion: {label: "Hard-Clipping Distortion"},
     Cabinet: {label:"Cabinet Simulation"}
 };
+
+export const CABINET_CUSTOM_IR_VALUE = "__CUSTOM_FILE__";
+
 
 export const EFFECT_FACTORIES: EffectFactoryMap = {
     HCDistortion: ({ name, color }): HcDistortionDto => ({

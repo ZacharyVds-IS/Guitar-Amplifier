@@ -1,8 +1,16 @@
-import {Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField} from "@mui/material";
-import {DropdownSelector} from "../selection/DropdownSelector.tsx";
-import {type EffectDto} from "../../domain";
-import {useState} from "react";
-import {EFFECT_FACTORIES, EFFECT_METADATA} from "../../config/effects";
+import {Button, Dialog, DialogActions, DialogContent, DialogTitle} from "@mui/material";
+import {type EffectDto, getAllIrProfiles} from "../../domain";
+import {useEffect, useState} from "react";
+import {CABINET_CUSTOM_IR_VALUE, EFFECT_FACTORIES, type EffectKind} from "../../config/effects";
+import {useForm} from "react-hook-form";
+import {zodResolver} from "@hookform/resolvers/zod";
+import {
+    type AddEffectFormValues,
+    addEffectSchema,
+    DEFAULT_ADD_EFFECT_FORM_VALUES,
+    isEffectKind,
+} from "../../config/schemas/addEffectSchema";
+import {AddEffectFormFields} from "../forms/AddEffectFormFields.tsx";
 
 interface AddEffectDialogProps {
     open: boolean;
@@ -10,78 +18,110 @@ interface AddEffectDialogProps {
     onCreate: (effect: EffectDto) => void;
 }
 
-export type EffectKind = EffectDto["kind"];
-
-export const EFFECT_OPTIONS = Object.entries(EFFECT_METADATA).map(([kind, meta]) => ({
-    label: meta.label,
-    value: kind as EffectKind,
-}));
-
 export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps) {
-    const [selectedEffect, setSelectedEffect] = useState<EffectKind | "">("");
-    const [name, setName] = useState("");
-    const [color, setColor] = useState("#ff4400");
+    const [cabinetIrOptions, setCabinetIrOptions] = useState<{ label: string; value: string }[]>([
+        {label: "Custom IR file", value: CABINET_CUSTOM_IR_VALUE},
+    ]);
 
-    const handleSelection = (value: string | number) => {
-        setSelectedEffect(value as EffectKind);
-        console.log("Selected kind:", value);
+    const {control, register, handleSubmit, reset, formState: {errors, isValid},} = useForm<AddEffectFormValues>({
+        resolver: zodResolver(addEffectSchema),
+        mode: "onChange",
+        defaultValues: DEFAULT_ADD_EFFECT_FORM_VALUES,
+    });
+
+    useEffect(() => {
+        if (!open) {
+            reset(DEFAULT_ADD_EFFECT_FORM_VALUES);
+        }
+    }, [open, reset]);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        let active = true;
+
+        const loadIrProfiles = async () => {
+            try {
+                const profiles = await getAllIrProfiles();
+                if (!active) {
+                    return;
+                }
+
+                const dynamicOptions = profiles.map((profile) => ({
+                    label: profile,
+                    value: profile,
+                }));
+
+                setCabinetIrOptions([
+                    ...dynamicOptions,
+                    {label: "Custom IR file", value: CABINET_CUSTOM_IR_VALUE},
+                ]);
+            } catch (error) {
+                console.error("Failed to load cabinet IR profiles:", error);
+                if (active) {
+                    setCabinetIrOptions([{label: "Custom IR file", value: CABINET_CUSTOM_IR_VALUE}]);
+                }
+            }
+        };
+
+        loadIrProfiles();
+
+        return () => {
+            active = false;
+        };
+    }, [open]);
+
+    const handleDialogClose = () => {
+        reset(DEFAULT_ADD_EFFECT_FORM_VALUES);
+        onClose();
     };
 
-    const handleCreate = () => {
-        if (selectedEffect && name) {
-            const defaultData = EFFECT_FACTORIES[selectedEffect]({
-                name: name,
-                color: color,
-            });
-
-            const fullDto: EffectDto = {
-                kind: selectedEffect,
-                data: defaultData
-            } as EffectDto;
-
-            onCreate(fullDto);
-            onClose();
+    const handleCreate = (values: AddEffectFormValues) => {
+        if (!isEffectKind(values.selectedEffect)) {
+            return;
         }
+
+        const effectKind: EffectKind = values.selectedEffect;
+        const defaultData = EFFECT_FACTORIES[effectKind]({
+            name: values.name.trim(),
+            color: values.color,
+        });
+
+        const fullDto: EffectDto = {
+            kind: effectKind,
+            data: defaultData
+        } as EffectDto;
+
+        onCreate(fullDto);
+        handleDialogClose();
     };
 
     return (
         <Dialog
             open={open}
-            onClose={onClose}
+            onClose={handleDialogClose}
             fullWidth
             maxWidth="sm"
         >
             <DialogTitle>New Effect</DialogTitle>
 
             <DialogContent>
-                <Stack direction="column" spacing={2} sx={{paddingY: 2}}>
-                    <DropdownSelector label={"Effect Type"} options={EFFECT_OPTIONS} selectedValue={selectedEffect}
-                                      onSelectionChange={handleSelection}/>
-                    <Stack direction="row" spacing={2}>
-                        <TextField
-                            label="Name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            sx={{ width: 450 }}
-                            slotProps={{ htmlInput: { maxLength: 15 } }}
-                        />
-                        <TextField
-                            type="color"
-                            label="Color"
-                            value={color}
-                            onChange={(e) => setColor(e.target.value)}
-                            sx={{ width: 100 }}
-                        />
-                    </Stack>
-                </Stack>
+                <AddEffectFormFields
+                    control={control}
+                    register={register}
+                    errors={errors}
+                    cabinetIrOptions={cabinetIrOptions}
+                />
             </DialogContent>
 
             <DialogActions>
-                <Button onClick={onClose}>Cancel</Button>
+                <Button onClick={handleDialogClose}>Cancel</Button>
                 <Button
                     variant="contained"
-                    disabled={!selectedEffect || !name}
-                    onClick={handleCreate}
+                    disabled={!isValid}
+                    onClick={handleSubmit(handleCreate)}
                 >
                     Create
                 </Button>

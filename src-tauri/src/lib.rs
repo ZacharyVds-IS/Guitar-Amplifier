@@ -8,14 +8,18 @@ pub mod tests;
 
 use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
 use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_tone_stack, set_treble, set_volume, toggle_on_off};
-use crate::commands::effects::{add_effect, apply_effect_order_change, remove_effect, set_hc_distortion_level, set_hc_distortion_threshold, toggle_effect};
+use crate::commands::effect_commands::cabinet_ir::get_all_ir_profiles;
+use crate::commands::effect_commands::hc_distortion::{set_hc_distortion_level, set_hc_distortion_threshold};
 use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames, set_input_device, set_output_device};
+use crate::infrastructure::file_loader::FileLoader;
 use crate::infrastructure::persistence::json_amp_config_repository::JsonFileAmpConfigRepository;
 use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
+use crate::services::file_service::FileService;
+use commands::effect_commands::effects::{add_effect, apply_effect_order_change, remove_effect, toggle_effect};
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{BufferSize, StreamConfig};
@@ -149,6 +153,15 @@ pub fn run() {
                 }
             }
 
+            let resource_root = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
+            info!("Using resource root: {}", resource_root.display());
+
+            let file_service = FileService::new(Box::new(FileLoader::new()), resource_root);
+            app.manage(file_service);
+
             app.manage(Mutex::new(amp_config_persistence_service));
             Ok(())
         })
@@ -185,6 +198,7 @@ pub fn run() {
             add_effect,
             remove_effect,
             apply_effect_order_change,
+            get_all_ir_profiles,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

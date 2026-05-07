@@ -55,6 +55,9 @@ impl Delay {
         instance
     }
 
+    ///Calculates delay in samples with the given delay time and sample rate.
+    ///
+    /// This also sets the delay in samples to the calculated value
     fn calc_delay_in_samples(&mut self) {
         self.delay_in_samples = (self.delay_time.load(Ordering::Relaxed) as f32
             * self.sample_rate as f32
@@ -83,16 +86,24 @@ impl Delay {
     }
 
     // SETTERS
+    /// Sets the delay time (ms) to the new value clamped between [20,800]
+    ///
+    /// Calls `Delay::calc_delay_in_samples` to recalculate the delay in samples
     pub fn set_delay_time(&mut self, delay_time: u32) {
         self.delay_time
             .store(delay_time.clamp(20, 800), Ordering::Relaxed);
         self.calc_delay_in_samples()
     }
 
+    /// Sets the level to the new value clamped between [0.0,0.95]
     pub fn set_level(&mut self, level: f32) {
         self.level.store(level.clamp(0.0, 0.95), Ordering::Relaxed);
     }
 
+    /// Sets the sample rate (Hz) to the new value
+    ///
+    /// Calls `Delay::calc_delay_in_samples` to recalculate the delay in samples and
+    /// resizes the delay_buffer to accommodate for the new sample rate
     pub fn set_sample_rate(&mut self, sample_rate: u32) {
         self.sample_rate = sample_rate;
         let max_samples = (300.0 * sample_rate as f32 / 1000.0) as usize;

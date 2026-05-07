@@ -258,7 +258,6 @@ impl AudioService {
             let _ = handle.join();
         }
 
-
         self.is_active = false;
     }
 
@@ -664,7 +663,7 @@ mod tests {
 
         #[test]
         fn apply_amp_config_restores_channels_tones_effects_and_master_volume() {
-            let mut service = build_service(MockAudioHandlerTrait::new());
+            let mut service = build_service(make_mock_handler());
             let config = AmpConfigDto {
                 master_volume: 0.42,
                 is_active: false,

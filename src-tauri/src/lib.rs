@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod config;
 pub mod domain;
 pub mod infrastructure;
 pub mod services;
@@ -13,6 +14,7 @@ use crate::commands::effect_commands::hc_distortion::{set_hc_distortion_level, s
 use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
 use crate::commands::loopback::start_loopback;
 use crate::commands::settings::{get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames, set_input_device, set_output_device};
+use crate::config::{get_default_ir_file, init_tracing};
 use crate::infrastructure::file_loader::FileLoader;
 use crate::infrastructure::persistence::json_amp_config_repository::JsonFileAmpConfigRepository;
 use crate::services::amp_config_service::AmpConfigPersistenceService;
@@ -32,11 +34,7 @@ const AMP_CONFIG_FILE_NAME: &str = "amp-config.json";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    init_tracing();
 
     let host = default_host();
     let input = host.default_input_device().unwrap();
@@ -174,6 +172,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            get_default_ir_file,
             start_loopback,
             set_gain,
             get_input_device_list,

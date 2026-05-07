@@ -16,6 +16,36 @@ impl FileLoader {
     pub fn new() -> Self {
         Self
     }
+
+    /// Downmixes a multi-channel interleaved buffer to mono by averaging channels.
+    ///
+    /// For mono input (`channels == 1`), returns the buffer unchanged.
+    /// For stereo and multi-channel input, groups samples by channel count and
+    /// averages them into a single mono stream.
+    ///
+    /// # Example
+    /// ```text
+    /// channels = 2, buffer = [L0, R0, L1, R1, L2, R2]
+    /// → [(L0 + R0)/2, (L1 + R1)/2, (L2 + R2)/2]
+    /// ```
+    fn downmix_to_mono(buffer: Vec<f32>, channels: u16) -> Vec<f32> {
+        if channels == 1 {
+            return buffer;
+        }
+
+        let channels = channels as usize;
+        let frame_count = buffer.len() / channels;
+        let mut mono = Vec::with_capacity(frame_count);
+
+        for frame_index in 0..frame_count {
+            let start = frame_index * channels;
+            let end = start + channels;
+            let frame_sum: f32 = buffer[start..end].iter().sum();
+            mono.push(frame_sum / channels as f32);
+        }
+
+        mono
+    }
 }
 
 impl FileLoaderTrait for FileLoader {
@@ -33,14 +63,15 @@ impl FileLoaderTrait for FileLoader {
                     SampleFormat::Float => {
                         match reader.samples::<f32>().collect::<Result<Vec<_>, _>>() {
                             Ok(buffer) => {
+                                let mono = Self::downmix_to_mono(buffer, spec.channels);
                                 info!(
-                                    "Loaded IR '{}' (channels={}, sample_rate={}, samples={})",
+                                    "Loaded IR '{}' (channels={}, sample_rate={}, mono_samples={})",
                                     path.display(),
                                     spec.channels,
                                     spec.sample_rate,
-                                    buffer.len()
+                                    mono.len()
                                 );
-                                buffer
+                                mono
                             }
                             Err(e) => {
                                 warn!(
@@ -59,14 +90,15 @@ impl FileLoaderTrait for FileLoader {
                             .collect::<Result<Vec<_>, _>>()
                         {
                             Ok(buffer) => {
+                                let mono = Self::downmix_to_mono(buffer, spec.channels);
                                 info!(
-                                    "Loaded IR '{}' (channels={}, sample_rate={}, samples={})",
+                                    "Loaded IR '{}' (channels={}, sample_rate={}, mono_samples={})",
                                     path.display(),
                                     spec.channels,
                                     spec.sample_rate,
-                                    buffer.len()
+                                    mono.len()
                                 );
-                                buffer
+                                mono
                             }
                             Err(e) => {
                                 warn!("Failed to read int samples from '{}': {e}", path.display());
@@ -230,6 +262,21 @@ mod tests {
         writer.finalize().expect("wav writer should finalize");
     }
 
+    fn write_stereo_wav_file(path: &Path, samples: &[f32], sample_rate: u32) {
+        let spec = WavSpec {
+            channels: 2,
+            sample_rate,
+            bits_per_sample: 32,
+            sample_format: SampleFormat::Float,
+        };
+
+        let mut writer = WavWriter::create(path, spec).expect("stereo wav file should be creatable");
+        for sample in samples {
+            writer.write_sample(*sample).expect("sample should be writable");
+        }
+        writer.finalize().expect("wav writer should finalize");
+    }
+
     fn float_wav_bytes(samples: &[f32]) -> Vec<u8> {
         let dir = unique_test_dir();
         fs::create_dir_all(&dir).expect("test directory should be creatable");
@@ -252,6 +299,7 @@ mod tests {
 
             write_float_wav_file(&dir.join("z-room.wav"), &[0.5, 0.0], 48_000);
             write_float_wav_file(&dir.join("A-clean.WAV"), &[0.5, 0.0], 48_000);
+            // Subdirectory WAVs and non-WAV files should be silently ignored
             write_float_wav_file(&dir.join("nested").join("ignored.wav"), &[0.5, 0.0], 48_000);
             fs::write(dir.join("notes.txt"), b"not a wav").expect("text file should be writable");
 
@@ -293,6 +341,28 @@ mod tests {
             loader
                 .validate_ir_wav_bytes("cab.wav", &bytes, 1e-6)
                 .expect("impulse IR should validate");
+        }
+
+        #[test]
+        fn read_wav_to_buffer_downmixes_stereo_to_mono() {
+            let loader = FileLoader::new();
+            let dir = unique_test_dir();
+            fs::create_dir_all(&dir).expect("test directory should be creatable");
+            let path = dir.join("stereo-ir.wav");
+
+            // Interleaved stereo: [L0, R0, L1, R1, L2, R2]
+            let stereo_samples = [0.8_f32, 0.4_f32, 0.6_f32, 0.2_f32, 1.0_f32, 0.0_f32];
+            write_stereo_wav_file(&path, &stereo_samples, 48_000);
+
+            let mono = loader.read_wav_to_buffer(&path);
+
+            // Expected downmix: [(0.8+0.4)/2, (0.6+0.2)/2, (1.0+0.0)/2] = [0.6, 0.4, 0.5]
+            assert_eq!(mono.len(), 3);
+            assert!((mono[0] - 0.6).abs() < 1e-6);
+            assert!((mono[1] - 0.4).abs() < 1e-6);
+            assert!((mono[2] - 0.5).abs() < 1e-6);
+
+            let _ = fs::remove_dir_all(dir);
         }
     }
 

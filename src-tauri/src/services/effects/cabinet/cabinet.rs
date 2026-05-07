@@ -1,3 +1,4 @@
+use crate::config::DEFAULT_IR_FILE;
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::dto::effect::cabinet_dto::CabinetDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
@@ -12,8 +13,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::{info, warn};
 
-/// Default cabinet impulse-response WAV file loaded when no explicit profile is supplied.
-const DEFAULT_IR_FILE: &str = "Vox-ac30.wav";
 const CUSTOM_IR_ENV_KEY: &str = "RUSTRIFF_CUSTOM_IR_DIR";
 /// Chunk size used by IR resampling during initialization.
 const IR_RESAMPLER_CHUNK_SIZE: usize = 256;

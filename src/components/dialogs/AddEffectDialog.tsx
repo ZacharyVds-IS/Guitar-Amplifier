@@ -1,5 +1,5 @@
 import {Button, Dialog, DialogActions, DialogContent, DialogTitle} from "@mui/material";
-import {type EffectDto, getAllIrProfiles, removeIrProfile, uploadIrProfile} from "../../domain";
+import {type EffectDto, getAllIrProfiles, type IrProfileDto, removeIrProfile, uploadIrProfile} from "../../domain";
 import {useEffect, useState} from "react";
 import {
     CABINET_CUSTOM_IR_VALUE,
@@ -24,12 +24,7 @@ interface AddEffectDialogProps {
 }
 
 export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps) {
-    const [cabinetIrProfiles, setCabinetIrProfiles] = useState<{
-        file_name: string;
-        label: string;
-        is_custom: boolean;
-        is_in_use: boolean;
-    }[]>([]);
+    const [cabinetIrProfiles, setCabinetIrProfiles] = useState<IrProfileDto[]>([]);
     const [cabinetIrActionError, setCabinetIrActionError] = useState("");
 
     const {

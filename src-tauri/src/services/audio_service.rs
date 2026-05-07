@@ -899,7 +899,7 @@ mod tests {
         fn add_channel_should_panic_with_to_long_name() {
             let mock = MockAudioHandlerTrait::new();
             let mut service = AudioService::new_with_handler(Arc::new(mock));
-            let test_channel =
+            let _test_channel =
                 service.add_channel("Hippopotomonstrosesquippedaliophobia".to_string());
         }
     }

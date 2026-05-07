@@ -1,8 +1,9 @@
+use crate::config::DEFAULT_IR_FILE;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 fn default_ir_file_path() -> String {
-    "Vox-ac30.wav".to_string()
+    DEFAULT_IR_FILE.to_string()
 }
 
 /// Data Transfer Object for the placeholder cabinet effect.

@@ -1,12 +1,11 @@
-import {CabinetDto, type EffectDto, HcDistortionDto} from "../../domain";
+import {CabinetDto, type EffectDto, getDefaultIrFile, HcDistortionDto} from "../../domain";
 
 export type EffectKind = EffectDto["kind"];
 
 type EffectFactoryMap = {
     [K in EffectKind]: (params: { name: string; color: string; cabinetIrFilePath?: string }) => Extract<EffectDto, { kind: K }>['data'];
 };
-
-export const DEFAULT_CABINET_IR_FILE = "info-support-halway.wav";
+export const DEFAULT_CABINET_IR_FILE = await getDefaultIrFile();
 
 export const EFFECT_METADATA: Record<EffectKind, { label: string }> = {
     HCDistortion: {label: "Hard-Clipping Distortion"},
@@ -18,7 +17,7 @@ export const CABINET_CUSTOM_IR_VALUE = "__CUSTOM_FILE__";
 
 export const EFFECT_FACTORIES: EffectFactoryMap = {
     HCDistortion: ({ name, color }): HcDistortionDto => ({
-        id: 0, // Is set to the correct value in the backend
+        id: 0,
         name,
         color,
         is_active: false,

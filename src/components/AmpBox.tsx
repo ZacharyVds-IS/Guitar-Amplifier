@@ -69,35 +69,35 @@ export function AmpBox({
                                 disabled
                             />
                             <Knob
-                                key={"placeholder-1"}
+                                key={"placeholder-2"}
                                 label={""}
                                 value={0}
                                 size={6}
                                 disabled
                             />
                             <Knob
-                                key={"placeholder-1"}
+                                key={"placeholder-3"}
                                 label={""}
                                 value={0}
                                 size={6}
                                 disabled
                             />
                             <Knob
-                                key={"placeholder-1"}
+                                key={"placeholder-4"}
                                 label={""}
                                 value={0}
                                 size={6}
                                 disabled
                             />
                             <Knob
-                                key={"placeholder-1"}
+                                key={"placeholder-5"}
                                 label={""}
                                 value={0}
                                 size={6}
                                 disabled
                             />
                             <Knob
-                                key={"placeholder-1"}
+                                key={"placeholder-6"}
                                 label={""}
                                 value={0}
                                 size={6}

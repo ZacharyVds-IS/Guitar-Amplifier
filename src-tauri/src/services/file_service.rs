@@ -241,13 +241,14 @@ fn sanitize_wav_file_name(file_name: &str) -> Result<String, String> {
 
 /// Converts a `.wav` filename into a human-readable label for display in the UI.
 /// Transformations applied:
-/// - trailing `.wav` / `.WAV` extension stripped,
+/// - file extension stripped (using `file_stem()`, handles any capitalization),
 /// - hyphens (`-`) and underscores (`_`) replaced with spaces.
 /// Example: `"vintage-4x12_cab.wav"` → `"vintage 4x12 cab"`.
 fn to_readable_label(file_name: &str) -> String {
-    file_name
-        .trim_end_matches(".wav")
-        .trim_end_matches(".WAV")
+    std::path::Path::new(file_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(file_name)
         .replace(['-', '_'], " ")
 }
 

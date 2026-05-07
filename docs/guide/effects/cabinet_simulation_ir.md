@@ -1,11 +1,11 @@
 # Cabinet Simulation (Impulse Response)
 Impulse Response (IR) is a digital snapshot of how a speaker's cabinet, room or space responds to sound.
 
-In simple terms: If I record sound in my bathroom and make someone gues what room I was in, most people will gues the bathroom correctly.
+In simple terms: If I record sound in my bathroom and make someone guess what room I was in, most people will gues the bathroom correctly.
 This is because they recognize the impulse response of this room.
 
 ## IR in digital signal processing.
-An impulse response is typically shipped in a .wav file and contains a simple snapshot of a speakers cabinets.
+An impulse response is typically shipped in a .wav file and contains a simple snapshot of a speaker cabinets.
 Once we read that file in we will find a simple audio buffer containing values.
 
 Contents of a IR file look something like this:
@@ -35,7 +35,7 @@ h[k]: The k-th value of the IR buffer.
 
 ### Limitations of Convolution
 The above example works fine with small buffers. But in DSP IR buffers easily go up to 2048 and more.
-This maps to a verry cpu intensive operation.
+This maps to a very CPU intensive operation.
 
 ### A solution to this problem
 To solve this problem we can make use of Fast Fourier Transform (FFT).
@@ -56,6 +56,6 @@ Simply put this means that instead of the complex sliding and summing math. We c
 | FFT-based Convolution | O(N log N) | Long IRs (256 samples and above) | Higher (due to block processing) |
 
 ## Conclusion
-In modern audio engineering, Impulse Response are the gold standard for capturing the soul of hardware. Whether it's the woody resonance of a vintage 4X12 cab or the lush reflectiosn of a stone cathedral, IRs allow us to transport those physical spaces into our workstations.
+In modern audio engineering, Impulse Response are the gold standard for capturing the soul of hardware. Whether it's the woody resonance of a vintage 4X12 cab or the lush reflections of a stone cathedral, IRs allow us to transport those physical spaces into our workstations.
 
 The "sliding math" of Time-Domain Convolution is conceptually simple and perfect for low-latency tasks, the FFT is what makes professional cabinet simulation viable, allowing us to process complex, high-resolution snapshots without crushing the CPU.

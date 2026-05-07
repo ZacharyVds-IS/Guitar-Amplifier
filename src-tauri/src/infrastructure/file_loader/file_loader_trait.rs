@@ -18,8 +18,13 @@ pub trait FileLoaderTrait: Send + Sync {
 
     /// Decodes a WAV file into a flat mono `f32` sample buffer.
     ///
-    /// Integer samples are normalized to `[-1.0, 1.0]` using the full integer
-    /// range determined by `bits_per_sample`.
+    /// **Multi-channel handling**: Stereo and multi-channel WAV files are
+    /// automatically downmixed to mono by averaging all channels in each frame.
+    /// For example, a stereo file with interleaved `[L0, R0, L1, R1]` samples
+    /// produces `[(L0+R0)/2, (L1+R1)/2]`.
+    ///
+    /// **Normalization**: Integer samples are normalized to `[-1.0, 1.0]` using
+    /// the full integer range determined by `bits_per_sample`.
     ///
     /// Returns an empty `Vec` and logs a warning on any I/O or parse error so
     /// that the caller can fall back to passthrough rather than panicking.

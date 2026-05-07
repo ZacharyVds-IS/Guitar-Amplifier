@@ -72,6 +72,7 @@ export function CabinetEffect({ effect, onToggle }: CabinetEffectProps) {
                     }}
                 >
                     <Box
+                        component={"button"}
                         onClick={handlePowerToggle}
                         sx={{
                             width: 10,
@@ -81,6 +82,11 @@ export function CabinetEffect({ effect, onToggle }: CabinetEffectProps) {
                             boxShadow: isActive ? "0 0 6px #00ff00" : "0 0 6px #ff0000",
                             border: "1px solid rgba(0,0,0,0.3)",
                             cursor: "pointer",
+                            padding: 0,
+                            minWidth: 0,
+                            lineHeight: 0,
+                            display: "block",
+                            flexShrink: 0,
                         }}
                     />
                 </Box>

@@ -1,5 +1,7 @@
+use crate::domain::dto::effect::delay_dto::DelayDto;
 use crate::domain::dto::effect::hcdistortion_dto::HcDistortionDto;
 use crate::domain::effect::Effect;
+use crate::services::effects::delay::delay::Delay;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use serde::{Deserialize, Serialize};
 
@@ -12,10 +14,11 @@ use serde::{Deserialize, Serialize};
 pub enum EffectDto {
     /// Hard-clipping distortion effect.
     HCDistortion(HcDistortionDto),
+    Delay(DelayDto)
 }
 
 impl EffectDto {
-    pub fn add_to_domain(self, next_effect_id: u32) -> Box<dyn Effect> {
+    pub fn add_to_domain(self, next_effect_id: u32, sample_rate: u32) -> Box<dyn Effect> {
         match self { 
             EffectDto::HCDistortion(dto) => Box::new(HCDistortion::new(
                 next_effect_id,
@@ -25,10 +28,19 @@ impl EffectDto {
                 dto.level,
                 dto.color,
             )),
+            EffectDto::Delay(dto) => Box::new(Delay::new(
+                next_effect_id,
+                dto.name,
+                dto.is_active,
+                dto.color,
+                sample_rate,
+                20,
+                0.95
+            ))
         }
     }
 
-    pub fn to_domain(self) -> Box<dyn Effect> {
+    pub fn to_domain(self, sample_rate: u32) -> Box<dyn Effect> {
         match self {
             EffectDto::HCDistortion(dto) => Box::new(HCDistortion::new(
                 dto.id,
@@ -38,6 +50,15 @@ impl EffectDto {
                 dto.level,
                 dto.color,
             )),
+            EffectDto::Delay(dto) => Box::new(Delay::new(
+                dto.id,
+                dto.name,
+                dto.is_active,
+                dto.color,
+                sample_rate,
+                dto.delay_time,
+                dto.level,
+            ))
         }
     }
 }

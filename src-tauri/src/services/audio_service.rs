@@ -3,6 +3,7 @@ use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::effects::delay::delay::Delay;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
@@ -52,6 +53,14 @@ pub struct AudioService {
 }
 
 impl AudioService {
+    /// Returns the sample rate at which the DSP chain effectively runs.
+    ///
+    /// With current resampling policy, DSP executes at the lower of input/output rates.
+    pub fn dsp_chain_sample_rate(&self) -> u32 {
+        self.audio_handler
+            .input_sample_rate()
+            .min(self.audio_handler.output_sample_rate())
+    }
     /// Creates a new `AudioService` using the provided CPAL input/output devices and stream config.
     ///
     /// An [`AudioHandler`] is constructed internally from the given parameters.
@@ -501,17 +510,7 @@ impl AudioService {
             let restored_effects = channel_dto
                 .effect_chain
                 .into_iter()
-                .map(|effect| match effect {
-                    EffectDto::HCDistortion(distortion) => Box::new(HCDistortion::new(
-                        distortion.id,
-                        distortion.name,
-                        distortion.is_active,
-                        distortion.threshold,
-                        distortion.level,
-                        distortion.color,
-                    ))
-                        as Box<dyn crate::domain::effect::Effect>,
-                })
+                .map(|effect_dto: EffectDto| effect_dto.to_domain(self.dsp_chain_sample_rate()))
                 .collect::<Vec<_>>();
 
             if !restored_effects.is_empty() {

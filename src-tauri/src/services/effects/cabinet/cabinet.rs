@@ -14,6 +14,7 @@ use tracing::{info, warn};
 
 /// Default cabinet impulse-response WAV file loaded when no explicit profile is supplied.
 const DEFAULT_IR_FILE: &str = "info-support-halway.wav";
+const CUSTOM_IR_ENV_KEY: &str = "RUSTRIFF_CUSTOM_IR_DIR";
 /// Chunk size used by IR resampling during initialization.
 const IR_RESAMPLER_CHUNK_SIZE: usize = 256;
 /// Number of input samples collected before one FFT convolution pass.
@@ -85,10 +86,17 @@ impl Cabinet {
             ir_file_path
         };
 
-        let temp_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources")
-            .join("default_ir")
-            .join(&selected_ir_file);
+        let temp_file_path = Self::resolve_ir_file_path(&selected_ir_file)
+            .unwrap_or_else(|| {
+                warn!(
+                    "Could not resolve IR '{}' in known directories. Falling back to default location.",
+                    selected_ir_file
+                );
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("resources")
+                    .join("default_ir")
+                    .join(&selected_ir_file)
+            });
 
         let ir_buffer = file_loader.read_wav_to_buffer(&temp_file_path);
         let ir_sample_rate = file_loader
@@ -169,6 +177,29 @@ impl Cabinet {
         let forward = planner.plan_fft_forward(fft_size);
         let inverse = planner.plan_fft_inverse(fft_size);
         (forward, inverse)
+    }
+
+    fn resolve_ir_file_path(file_name: &str) -> Option<PathBuf> {
+        let mut candidates = Vec::new();
+
+        if let Ok(custom_dir) = std::env::var(CUSTOM_IR_ENV_KEY) {
+            candidates.push(PathBuf::from(custom_dir).join(file_name));
+        }
+
+        candidates.push(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("resources")
+                .join("default_ir")
+                .join(file_name),
+        );
+
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                candidates.push(exe_dir.join("resources").join("default_ir").join(file_name));
+            }
+        }
+
+        candidates.into_iter().find(|path| path.is_file())
     }
 
     /// Converts the time-domain IR into a frequency-domain convolution kernel.

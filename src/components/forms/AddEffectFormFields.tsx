@@ -1,4 +1,4 @@
-import {Stack, TextField, Typography} from "@mui/material";
+import {Button, Stack, TextField, Typography} from "@mui/material";
 import {DropdownSelector} from "../selection/DropdownSelector.tsx";
 import {CABINET_CUSTOM_IR_VALUE, EFFECT_METADATA} from "../../config/effects";
 import {type Control, Controller, type FieldErrors, type UseFormRegister, useWatch} from "react-hook-form";
@@ -14,9 +14,22 @@ interface AddEffectFormFieldsProps {
     register: UseFormRegister<AddEffectFormValues>;
     errors: FieldErrors<AddEffectFormValues>;
     cabinetIrOptions: { label: string; value: string }[];
+    canRemoveSelectedCabinetIr: boolean;
+    selectedCabinetIrIsInUse: boolean;
+    onRemoveSelectedCabinetIr: () => void;
+    cabinetIrActionError?: string;
 }
 
-export function AddEffectFormFields({control, register, errors, cabinetIrOptions}: AddEffectFormFieldsProps) {
+export function AddEffectFormFields({
+    control,
+    register,
+    errors,
+    cabinetIrOptions,
+    canRemoveSelectedCabinetIr,
+    selectedCabinetIrIsInUse,
+    onRemoveSelectedCabinetIr,
+    cabinetIrActionError,
+}: AddEffectFormFieldsProps) {
     const selectedEffect = useWatch({control, name: "selectedEffect"});
     const selectedCabinetIr = useWatch({control, name: "cabinetIrChoice"});
     const isCabinetSelected = selectedEffect === "Cabinet";
@@ -91,11 +104,35 @@ export function AddEffectFormFields({control, register, errors, cabinetIrOptions
                             {...register("customCabinetIrFile")}
                             slotProps={{
                                 inputLabel: {shrink: true},
-                                htmlInput: {accept: ".wav,.aif,.aiff,.flac"},
+                                htmlInput: {accept: ".wav"},
                             }}
                             error={Boolean(errors.customCabinetIrFile)}
                             helperText={errors.customCabinetIrFile?.message?.toString()}
                         />
+                    )}
+
+                    {!isCustomCabinetIr && selectedCabinetIr && (
+                        <>
+                            <Button
+                                variant="outlined"
+                                color="error"
+                                disabled={!canRemoveSelectedCabinetIr}
+                                onClick={onRemoveSelectedCabinetIr}
+                            >
+                                Remove selected IR profile
+                            </Button>
+                            {selectedCabinetIrIsInUse && (
+                                <Typography variant="caption" color="text.secondary">
+                                    This IR is currently used in an effect chain and cannot be removed.
+                                </Typography>
+                            )}
+                        </>
+                    )}
+
+                    {cabinetIrActionError && (
+                        <Typography variant="caption" color="error">
+                            {cabinetIrActionError}
+                        </Typography>
                     )}
                 </>
             )}

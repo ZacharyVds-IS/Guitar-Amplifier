@@ -47,6 +47,16 @@ export const addEffectSchema = z.object({
                 path: ["customCabinetIrFile"],
                 message: "Please choose an IR file",
             });
+            return;
+        }
+
+        const fileName = values.customCabinetIrFile[0]?.name ?? "";
+        if (!fileName.toLowerCase().endsWith(".wav")) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["customCabinetIrFile"],
+                message: "Only .wav IR files are supported",
+            });
         }
     }
 });

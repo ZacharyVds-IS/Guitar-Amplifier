@@ -8,7 +8,7 @@ pub mod tests;
 
 use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
 use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_tone_stack, set_treble, set_volume, toggle_on_off};
-use crate::commands::effect_commands::cabinet_ir::get_all_ir_profiles;
+use crate::commands::effect_commands::cabinet_ir::{get_all_ir_profiles, remove_ir_profile, upload_ir_profile};
 use crate::commands::effect_commands::hc_distortion::{set_hc_distortion_level, set_hc_distortion_threshold};
 use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
 use crate::commands::loopback::start_loopback;
@@ -159,7 +159,15 @@ pub fn run() {
                 .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
             info!("Using resource root: {}", resource_root.display());
 
-            let file_service = FileService::new(Box::new(FileLoader::new()), resource_root);
+            let custom_ir_directory = config_dir.join("default_ir_custom");
+            info!("Using custom IR directory: {}", custom_ir_directory.display());
+            std::env::set_var("RUSTRIFF_CUSTOM_IR_DIR", &custom_ir_directory);
+
+            let file_service = FileService::new(
+                Box::new(FileLoader::new()),
+                resource_root,
+                custom_ir_directory,
+            );
             app.manage(file_service);
 
             app.manage(Mutex::new(amp_config_persistence_service));
@@ -199,6 +207,8 @@ pub fn run() {
             remove_effect,
             apply_effect_order_change,
             get_all_ir_profiles,
+            upload_ir_profile,
+            remove_ir_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,5 @@
 use crate::infrastructure::file_loader::FileLoaderTrait;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tracing::{info, warn};
 
 const DEFAULT_IR_DIRECTORY_NAME: &str = "default_ir";
@@ -32,7 +32,6 @@ impl FileService {
 
         Ok(file_names
             .into_iter()
-            .map(|name| to_readable_profile_name(Path::new(&name)))
             .collect())
     }
 
@@ -70,14 +69,5 @@ impl FileService {
 
         Err(format!("Could not locate default IR directory. Searched: {searched}"))
     }
-}
-
-fn to_readable_profile_name(path: &Path) -> String {
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default();
-
-    stem.replace('-', " ")
 }
 

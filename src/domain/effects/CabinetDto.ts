@@ -19,4 +19,8 @@ is_active: boolean,
 /**
  * UI color for the pedal chassis. Hex string format: `"#rrggbb"`.
  */
-color: string, };
+color: string, 
+/**
+ * IR file name loaded from `resources/default_ir`.
+ */
+ir_file_path: string, };

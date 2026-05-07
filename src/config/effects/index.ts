@@ -3,8 +3,10 @@ import {CabinetDto, type EffectDto, HcDistortionDto} from "../../domain";
 export type EffectKind = EffectDto["kind"];
 
 type EffectFactoryMap = {
-    [K in EffectKind]: (params: { name: string; color: string }) => Extract<EffectDto, { kind: K }>["data"];
+    [K in EffectKind]: (params: { name: string; color: string; cabinetIrFilePath?: string }) => Extract<EffectDto, { kind: K }>['data'];
 };
+
+export const DEFAULT_CABINET_IR_FILE = "info-support-halway.wav";
 
 export const EFFECT_METADATA: Record<EffectKind, { label: string }> = {
     HCDistortion: {label: "Hard-Clipping Distortion"},
@@ -23,10 +25,11 @@ export const EFFECT_FACTORIES: EffectFactoryMap = {
         threshold: 1,
         level: 0,
     }),
-    Cabinet: ({name,color}): CabinetDto => ({
+    Cabinet: ({name,color,cabinetIrFilePath}): CabinetDto => ({
         id:0,
         name,
         color,
-        is_active:false
+        is_active:false,
+        ir_file_path: cabinetIrFilePath ?? DEFAULT_CABINET_IR_FILE,
     })
 };

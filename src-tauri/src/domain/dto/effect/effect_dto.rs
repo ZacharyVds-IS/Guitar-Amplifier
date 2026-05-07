@@ -34,6 +34,7 @@ impl EffectDto {
                 dto.name,
                 dto.is_active,
                 dto.color,
+                dto.ir_file_path,
                 dsp_sample_rate,
             )),
         }
@@ -54,6 +55,7 @@ impl EffectDto {
                 dto.name,
                 dto.is_active,
                 dto.color,
+                dto.ir_file_path,
                 dsp_sample_rate,
             )),
         }

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 fn default_ir_file_path() -> String {
-    "Reverb-oxford-lean.wav".to_string()
+    "info-support-halway.wav".to_string()
 }
 
 /// Data Transfer Object for the placeholder cabinet effect.
@@ -17,5 +17,8 @@ pub struct CabinetDto {
     pub is_active: bool,
     /// UI color for the pedal chassis. Hex string format: `"#rrggbb"`.
     pub color: String,
+    /// IR file name loaded from `resources/default_ir`.
+    #[serde(default = "default_ir_file_path")]
+    pub ir_file_path: String,
 }
 

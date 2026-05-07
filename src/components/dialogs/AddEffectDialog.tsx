@@ -1,7 +1,12 @@
 import {Button, Dialog, DialogActions, DialogContent, DialogTitle} from "@mui/material";
 import {type EffectDto, getAllIrProfiles} from "../../domain";
 import {useEffect, useState} from "react";
-import {CABINET_CUSTOM_IR_VALUE, EFFECT_FACTORIES, type EffectKind} from "../../config/effects";
+import {
+    CABINET_CUSTOM_IR_VALUE,
+    DEFAULT_CABINET_IR_FILE,
+    EFFECT_FACTORIES,
+    type EffectKind,
+} from "../../config/effects";
 import {useForm} from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {
@@ -50,7 +55,7 @@ export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps)
                 }
 
                 const dynamicOptions = profiles.map((profile) => ({
-                    label: profile,
+                    label: toReadableIrLabel(profile),
                     value: profile,
                 }));
 
@@ -84,9 +89,16 @@ export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps)
         }
 
         const effectKind: EffectKind = values.selectedEffect;
+
+        const selectedCabinetIrFile =
+            effectKind === "Cabinet" && values.cabinetIrChoice !== CABINET_CUSTOM_IR_VALUE
+                ? values.cabinetIrChoice
+                : DEFAULT_CABINET_IR_FILE;
+
         const defaultData = EFFECT_FACTORIES[effectKind]({
             name: values.name.trim(),
             color: values.color,
+            cabinetIrFilePath: selectedCabinetIrFile,
         });
 
         const fullDto: EffectDto = {
@@ -128,4 +140,11 @@ export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps)
             </DialogActions>
         </Dialog>
     );
+}
+
+function toReadableIrLabel(fileName: string): string {
+    return fileName
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[-_]+/g, " ")
+        .trim();
 }

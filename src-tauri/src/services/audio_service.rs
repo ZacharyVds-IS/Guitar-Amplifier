@@ -528,6 +528,7 @@ impl AudioService {
                             cabinet.name,
                             cabinet.is_active,
                             cabinet.color,
+                            cabinet.ir_file_path,
                             dsp_sample_rate,
                         ),
                     ) as Box<dyn crate::domain::effect::Effect>,

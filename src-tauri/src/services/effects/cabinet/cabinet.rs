@@ -12,8 +12,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tracing::{info, warn};
 
-/// Default cabinet impulse-response WAV file loaded at effect startup.
-const DEFAULT_IR_FILE: &str = "Info-Support-halway.wav";
+/// Default cabinet impulse-response WAV file loaded when no explicit profile is supplied.
+const DEFAULT_IR_FILE: &str = "info-support-halway.wav";
 /// Chunk size used by IR resampling during initialization.
 const IR_RESAMPLER_CHUNK_SIZE: usize = 256;
 /// Number of input samples collected before one FFT convolution pass.
@@ -45,6 +45,7 @@ pub struct Cabinet {
     name: String,
     is_active: Arc<AtomicBool>,
     color: String,
+    ir_file_path: String,
     ir_buffer: Vec<f32>,
     ir_fft_kernel: Vec<Complex<f32>>,
     ir_fft_size: usize,
@@ -72,14 +73,22 @@ impl Cabinet {
         name: String,
         is_active: bool,
         color: String,
+        ir_file_path: String,
         dsp_sample_rate: u32,
     ) -> Self {
         info!("init cabinet simulation");
         let file_loader = FileLoader::new();
+
+        let selected_ir_file = if ir_file_path.trim().is_empty() {
+            DEFAULT_IR_FILE.to_string()
+        } else {
+            ir_file_path
+        };
+
         let temp_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("resources")
             .join("default_ir")
-            .join(DEFAULT_IR_FILE);
+            .join(&selected_ir_file);
 
         let ir_buffer = file_loader.read_wav_to_buffer(&temp_file_path);
         let ir_sample_rate = file_loader
@@ -123,6 +132,7 @@ impl Cabinet {
             name,
             is_active: Arc::new(AtomicBool::new(is_active)),
             color,
+            ir_file_path: selected_ir_file,
             ir_buffer,
             ir_fft_kernel,
             ir_fft_size,
@@ -378,6 +388,7 @@ impl Effect for Cabinet {
             name: self.name.clone(),
             is_active: self.is_active.load(Ordering::Relaxed),
             color: self.color.clone(),
+            ir_file_path: self.ir_file_path.clone(),
         })
     }
 

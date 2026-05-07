@@ -12,7 +12,7 @@ pub struct Delay {
     name: String,
     is_active: Arc<AtomicBool>,
     color: String,
-    delay_time: Arc<AtomicU32>, //20ms - 300ms
+    delay_time: Arc<AtomicU32>, //20ms - 800ms
     level: Arc<AtomicF32>,      //0.0-0.95
     delay_buffer: Vec<f32>,
     write_pos: usize,
@@ -85,7 +85,7 @@ impl Delay {
     // SETTERS
     pub fn set_delay_time(&mut self, delay_time: u32) {
         self.delay_time
-            .store(delay_time.clamp(20, 300), Ordering::Relaxed);
+            .store(delay_time.clamp(20, 800), Ordering::Relaxed);
         self.calc_delay_in_samples()
     }
 
@@ -102,41 +102,41 @@ impl Delay {
 }
 
 impl AudioProcessor for Delay {
+    /// Processes a single audio sample through a feedback delay line with linear interpolation.
+    ///
+    /// The signal flow follows these steps:
+    /// 1.  **Interpolated Read**: Calculates a fractional read position to prevent "stepping"
+    ///     artifacts when delay time changes.
+    /// 2.  **Damping**: Applies a simple One-Pole Low-Pass Filter to the delayed signal.
+    /// 3.  **Feedback**: Mixes the filtered delayed signal back into the write head.
+    /// 4.  **Output Mix**: Combines the original (dry) signal with the delayed (wet) signal.
     fn process(&mut self, sample: f32) -> f32 {
         if self.delay_buffer.is_empty() {
             return sample;
         }
 
-        // 1. Get current params
         let delay_ms = self.delay_time.load(Ordering::Relaxed) as f32;
         let feedback_amount = self.level.load(Ordering::Relaxed);
 
-        // 2. Calculate fractional read position
         let target_delay_samples = (delay_ms * self.sample_rate as f32 / 1000.0);
         let buf_len = self.delay_buffer.len() as f32;
         let read_pos = (self.write_pos as f32 - target_delay_samples + buf_len) % buf_len;
 
-        // 3. Linear Interpolation (Crucial for smoothness)
         let i_part = read_pos.floor() as usize;
         let f_part = read_pos - i_part as f32;
         let next_i = (i_part + 1) % self.delay_buffer.len();
 
         let delayed_sample = self.delay_buffer[i_part] * (1.0 - f_part) + self.delay_buffer[next_i] * f_part;
 
-        // 4. THE SECRET SAUCE: The Low-Pass Filter
-        // This stops the "robotic" high-end buildup.
-        // It smooths the delayed signal before it goes back into the buffer.
-        let filtered_feedback = (delayed_sample * 0.3) + (self.last_feedback_output * 0.7);
+
+        let filtered_feedback = (delayed_sample * 0.5) + (self.last_feedback_output * 0.5);
         self.last_feedback_output = filtered_feedback;
 
-        // 5. Write to buffer with filtered feedback
         self.delay_buffer[self.write_pos] = sample + (filtered_feedback * feedback_amount);
 
-        // 6. Advance Write Head
         self.write_pos = (self.write_pos + 1) % self.delay_buffer.len();
 
-        // 7. Output Mix (Standard Pedal Mix)
-        // 1.0 Dry + ~0.5 Wet
+
         sample + (delayed_sample * 0.5)
     }
 }
@@ -186,5 +186,83 @@ impl Effect for Delay {
         let mut map = HashMap::new();
         map.insert("delay_time", Arc::clone(&self.delay_time));
         map
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod success_path {
+        use super::*;
+
+        #[test]
+        fn test_initialization_and_buffer_size() {
+            let sample_rate = 44100;
+            let delay_time_ms = 100;
+            let delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), sample_rate, delay_time_ms, 0.5);
+
+            // Max samples for 800ms (as defined in new()) @ 44.1khz is 35280
+            assert!(delay.delay_buffer().len() >= 35280);
+            assert_eq!(delay.sample_rate(), sample_rate);
+        }
+
+        #[test]
+        fn test_signal_passthrough_on_first_sample() {
+            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), 44100, 100, 0.5);
+            let input = 0.8;
+            let output = delay.process(input);
+
+            // On the very first sample, the buffer is empty (0.0).
+            // Output = Dry (0.8) + (Wet (0.0) * 0.5) = 0.8
+            assert_eq!(output, input);
+        }
+
+        #[test]
+        fn test_delay_echo_occurs() {
+            let sample_rate = 1000; // Low SR for easier math
+            let delay_time_ms = 100; // 100ms = 100 samples at 1000Hz
+            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), sample_rate, delay_time_ms, 0.5);
+
+            // Input an impulse
+            delay.process(1.0);
+
+            // Process silence for 99 samples
+            for _ in 0..99 {
+                delay.process(0.0);
+            }
+
+            // The 101st sample should contain the delayed signal
+            let echo = delay.process(0.0);
+            assert!(echo > 0.0, "Echo should be audible after delay period");
+        }
+    }
+
+    mod failure_path {
+        use super::*;
+
+        #[test]
+        fn test_parameter_clamping() {
+            // Test level clamping (max 0.95)
+            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), 44100, 100, 2.0);
+            assert!(delay.level().load(Ordering::Relaxed) <= 0.95);
+
+            // Test delay time clamping via setter (20ms - 300ms)
+            delay.set_delay_time(1000);
+            assert_eq!(delay.delay_time().load(Ordering::Relaxed), 800);
+
+            delay.set_delay_time(5);
+            assert_eq!(delay.delay_time().load(Ordering::Relaxed), 20);
+        }
+
+        #[test]
+        fn test_empty_buffer_safety() {
+            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), 44100, 100, 0.5);
+            // Manually force an empty buffer (edge case)
+            delay.set_sample_rate(0);
+            // Should not crash and should return dry signal
+            let output = delay.process(0.5);
+            assert_eq!(output, 0.5);
+        }
     }
 }

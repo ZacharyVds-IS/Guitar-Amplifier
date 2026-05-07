@@ -20,6 +20,16 @@ import {
 } from "../domain";
 import {create} from "zustand/react";
 
+function withUpdatedEffectActiveState<T extends EffectDto>(effect: T, isActive: boolean): T {
+    return {
+        ...effect,
+        data: {
+            ...effect.data,
+            is_active: isActive,
+        },
+    } as T;
+}
+
 interface AmpState extends AmpConfigDto {
     init: () => Promise<void>;
     setChannelById: (index: number) => Promise<void>;
@@ -230,22 +240,11 @@ export const useAmpStore = create<AmpState>((set, get) => ({
                     c.id === state.current_channel
                         ? {
                             ...c,
-                            effect_chain: c.effect_chain.map((effect) => {
-                                if (effect.data.id === effectId) {
-                                    if (effect.kind === "Cabinet") {
-                                        return {
-                                            ...effect,
-                                            data: {...effect.data, is_active: isActive} as typeof effect.data,
-                                        };
-                                    } else if (effect.kind === "HCDistortion") {
-                                        return {
-                                            ...effect,
-                                            data: {...effect.data, is_active: isActive} as typeof effect.data,
-                                        };
-                                    }
-                                }
-                                return effect;
-                            }),
+                            effect_chain: c.effect_chain.map((effect) =>
+                                effect.data.id === effectId
+                                    ? withUpdatedEffectActiveState(effect, isActive)
+                                    : effect
+                            ),
                         }
                         : c
                 ),

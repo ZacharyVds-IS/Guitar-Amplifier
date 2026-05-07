@@ -1,5 +1,4 @@
 use crate::domain::channel::Channel;
-use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::domain::dto::effect::ir_profile_dto::IrProfileDto;
 use crate::services::audio_service::AudioService;
 use crate::services::file_service::FileService;
@@ -154,16 +153,7 @@ fn used_ir_profiles(
 fn collect_used_ir_profiles(channels: &[Channel]) -> Result<HashSet<String>, String> {
     let mut used = HashSet::new();
     for channel in channels.iter() {
-        let effect_chain = channel.effect_chain();
-        let chain = effect_chain
-            .lock()
-            .map_err(|_| "Failed to lock effect chain".to_string())?;
-
-        for effect in chain.iter() {
-            if let EffectDto::Cabinet(cabinet) = effect.to_dto() {
-                used.insert(cabinet.ir_file_path);
-            }
-        }
+        used.extend(channel.used_cabinet_ir_profiles());
     }
 
     Ok(used)
@@ -254,6 +244,36 @@ mod tests {
 
             ensure_profile_can_be_removed(&profiles, "custom-room.wav", &HashSet::new())
                 .expect("unused custom profile should be removable");
+        }
+
+        #[test]
+        fn collect_used_ir_profiles_reflects_restored_chain_metadata() {
+            let mut service = AudioService::new_with_handler(Arc::new(make_mock_handler()));
+
+            service.channels_mut()[0].add_effect_to_chain(Box::new(Cabinet::new(
+                0,
+                "Cab A".to_string(),
+                true,
+                "#111111".to_string(),
+                "Vox-ac30.wav".to_string(),
+                48_000,
+            )));
+
+            service.channels_mut()[0].restore_effect_chain(vec![Box::new(Cabinet::new(
+                7,
+                "Cab B".to_string(),
+                true,
+                "#222222".to_string(),
+                "Reverb-oxford-lean.wav".to_string(),
+                48_000,
+            ))]);
+
+            let used = collect_used_ir_profiles(service.channels())
+                .expect("restored chain usage discovery should succeed");
+
+            assert_eq!(used.len(), 1);
+            assert!(used.contains("Reverb-oxford-lean.wav"));
+            assert!(!used.contains("Vox-ac30.wav"));
         }
     }
 

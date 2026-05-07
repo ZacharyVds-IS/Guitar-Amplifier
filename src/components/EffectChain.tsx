@@ -177,8 +177,8 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
 
                                     {effects.map((item, index) => (
                                         <Draggable
-                                            key={`effect-${item.kind}-${item.data.id}-${index}`}
-                                            draggableId={`effect-${item.kind}-${item.data.id}-${index}`}
+                                            key={`effect-${item.kind}-${item.data.id}`}
+                                            draggableId={`effect-${item.kind}-${item.data.id}`}
                                             index={index}
                                             isDragDisabled={!reorderOpen}
                                         >

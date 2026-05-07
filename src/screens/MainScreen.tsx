@@ -7,6 +7,13 @@ import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {useEffect, useState} from "react";
 import {EffectDto} from "../domain";
 
+type EffectSelection =
+    | "amp"
+    | {
+        kind: EffectDto["kind"];
+        effectId: number;
+    };
+
 export function MainScreen() {
     const activeChannel = useAmpStore((state) =>
         state.channels.find((c) => c.id === state.current_channel)
@@ -15,14 +22,19 @@ export function MainScreen() {
 
     let [editOrderOpen, setEditOrderOpen] = useState<boolean>(false);
 
-    const [selection, setSelection] = useState<number | "amp">("amp");
+    const [selection, setSelection] = useState<EffectSelection>("amp");
     useEffect(() => {
         setSelection("amp");
     }, [currentChannelId]);
+
     const resolvedSelection: EffectDto | "amp" | undefined =
         selection === "amp"
             ? "amp"
-            : activeChannel?.effect_chain[selection];
+            : activeChannel?.effect_chain.find(
+                (effect) =>
+                    effect.kind === selection.kind &&
+                    effect.data.id === selection.effectId,
+            );
 
     return (
         <Box
@@ -46,8 +58,10 @@ export function MainScreen() {
                             return;
                         }
 
-                        const selectedIndex = activeChannel.effect_chain.findIndex((effect) => effect === selected);
-                        setSelection(selectedIndex >= 0 ? selectedIndex : "amp");
+                        setSelection({
+                            kind: selected.kind,
+                            effectId: selected.data.id,
+                        });
                     }}
                     onReorderOpen={setEditOrderOpen}
                 />

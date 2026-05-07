@@ -10,7 +10,7 @@ The easiest way to record an impulse response yourself is to simply record a cla
 2. Setup a microphone and a recording device (e.g. a laptop and a microphone).
 3. Start the recording and clap
 4. Stop recording and save the file.
-5. Trim the file so the response is at the verry beginning of the file.
+5. Trim the file so the response is at the very beginning of the file.
 > If not trimmed, the impulse response will be delayed by the amount of silence at the beginning of the file.
 6. Save the file as a wav file and use it as an impulse response in the project.
 

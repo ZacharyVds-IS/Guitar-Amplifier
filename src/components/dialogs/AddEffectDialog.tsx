@@ -6,6 +6,7 @@ import {
     DEFAULT_CABINET_IR_FILE,
     EFFECT_FACTORIES,
     type EffectKind,
+    resolveDefaultCabinetIrFile,
 } from "../../config/effects";
 import {useForm} from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
@@ -22,6 +23,8 @@ interface AddEffectDialogProps {
     onClose: () => void;
     onCreate: (effect: EffectDto) => void;
 }
+
+const MAX_IR_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps) {
     const [cabinetIrProfiles, setCabinetIrProfiles] = useState<IrProfileDto[]>([]);
@@ -115,11 +118,18 @@ export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps)
                     return;
                 }
 
+                if (pickedFile.size > MAX_IR_UPLOAD_BYTES) {
+                    setCabinetIrActionError(
+                        `IR file is too large. Maximum allowed size is ${Math.floor(MAX_IR_UPLOAD_BYTES / (1024 * 1024))} MB.`,
+                    );
+                    return;
+                }
+
                 try {
-                    const fileBytes = Array.from(new Uint8Array(await pickedFile.arrayBuffer()));
+                    const fileBytes = new Uint8Array(await pickedFile.arrayBuffer());
                     selectedCabinetIrFile = await uploadIrProfile({
                         fileName: pickedFile.name,
-                        fileBytes,
+                        fileBytes: fileBytes as unknown as number[],
                     });
                     await refreshIrProfiles();
                 } catch (error) {
@@ -129,6 +139,8 @@ export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps)
                 }
             } else if (values.cabinetIrChoice) {
                 selectedCabinetIrFile = values.cabinetIrChoice;
+            } else {
+                selectedCabinetIrFile = await resolveDefaultCabinetIrFile();
             }
         }
 

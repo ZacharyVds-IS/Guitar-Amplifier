@@ -5,7 +5,33 @@ export type EffectKind = EffectDto["kind"];
 type EffectFactoryMap = {
     [K in EffectKind]: (params: { name: string; color: string; cabinetIrFilePath?: string }) => Extract<EffectDto, { kind: K }>['data'];
 };
-export const DEFAULT_CABINET_IR_FILE = await getDefaultIrFile();
+
+/**
+ * Synchronous frontend fallback for the default cabinet IR.
+ *
+ * This must stay aligned with the backend default so the UI remains functional
+ * in tests, non-Tauri contexts, and early startup before IPC is available.
+ */
+export const DEFAULT_CABINET_IR_FILE = "Vox-ac30.wav";
+
+let defaultCabinetIrFilePromise: Promise<string> | null = null;
+
+/**
+ * Lazily resolves the backend-configured default cabinet IR filename.
+ *
+ * The result is cached after the first request. If Tauri IPC is unavailable or
+ * the command fails, the synchronous fallback constant is returned instead.
+ */
+export async function resolveDefaultCabinetIrFile(): Promise<string> {
+    if (!defaultCabinetIrFilePromise) {
+        defaultCabinetIrFilePromise = getDefaultIrFile().catch((error) => {
+            console.warn("Falling back to frontend default cabinet IR file:", error);
+            return DEFAULT_CABINET_IR_FILE;
+        });
+    }
+
+    return defaultCabinetIrFilePromise;
+}
 
 export const EFFECT_METADATA: Record<EffectKind, { label: string }> = {
     HCDistortion: {label: "Hard-Clipping Distortion"},

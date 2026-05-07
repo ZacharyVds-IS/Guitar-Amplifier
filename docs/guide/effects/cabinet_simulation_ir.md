@@ -1,7 +1,7 @@
 # Cabinet Simulation (Impulse Response)
 Impulse Response (IR) is a digital snapshot of how a speaker's cabinet, room or space responds to sound.
 
-In simple terms: If I record sound in my bathroom and make someone guess what room I was in, most people will gues the bathroom correctly.
+In simple terms: If I record sound in my bathroom and make someone guess what room I was in, most people will guess the bathroom correctly.
 This is because they recognize the impulse response of this room.
 
 ## IR in digital signal processing.
@@ -40,13 +40,13 @@ This maps to a very CPU intensive operation.
 ### A solution to this problem
 To solve this problem we can make use of Fast Fourier Transform (FFT).
 
-FFT is a mathemtical bridge. It takes a signal from the Time Domain (amplitude over time) and converts it into the Frequency Domain (magnitude and phase over frequency).
+FFT is a mathematical bridge. It takes a signal from the Time Domain (amplitude over time) and converts it into the Frequency Domain (magnitude and phase over frequency).
 Simply put this means that instead of the complex sliding and summing math. We can simply multiply the individual frequency components together.
 
 ### FFT workflow
 1. Take the dry guitar signal and convert them into its frequency components.
 2. apply FFT to the ir: Convert your Cabinet IR into its frequency components (this only needs to be done once).
-3. Multiple: Multiply the two frequency graphs together. If the IR has a huge dip at 500Hz, the multiplication will "carve" that dip into your guitar signal.
+3. Multiply: Multiply the two frequency graphs together. If the IR has a huge dip at 500Hz, the multiplication will "carve" that dip into your guitar signal.
 4. Inverse FFT (IFFT): Convert the result back into the Time Domain so our speakers can use it.
 
 ## Quick comparison between FFT and regular convolution.

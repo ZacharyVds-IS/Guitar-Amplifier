@@ -1,6 +1,6 @@
 import {Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField} from "@mui/material";
 import {DropdownSelector} from "../selection/DropdownSelector.tsx";
-import {type EffectDto, HcDistortionDto} from "../../domain";
+import {DelayDto, type EffectDto, HcDistortionDto} from "../../domain";
 import {useState} from "react";
 
 interface AddEffectDialogProps {
@@ -34,7 +34,14 @@ export const EFFECT_FACTORIES: EffectFactoryMap = {
         threshold: 1,
         level: 0,
     }),
-    Delay: ({name, color}: DelayD)
+    Delay: ({name, color}): DelayDto => ({
+        id: 0, // Is set to the correct value in the backend
+        name,
+        color,
+        is_active: false,
+        delay_time: 20,
+        level: 0.95,
+    })
 };
 
 export function AddEffectDialog({open, onClose, onCreate}: AddEffectDialogProps) {

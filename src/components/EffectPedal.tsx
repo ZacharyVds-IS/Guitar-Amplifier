@@ -1,7 +1,16 @@
 import {Box, Stack, Typography} from "@mui/material";
 import chroma from "chroma-js";
 import {Knob} from "./selection/Knob.tsx";
-import {EffectDto, HcDistortionDto, setHcDistortionLevel, setHcDistortionThreshold, toggleEffect} from "../domain";
+import {
+    DelayDto,
+    EffectDto,
+    HcDistortionDto,
+    setDelayDelayTime,
+    setDelayLevel,
+    setHcDistortionLevel,
+    setHcDistortionThreshold,
+    toggleEffect
+} from "../domain";
 import {useEffect, useState} from "react";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 
@@ -15,13 +24,14 @@ function knobsForEffect(
     handlers: {
         onThresholdChange: (effectId: number, threshold: number, previousThreshold: number) => void;
         onLevelChange: (effectId: number, level: number, previousLevel: number) => void;
+        onDelayTimeChange: (effectId: number, delayTime: number, previousDelayTime: number) => void;
     }
 ): React.ReactNode {
     switch (effect.kind) {
         case "HCDistortion": {
             const data = effect.data as HcDistortionDto;
             const THRESHOLD_CLEAN = 1.0;
-            const THRESHOLD_HOT   = 0.05;
+            const THRESHOLD_HOT = 0.05;
             const driveKnobValue = (1 - (data.threshold - THRESHOLD_HOT) / (THRESHOLD_CLEAN - THRESHOLD_HOT)) * 100;
             const levelKnobValue = data.level * 100;
             return (
@@ -55,6 +65,48 @@ function knobsForEffect(
                 </>
             );
         }
+        case "Delay": {
+            const data = effect.data as DelayDto;
+
+            // Configurable range for Delay Time (ms)
+            // You can adjust these based on your buffer size in Rust
+            const MIN_DELAY_MS = 0;
+            const MAX_DELAY_MS = 2000;
+
+            // Mapping level [0.0 - 0.95] to a 0-100 scale for the knob
+            const levelKnobValue = (data.level / 0.95) * 100;
+
+            return (
+                <>
+                    <Knob
+                        label="Time"
+                        value={data.delay_time}
+                        min={MIN_DELAY_MS}
+                        max={MAX_DELAY_MS}
+                        step={1} // ms steps
+                        size={40}
+                        valueDisplay="min-max"
+                        onChange={(v) => {
+                            handlers.onDelayTimeChange(data.id, v, data.delay_time);
+                        }}
+                    />
+                    <Knob
+                        label="Intensity" // "Level" in your DTO acts as feedback amount
+                        value={Math.max(0, Math.min(100, levelKnobValue))}
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        size={40}
+                        valueDisplay="min-max"
+                        onChange={(v) => {
+                            // Scale 0-100 back to 0.0-0.95
+                            const level = (v / 100) * 0.95;
+                            handlers.onLevelChange(data.id, level, data.level);
+                        }}
+                    />
+                </>
+            );
+        }
         default:
             return null;
     }
@@ -65,6 +117,7 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
     const [isActive, setIsActive] = useState(effect.data.is_active);
     const updateEffectActiveState = useAmpStore((state) => state.updateEffectActiveState);
     const updateHcDistortionParams = useAmpStore((state) => state.updateHcDistortionParams);
+    const updateDelayParams = useAmpStore((state) => state.updateDelayParams);
     const chassisColor = chroma(effect.data.color).hex();
 
     // Sync local isActive state when the effect prop changes
@@ -75,7 +128,7 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
 
     async function handleFootswitchClick() {
         try {
-            const newActive = await toggleEffect({ effectId: effect.data.id });
+            const newActive = await toggleEffect({effectId: effect.data.id});
             setIsActive(newActive);
             updateEffectActiveState(effect.data.id, newActive);
             onToggle?.(effect.data.id, newActive);
@@ -87,18 +140,34 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
     }
 
     function handleThresholdChange(effectId: number, threshold: number, previousThreshold: number) {
-        updateHcDistortionParams(effectId, { threshold });
-        void setHcDistortionThreshold({ effectId, threshold }).catch((error) => {
+        updateHcDistortionParams(effectId, {threshold});
+        void setHcDistortionThreshold({effectId, threshold}).catch((error) => {
             console.error("Failed to update HC distortion threshold:", error);
-            updateHcDistortionParams(effectId, { threshold: previousThreshold });
+            updateHcDistortionParams(effectId, {threshold: previousThreshold});
         });
     }
 
-    function handleLevelChange(effectId: number, level: number, previousLevel: number) {
-        updateHcDistortionParams(effectId, { level });
-        void setHcDistortionLevel({ effectId, level }).catch((error) => {
+    function handleHCDLevelChange(effectId: number, level: number, previousLevel: number) {
+        updateHcDistortionParams(effectId, {level});
+        void setHcDistortionLevel({effectId, level}).catch((error) => {
             console.error("Failed to update HC distortion level:", error);
-            updateHcDistortionParams(effectId, { level: previousLevel });
+            updateHcDistortionParams(effectId, {level: previousLevel});
+        });
+    }
+
+    function handleDelayLevelChange(effectId: number, level: number, previousLevel: number) {
+        updateDelayParams(effectId, {level: level});
+        void setDelayLevel({effectId, level}).catch((error) => {
+            console.error("Failed to update Delay level:", error);
+            updateDelayParams(effectId, {level: previousLevel});
+        });
+    }
+
+    function handleDelayTimeChange(effectId: number, delayTime: number, previousDelayTime: number) {
+        updateDelayParams(effectId, {delay_time: delayTime});
+        void setDelayDelayTime({effectId, delayTime}).catch((error) => {
+            console.error("Failed to update Delay delay time:", error);
+            updateDelayParams(effectId, {level: previousDelayTime});
         });
     }
 
@@ -144,7 +213,8 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
                 <Stack direction="row" spacing={1} sx={{justifyContent: 'center'}}>
                     {knobsForEffect(effect, {
                         onThresholdChange: handleThresholdChange,
-                        onLevelChange: handleLevelChange,
+                        onLevelChange: effect.kind == "Delay" ? handleDelayLevelChange :handleHCDLevelChange,
+                        onDelayTimeChange: handleDelayTimeChange
                     })}
                 </Stack>
 

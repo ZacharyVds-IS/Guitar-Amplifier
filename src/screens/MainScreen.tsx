@@ -22,7 +22,7 @@ export function MainScreen() {
     const resolvedSelection: EffectDto | "amp" | undefined =
         selection === "amp"
             ? "amp"
-            : activeChannel?.effect_chain.find((e) => e.data.id === selection);
+            : activeChannel?.effect_chain[selection];
 
     return (
         <Box
@@ -40,8 +40,14 @@ export function MainScreen() {
                 <EffectChain
                     effects={activeChannel.effect_chain}
                     selected={resolvedSelection ?? "amp"}
-                    onSelectionChange={(selected) => {
-                        setSelection(selected === "amp" ? "amp" : selected.data.id);
+                    onSelectionChange={(selected: EffectDto | "amp") => {
+                        if (selected === "amp") {
+                            setSelection("amp");
+                            return;
+                        }
+
+                        const selectedIndex = activeChannel.effect_chain.findIndex((effect) => effect === selected);
+                        setSelection(selectedIndex >= 0 ? selectedIndex : "amp");
                     }}
                     onReorderOpen={setEditOrderOpen}
                 />

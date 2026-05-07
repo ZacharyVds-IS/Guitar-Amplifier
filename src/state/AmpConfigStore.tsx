@@ -37,7 +37,7 @@ interface AmpState extends AmpConfigDto {
     updateHcDistortionParams: (effectId: number, patch: Partial<Pick<HcDistortionDto, "threshold" | "level">>) => void;
     removeEffect: (effectId: number) => void;
     addEffect: (effectDto: EffectDto) => Promise<void>;
-    moveEffect: (effectId: number, newIndex: number) => Promise<void>;
+    moveEffect: (currentIndex: number, newIndex: number) => Promise<void>;
     chain_snapshot: EffectDto[] | null;
     startEditingChainOrder: () => void;
     cancelEditingChainOrder: () => void;
@@ -301,7 +301,7 @@ export const useAmpStore = create<AmpState>((set, get) => ({
                 console.error("Failed to add Effect:", error);
             }
         },
-        moveEffect: async (effectId: number, newIndex: number) => {
+        moveEffect: async (currentIndex: number, newIndex: number) => {
             set((state) => {
                 const channelIndex = state.channels.findIndex(c => c.id === state.current_channel);
                 if (channelIndex === -1) return state;
@@ -309,10 +309,10 @@ export const useAmpStore = create<AmpState>((set, get) => ({
                 const currentChannel = state.channels[channelIndex];
                 const effectChain = currentChannel.effect_chain;
 
-                const currentIndex = effectChain.findIndex(e => e.data.id === effectId);
-                if (currentIndex === -1) return state;
+                if (currentIndex < 0 || currentIndex >= effectChain.length) return state;
+                if (newIndex < 0 || newIndex >= effectChain.length) return state;
 
-                console.log(`Moving effect ${effectId} from ${currentIndex} to ${newIndex}`);
+                console.log(`Moving effect from ${currentIndex} to ${newIndex}`);
 
                 const updatedChain = [...effectChain];
                 const [movedItem] = updatedChain.splice(currentIndex, 1);

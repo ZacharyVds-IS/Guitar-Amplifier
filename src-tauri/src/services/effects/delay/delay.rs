@@ -128,10 +128,9 @@ impl AudioProcessor for Delay {
             return sample;
         }
 
-        let delay_ms = self.delay_time.load(Ordering::Relaxed) as f32;
         let feedback_amount = self.level.load(Ordering::Relaxed);
 
-        let target_delay_samples = (delay_ms * self.sample_rate as f32 / 1000.0);
+        let target_delay_samples = self.delay_in_samples as f32;
         let buf_len = self.delay_buffer.len() as f32;
         let read_pos = (self.write_pos as f32 - target_delay_samples + buf_len) % buf_len;
 

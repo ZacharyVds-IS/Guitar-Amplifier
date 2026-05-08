@@ -78,7 +78,7 @@ impl AudioLatencyMeasurementService {
     pub fn measure_tone_stack_latency(audio_service: &AudioService, block_size: usize) -> f64 {
         let channel = audio_service.channels().iter()
             .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
-        let mut tone_stack = ToneStackProcessor::new(channel.tone_stack().clone());
+        let mut tone_stack = ToneStackProcessor::new(channel.tone_stack().clone(), audio_service.dsp_chain_sample_rate());
         LatencyAnalyzer::measure_effect_added_execution_us(&mut tone_stack, 256, block_size)
     }
 

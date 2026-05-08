@@ -132,6 +132,7 @@ impl AudioService {
         let handler = self.audio_handler.clone();
         let channel_id = self.current_channel_id;
         let master_volume_arc = self.master_volume.clone();
+        let dsp_sample_rate = self.dsp_chain_sample_rate();
 
         let (gain_arc, volume_arc, tone_stack_arc, effect_chain_arc) = {
             let channel = self
@@ -183,11 +184,12 @@ impl AudioService {
             let shutdown = Arc::new(AtomicBool::new(false));
             let worker_shutdown = shutdown.clone();
 
+
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(gain_arc);
                 let mut volume = GainProcessor::new(volume_arc);
                 let mut master_volume = GainProcessor::new(master_volume_arc);
-                let mut tone_stack = ToneStackProcessor::new(tone_stack_arc);
+                let mut tone_stack = ToneStackProcessor::new(tone_stack_arc, dsp_sample_rate);
 
                 let mut run_dsp = |sample: f32| -> f32 {
                     let sample = gain.process(sample);
@@ -590,7 +592,13 @@ mod tests {
         })
     }
 
-    fn cabinet_effect(id: u32, name: &str, is_active: bool, color: &str, ir_file_path: &str) -> EffectDto {
+    fn cabinet_effect(
+        id: u32,
+        name: &str,
+        is_active: bool,
+        color: &str,
+        ir_file_path: &str,
+    ) -> EffectDto {
         EffectDto::Cabinet(CabinetDto {
             id,
             name: name.to_string(),

@@ -41,12 +41,12 @@ impl ToneStackProcessor {
     /// # Returns
     ///
     /// A new `ToneStackProcessor` instance.
-    pub fn new(tone_stack: Arc<ToneStack>) -> Self {
+    pub fn new(tone_stack: Arc<ToneStack>, sample_rate :u32) -> Self {
         Self {
             tone_stack,
-            bass_eq: RangeEQ::new(48000.0, BASS_SHELF, 0.0, 1.0, EQType::Low),
-            mid_eq: RangeEQ::new(48000.0, MID_PEAK, 0.0, 1.0, EQType::Peak),
-            treble_eq: RangeEQ::new(48000.0, 0.0, TREBLE_SHELF, 1.0, EQType::High),
+            bass_eq: RangeEQ::new(sample_rate as f32, BASS_SHELF, 0.0, 1.0, EQType::Low),
+            mid_eq: RangeEQ::new(sample_rate as f32, MID_PEAK, 0.0, 1.0, EQType::Peak),
+            treble_eq: RangeEQ::new(sample_rate as f32, 0.0, TREBLE_SHELF, 1.0, EQType::High),
         }
     }
 
@@ -155,7 +155,7 @@ mod tests {
         #[test]
         fn process_method_should_chain_eq_filters_correctly() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let input_sample = 0.5;
             let output = processor.process(input_sample);
@@ -167,7 +167,7 @@ mod tests {
         #[test]
         fn update_parameters_should_read_from_tone_stack_and_set_eqs() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             tone_stack.set_bass(0.8);
             tone_stack.set_middle(0.6);
@@ -184,8 +184,8 @@ mod tests {
             let tone_stack1 = Arc::new(ToneStack::new());
             let tone_stack2 = Arc::new(ToneStack::new());
 
-            let mut processor1 = ToneStackProcessor::new(Arc::clone(&tone_stack1));
-            let mut processor2 = ToneStackProcessor::new(Arc::clone(&tone_stack2));
+            let mut processor1 = ToneStackProcessor::new(Arc::clone(&tone_stack1),48000);
+            let mut processor2 = ToneStackProcessor::new(Arc::clone(&tone_stack2),48000);
 
             tone_stack1.set_bass(0.2);
             tone_stack2.set_bass(0.8);
@@ -203,7 +203,7 @@ mod tests {
         #[test]
         fn processing_multiple_samples_should_maintain_state() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let samples = vec![0.1, 0.2, 0.3, 0.4, 0.5];
             let mut outputs = Vec::new();
@@ -224,7 +224,7 @@ mod tests {
         #[test]
         fn print_tone_stack_should_handle_fft_buffer_correctly() {
             let tone_stack = Arc::new(ToneStack::new());
-            let processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let mut fft_buffer = Vec::new();
             let fft_size = 1024;
@@ -246,7 +246,7 @@ mod tests {
         #[test]
         fn processor_should_handle_zero_input_samples() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let output = processor.process(0.0);
             assert_eq!(output, 0.0);
@@ -255,7 +255,7 @@ mod tests {
         #[test]
         fn processor_should_handle_extreme_input_samples() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let small_input = 1e-6;
             let small_output = processor.process(small_input);
@@ -271,7 +271,7 @@ mod tests {
         #[test]
         fn processor_should_handle_extreme_tone_stack_values() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             // Set extreme values (though ToneStack clamps them)
             tone_stack.set_bass(0.0); // Minimum
@@ -288,7 +288,7 @@ mod tests {
         #[test]
         fn processor_should_handle_rapid_parameter_changes() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let input = 0.3;
             let mut outputs = Vec::new();
@@ -317,7 +317,7 @@ mod tests {
         #[test]
         fn print_tone_stack_should_handle_empty_buffer() {
             let tone_stack = Arc::new(ToneStack::new());
-            let processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let mut fft_buffer = Vec::new();
 
@@ -329,7 +329,7 @@ mod tests {
         #[test]
         fn print_tone_stack_should_handle_partial_buffer() {
             let tone_stack = Arc::new(ToneStack::new());
-            let processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             let mut fft_buffer = Vec::new();
             let fft_size = 1024;
@@ -347,7 +347,7 @@ mod tests {
         #[test]
         fn processor_should_handle_nan_input_gracefully() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             // NaN input should be handled (though in practice this shouldn't happen)
             let nan_input = f32::NAN;
@@ -361,7 +361,7 @@ mod tests {
         #[test]
         fn processor_should_handle_infinite_input_gracefully() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             // Infinite input should be handled
             let inf_input = f32::INFINITY;
@@ -374,7 +374,7 @@ mod tests {
         #[test]
         fn processor_should_maintain_state_across_extreme_conditions() {
             let tone_stack = Arc::new(ToneStack::new());
-            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack));
+            let mut processor = ToneStackProcessor::new(Arc::clone(&tone_stack),48000);
 
             // Process a sequence with extreme values
             let test_samples = vec![0.0, 1e-6, 1.0, -1.0, 10.0, -10.0, f32::NAN, f32::INFINITY];

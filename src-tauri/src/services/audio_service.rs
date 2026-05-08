@@ -18,6 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 use tracing::{error, info};
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
@@ -219,7 +220,7 @@ impl AudioService {
                             let _ = o_producer.try_push(processed_sample);
                         }
                     } else {
-                        thread::yield_now();
+                        thread::sleep(Duration::from_millis(1));
                     }
                 }
 

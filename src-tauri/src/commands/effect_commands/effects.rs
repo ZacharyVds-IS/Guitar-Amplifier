@@ -9,6 +9,7 @@ use tracing::info;
 #[tauri::command]
 pub(crate) fn add_effect(
     audio_service: tauri::State<Mutex<AudioService>>,
+    persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     effect_dto: EffectDto,
 ) -> Result<(), String> {
     let mut service = audio_service.inner().lock().unwrap();
@@ -22,6 +23,7 @@ pub(crate) fn add_effect(
     {
         let effect = effect_dto.add_to_domain(channel.next_effect_id(), dsp_sample_rate);
         channel.add_effect_to_chain(effect);
+        persist_amp_config(&service, &persistence_service);
         Ok(())
     } else {
         Err("Channel not found".into())
@@ -29,7 +31,10 @@ pub(crate) fn add_effect(
 }
 
 #[tauri::command]
-pub(crate) fn remove_effect(audio_service: tauri::State<Mutex<AudioService>>, effect_id: u32) {
+pub(crate) fn remove_effect(
+    audio_service: tauri::State<Mutex<AudioService>>,
+    persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
+    effect_id: u32) {
     let mut service = audio_service.inner().lock().unwrap();
     let channel_id = *service.current_channel_id();
     let current_channel = service
@@ -38,6 +43,7 @@ pub(crate) fn remove_effect(audio_service: tauri::State<Mutex<AudioService>>, ef
         .find(|c| c.id() == channel_id)
         .unwrap();
     current_channel.remove_effect_from_chain(effect_id);
+    persist_amp_config(&service, &persistence_service);
 }
 
 #[tauri::command]

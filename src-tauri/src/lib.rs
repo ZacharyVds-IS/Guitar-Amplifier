@@ -29,6 +29,7 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
+use crate::commands::effect_commands::delay::{set_delay_delay_time, set_delay_level};
 
 const AMP_CONFIG_FILE_NAME: &str = "amp-config.json";
 
@@ -70,14 +71,14 @@ pub fn run() {
         output_supported.channels(),
         output_supported.sample_rate()
     );
-    
+
     let normalize_channels = |channels: u16| -> u16 {
         match channels {
             0 => {
                 error!("Device reported 0 channels, defaulting to stereo");
                 2
             }
-            1 => 1, 
+            1 => 1,
             _ => {
                 if channels > 2 {
                     info!(
@@ -208,6 +209,8 @@ pub fn run() {
             get_all_ir_profiles,
             upload_ir_profile,
             remove_ir_profile,
+            set_delay_delay_time,
+            set_delay_level,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

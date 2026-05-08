@@ -4,6 +4,7 @@ import {
     AmpConfigDto,
     applyEffectOrderChange,
     ChannelDto,
+    DelayDto,
     EffectDto,
     getAmpConfig,
     HcDistortionDto,
@@ -45,6 +46,7 @@ interface AmpState extends AmpConfigDto {
     setTreble: (val: number) => void;
     updateEffectActiveState: (effectId: number, isActive: boolean) => void;
     updateHcDistortionParams: (effectId: number, patch: Partial<Pick<HcDistortionDto, "threshold" | "level">>) => void;
+    updateDelayParams: (effectId: number, patch: Partial<Pick<DelayDto, "delay_time" | "level">>) => void;
     removeEffect: (effectId: number) => void;
     addEffect: (effectDto: EffectDto) => Promise<void>;
     moveEffect: (currentIndex: number, newIndex: number) => Promise<void>;
@@ -244,7 +246,7 @@ export const useAmpStore = create<AmpState>((set, get) => ({
                                 effect.data.id === effectId
                                     ? withUpdatedEffectActiveState(effect, isActive)
                                     : effect
-                            ),
+                            ) as EffectDto[],
                         }
                         : c
                 ),
@@ -259,6 +261,29 @@ export const useAmpStore = create<AmpState>((set, get) => ({
                             ...c,
                             effect_chain: c.effect_chain.map((effect) =>
                                 effect.kind === "HCDistortion" && effect.data.id === effectId
+                                    ? {
+                                        ...effect,
+                                        data: {
+                                            ...effect.data,
+                                            ...patch,
+                                        },
+                                    }
+                                    : effect
+                            ),
+                        }
+                        : c
+                ),
+            }));
+        },
+
+        updateDelayParams: (effectId, patch) => {
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {
+                            ...c,
+                            effect_chain: c.effect_chain.map((effect) =>
+                                effect.kind === "Delay" && effect.data.id === effectId
                                     ? {
                                         ...effect,
                                         data: {
@@ -365,9 +390,9 @@ export const useAmpStore = create<AmpState>((set, get) => ({
 
             const currentEffects = currentChannel.effect_chain;
             try {
-                console.log("Changing effect order", );
+                console.log("Changing effect order",);
                 await applyEffectOrderChange({effects: currentEffects});
-                console.log("Successfully changed effect order", );
+                console.log("Successfully changed effect order",);
                 set({chain_snapshot: null});
             } catch (error) {
                 console.error("Failed to change Effect order:", error);

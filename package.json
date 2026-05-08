@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "lint": "eslint .",
     "generate-types": "cargo tauri-typegen generate --output-path ./src/domain && npm run generate-effect-types",
     "generate-effect-types": "node scripts/generate-effect-types.mjs",
     "build": "tsc && vite build",
@@ -36,13 +37,19 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@eslint/js": "^9.26.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "@vitest/ui": "^4.1.4",
+    "eslint": "^9.26.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.0.0",
     "typedoc": "^0.28.19",
     "typedoc-plugin-react": "^0.1.0",
+    "typescript-eslint": "^8.31.1",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vitepress": "^1.6.4",

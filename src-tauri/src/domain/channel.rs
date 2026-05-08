@@ -325,19 +325,6 @@ impl Channel {
         self.next_effect_id
     }
 
-    /// Replaces the entire effect chain with a new chain of events.
-    /// Typically used when loading a preset/ saved configuration.
-    pub fn replace_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
-        if let Ok(mut chain) = self.effect_chain.lock() {
-            chain.clear();
-        }
-        self.effect_handles.clear();
-
-        for effect in effects {
-            self.add_effect_to_chain(effect);
-        }
-    }
-
     /// Returns the set of cabinet IR file names referenced by this channel.
     ///
     /// This reads mirrored effect metadata from `effect_handles` and therefore

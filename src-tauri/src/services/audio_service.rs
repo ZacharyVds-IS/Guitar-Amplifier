@@ -3,8 +3,8 @@ use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
-use crate::services::effects::delay::delay::Delay;
 use crate::services::effects::cabinet::cabinet::Cabinet;
+use crate::services::effects::delay::delay::Delay;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
@@ -484,7 +484,6 @@ impl AudioService {
     /// off even though this method is capable of applying either state.
     pub fn apply_amp_config(&mut self, config: AmpConfigDto) {
         let mut restored_channels = Vec::new();
-        let dsp_sample_rate = self.dsp_chain_sample_rate();
 
         // Backward compatibility: older snapshots stored tone values as 0..100.
         // New normalized format is 0.0..1.0 end-to-end.
@@ -515,7 +514,7 @@ impl AudioService {
                 .collect::<Vec<_>>();
 
             if !restored_effects.is_empty() {
-                channel.replace_effect_chain(restored_effects);
+                channel.restore_effect_chain(restored_effects);
             }
             restored_channels.push(channel);
         }

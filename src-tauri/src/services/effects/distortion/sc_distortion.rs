@@ -1,11 +1,9 @@
 use crate::domain::audio_processor::AudioProcessor;
 use crate::domain::dto::effect::effect_dto::EffectDto;
-use crate::domain::dto::effect::hcdistortion_dto::HcDistortionDto;
+use crate::domain::dto::effect::scdistortion_dto::ScDistortionDto;
 use crate::domain::effect::Effect;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use atomic_float::AtomicF32;
-use rustfft::num_complex::ComplexFloat;
-use rustfft::num_traits::pow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -14,7 +12,7 @@ pub struct SCDistortion {
     id: u32,
     name: String,
     is_active: Arc<AtomicBool>,
-    /// Clip level in `(0.0, 1.0]`. Lower = heavier distortion.
+    /// Clip level in `[0.0, 1.0]`. Lower = heavier distortion.
     /// Shared with command infrastructure via [`f32_params`](Self::f32_params).
     limit: Arc<AtomicF32>,
     /// Internal gain atomic shared with `level_gain`. Stores gain in range `[1.0, 2.0]`.
@@ -43,7 +41,6 @@ impl SCDistortion {
         let gain_value = 1.0 + level.clamp(0.0, 1.0); // map [0,1] → [1,2]
         let level_arc = Arc::new(AtomicF32::new(gain_value));
         let level_gain = GainProcessor::new(Arc::clone(&level_arc));
-        let smoothing_arc = Arc::new(AtomicF32::new(smoothing));
         Self {
             id,
             name,
@@ -51,12 +48,12 @@ impl SCDistortion {
             limit: Arc::new(AtomicF32::new(threshold.clamp(0.001, 1.0))),
             level: level_arc,
             level_gain,
-            smoothing: smoothing_arc,
+            smoothing: Arc::new(AtomicF32::new(smoothing.clamp(1.0, 10.0))),
             color,
         }
     }
 
-    /// Returns the current clipping threshold in range `(0.0, 1.0]`.
+    /// Returns the current clipping threshold in range `[0.0, 1.0]`.
     ///
     /// # Returns
     ///
@@ -101,15 +98,24 @@ impl SCDistortion {
         self.level
             .store(1.0 + level.clamp(0.0, 1.0), Ordering::Relaxed);
     }
+
+    pub fn smoothing(&self) -> f32 {
+        self.smoothing.load(Ordering::Relaxed)
+    }
+
+    pub fn set_smoothing(&mut self, smoothing: f32) {
+        self.smoothing
+            .store(smoothing.clamp(1.0, 10.0), Ordering::Relaxed);
+    }
 }
 
 impl AudioProcessor for SCDistortion {
     fn process(&mut self, sample: f32) -> f32 {
         let limit = self.limit.load(Ordering::Relaxed);
         let smoothing = self.smoothing.load(Ordering::Relaxed);
-        let abs_sample= sample.abs();
-        let distorted = (limit * sample) / pow(1.0 + pow(abs_sample, smoothing) ,1.0/smoothing);
-        self.level_gain.process(distorted)
+        let abs_sample = sample.abs();
+        let distorted = sample / (1.0 + abs_sample.powf(smoothing)).powf(1.0 / smoothing);
+        self.level_gain.process(limit * distorted)
     }
 }
 
@@ -157,16 +163,16 @@ impl Effect for SCDistortion {
     ///
     /// # Returns
     ///
-    /// [`EffectDto::HCDistortion`] with all current parameters
+    /// [`EffectDto::SCDistortion`] with all current parameters
     fn to_dto(&self) -> EffectDto {
-        //TODO: Convert to SCDistortionDto
-        EffectDto::HCDistortion(HcDistortionDto {
+        EffectDto::SCDistortion(ScDistortionDto {
             id: self.id,
             name: self.name.clone(),
             is_active: self.is_active.load(Ordering::Relaxed),
             color: self.color.clone(),
             threshold: self.limit.load(Ordering::Relaxed),
             level: self.level(),
+            smoothing: self.smoothing.load(Ordering::Relaxed),
         })
     }
 }
@@ -175,19 +181,144 @@ impl Effect for SCDistortion {
 mod tests {
     use super::*;
 
-    fn distortion(threshold: f32) -> SCDistortion {
+    fn distortion(threshold: f32, smoothing: f32) -> SCDistortion {
         SCDistortion::new(
             0,
             "SC".to_string(),
             true,
             threshold,
             0.0,
-            1.0,
+            smoothing,
             "#e67e22".to_string(),
         )
     }
 
-    mod success_path {}
+    mod success_path {
+        use super::*;
 
-    mod failure_path {}
+        #[test]
+        fn sample_within_threshold_is_slightly_compressed() {
+            let mut fx = distortion(1.0, 1.0);
+            for _ in 0..10_000 { fx.process(0.0); }
+
+            let input = 0.1;
+            let output = fx.process(input);
+
+            assert!(output < input);
+            assert!((output - input).abs() < 0.01);
+        }
+
+        #[test]
+        fn sample_is_pushed_towards_limit() {
+            let limit = 0.5;
+            let mut fx = distortion(limit, 5.0);
+            for _ in 0..10_000 { fx.process(0.0); }
+
+            let out = fx.process(100.0);
+
+            assert!(out <= limit);
+            assert!((out - limit).abs() < 0.01);
+        }
+
+        #[test]
+        fn smoothing_parameter_affects_curve() {
+            let mut soft_fx = distortion(1.0, 1.0); // n=1 (Very soft)
+            let mut hard_fx = distortion(1.0, 10.0); // n=10 (Harder)
+
+            for _ in 0..10_000 {
+                soft_fx.process(0.0);
+                hard_fx.process(0.0);
+            }
+
+            let input = 0.5;
+            let soft_out = soft_fx.process(input);
+            let hard_out = hard_fx.process(input);
+
+            assert!(soft_out < hard_out);
+        }
+
+        #[test]
+        fn process_if_active_passes_through_when_inactive() {
+            let mut fx = distortion(0.5,10.0);
+            fx.set_active(false);
+            assert_eq!(fx.process_if_active(0.9), 0.9);
+        }
+
+        #[test]
+        fn set_threshold_updates_clip_level() {
+            let mut fx = distortion(0.8, 10.0);
+
+            fx.set_threshold(0.3);
+            assert!((fx.threshold() - 0.3).abs() < 1e-6);
+
+            for _ in 0..10_000 {
+                fx.process(0.0);
+            }
+
+            let output = fx.process(0.9);
+
+            assert!(output < 0.9);
+            assert!((output - 0.3).abs() < 0.05, "Expected output to be near 0.3, got {}", output);
+
+            let massive_input = 100.0;
+            let limited_output = fx.process(massive_input);
+            assert!(limited_output <= 0.30001);
+        }
+
+        #[test]
+        fn level_boost_doubles_output_at_max() {
+            let mut fx = SCDistortion::new(
+                0,
+                "HC".to_string(),
+                true,
+                1.0,
+                1.0,
+                10.0,
+                "#e67e22".to_string(),
+            );
+            // Converge gain processor to ×2.0
+            for _ in 0..20_000 {
+                fx.process(0.0);
+            }
+            let out = fx.process(0.3);
+            assert!((out - 0.6).abs() < 0.01, "expected ≈0.6, got {out}");
+        }
+
+        #[test]
+        fn level_unity_at_zero() {
+            let mut fx = distortion(1.0,10.0); // level=0.0
+            for _ in 0..10_000 {
+                fx.process(0.0);
+            }
+            let out = fx.process(0.4);
+            assert!((out - 0.4).abs() < 0.01, "expected ≈0.4, got {out}");
+        }
+    }
+
+    mod failure_path {
+        use super::*;
+        #[test]
+        fn threshold_above_one_is_clamped_to_one() {
+            let fx = distortion(2.0, 1.0);
+            assert_eq!(fx.threshold(), 1.0);
+        }
+
+        #[test]
+        fn threshold_of_zero_is_clamped_to_minimum() {
+            let fx = distortion(0.0, 1.0);
+            assert!(fx.threshold() > 0.0);
+        }
+
+        #[test]
+        fn smoothing_above_ten_is_clamped_to_ten() {
+            let fx = distortion(1.0, 11.0);
+            assert_eq!(fx.smoothing(), 10.0);
+        }
+
+        #[test]
+        fn smoothing_of_zero_is_clamped_to_minimum() {
+            let fx = distortion(1.0, 0.0);
+            assert!(fx.smoothing() > 0.0);
+        }
+    }
 }

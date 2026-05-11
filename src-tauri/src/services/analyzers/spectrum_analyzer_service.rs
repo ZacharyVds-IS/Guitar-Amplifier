@@ -35,9 +35,7 @@ impl SpectrumAnalyzerService {
         }
 
         let sample_rate = sample_rate_hz.max(1) as f32;
-        let max_frequency_hz = (sample_rate * 0.5)
-            .max(MIN_ANALYZER_FREQ_HZ + 1.0)
-            .min(20_000.0);
+        let max_frequency_hz = (sample_rate * 0.5).clamp(MIN_ANALYZER_FREQ_HZ + 1.0, 20_000.0);
 
         let mut fft_input: Vec<Complex<f32>> = samples
             .iter()

@@ -6,7 +6,7 @@ import {useState} from "react";
 import {AddChannelDialog} from "../components/dialogs/AddChannelDialog.tsx";
 import DeleteIcon from '@mui/icons-material/Delete';
 import {ConfirmationDialog} from "../components/dialogs/ConfirmationDialog.tsx";
-import {openAnalyzerWindow} from "../windows/AnalyzerWindow.tsx";
+import {openAnalyzerWindow} from "../windows/AnalyzerWindow";
 
 export function AppLayout() {
     const navigate = useNavigate();

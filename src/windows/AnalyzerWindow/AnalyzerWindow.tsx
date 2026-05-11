@@ -1,41 +1,15 @@
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {Box, IconButton, Paper, Tooltip, Typography, useTheme} from "@mui/material";
 import {LineChart} from "@mui/x-charts/LineChart";
-import {WebviewWindow} from "@tauri-apps/api/webviewWindow";
-import {AmpEnabledBoundary} from "../components/boundary/AmpEnabledBoundary.tsx";
-import {FallbackText} from "../components/FallbackText.tsx";
-import {useLiveSpectrum} from "../hooks/useLiveSpectrum.ts";
+import {AmpEnabledBoundary} from "../../components/boundary/AmpEnabledBoundary.tsx";
+import {FallbackText} from "../../components/FallbackText.tsx";
+import {useLiveSpectrum} from "../../hooks/useLiveSpectrum.ts";
 
-const ANALYZER_WINDOW_LABEL = "analyzer-view";
-const ANALYZER_ROUTE = "/#/analyzer";
 const MIN_DB = -90;
 const MAX_DB = 6;
 const MIN_FREQ = 20;
 const MAX_FREQ = 20_000;
 const FREQ_GRID = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10_000, 20_000];
-
-export async function openAnalyzerWindow(): Promise<void> {
-    const existingWindow = await WebviewWindow.getByLabel(ANALYZER_WINDOW_LABEL);
-    if (existingWindow) {
-        await existingWindow.setFocus();
-        return;
-    }
-
-    const analyzerWindow = new WebviewWindow(ANALYZER_WINDOW_LABEL, {
-        title: "RustRiff Analyzer",
-        url: ANALYZER_ROUTE,
-        width: 1024,
-        height: 700,
-        resizable: true,
-        minimizable: true,
-        maximizable: true,
-        center: true,
-    });
-
-    await analyzerWindow.once("tauri://error", (error) => {
-        console.error("Failed to create Analyzer window", error);
-    });
-}
 
 export function AnalyzerWindow() {
     const {spectrum, loadError} = useLiveSpectrum();

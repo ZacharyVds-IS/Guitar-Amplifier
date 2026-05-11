@@ -1,6 +1,6 @@
 # RustRiff
 ## From Rust to Rock in miliseconds!
-Rustriff is a desktop guitar amplifier built with rust (**React + Typescript **, **Rust + Tauri**).
+**RustRiff** is a desktop guitar amplifier built with rust (**React + Typescript **, **Rust + Tauri**).
 RustRiff models core amp controls (gain, tone stack, channel flow), an effect chain, and cabinet 
 impulse-response (IR).
 
@@ -15,7 +15,7 @@ impulse-response (IR).
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - npm 10+
 - Rust stable toolchain
 - Tauri system dependencies for your OS

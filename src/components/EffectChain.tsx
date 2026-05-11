@@ -24,9 +24,9 @@ export function EffectChain({effects, selected, onSelectionChange, onReorderOpen
         return selected === "amp";
     }
 
-    let [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-    let [addDialogOpen, setAddDialogOpen] = useState(false);
-    let [reorderOpen, setReorderOpen] = useState(false);
+    const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+    const [addDialogOpen, setAddDialogOpen] = useState(false);
+    const [reorderOpen, setReorderOpen] = useState(false);
     const {startEditingChainOrder, cancelEditingChainOrder, applyChangesToChainOrder, moveEffect} = useAmpStore();
 
     const handleAdd = (newEffect: EffectDto) => {

@@ -20,7 +20,7 @@ export function MainScreen() {
     );
     const currentChannelId = useAmpStore((state) => state.current_channel);
 
-    let [editOrderOpen, setEditOrderOpen] = useState<boolean>(false);
+    const [editOrderOpen, setEditOrderOpen] = useState<boolean>(false);
 
     const [selection, setSelection] = useState<EffectSelection>("amp");
     useEffect(() => {

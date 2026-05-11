@@ -41,7 +41,7 @@ impl ToneStackProcessor {
     /// # Returns
     ///
     /// A new `ToneStackProcessor` instance.
-    pub fn new(tone_stack: Arc<ToneStack>, sample_rate :u32) -> Self {
+    pub fn new(tone_stack: Arc<ToneStack>, sample_rate: u32) -> Self {
         Self {
             tone_stack,
             bass_eq: RangeEQ::new(sample_rate as f32, BASS_SHELF, 0.0, 1.0, EQType::Low),

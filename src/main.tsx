@@ -10,9 +10,9 @@ type RustriffWindow = Window & {
 };
 
 const runtimeWindow = window as RustriffWindow;
-const isEqWindow =
-    runtimeWindow.__RUSTRIFF_WINDOW_KIND === "eq" ||
-    window.location.hash.startsWith("#/eq");
+const isAnalyzerWindow =
+    runtimeWindow.__RUSTRIFF_WINDOW_KIND === "analyzer" ||
+    window.location.hash.startsWith("#/analyzer");
 
 async function configureListeners() {
     await useAmpStore.getState().init();
@@ -23,7 +23,7 @@ async function configureListeners() {
     });
 }
 
-if (!isEqWindow) {
+if (!isAnalyzerWindow) {
     configureListeners().catch((error) => {
         console.error("Failed to configure backend listeners", error);
     });

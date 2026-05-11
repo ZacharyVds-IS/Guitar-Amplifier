@@ -6,7 +6,7 @@ import {useState} from "react";
 import {AddChannelDialog} from "../components/dialogs/AddChannelDialog.tsx";
 import DeleteIcon from '@mui/icons-material/Delete';
 import {ConfirmationDialog} from "../components/dialogs/ConfirmationDialog.tsx";
-import {openEqWindow} from "../windows/EqWindow.tsx";
+import {openAnalyzerWindow} from "../windows/AnalyzerWindow.tsx";
 
 export function AppLayout() {
     const navigate = useNavigate();
@@ -101,13 +101,13 @@ export function AppLayout() {
                             color="inherit"
                             onClick={async () => {
                                 try {
-                                    await openEqWindow();
+                                    await openAnalyzerWindow();
                                 } catch (error) {
-                                    console.error("Failed to open EQ window", error);
+                                    console.error("Failed to open Analyzer window", error);
                                 }
                             }}
                         >
-                            EQ
+                            Analyzer
                         </Button>
                         <Button color="inherit" onClick={() => navigate("/settings")}>Settings</Button>
                     </Box>

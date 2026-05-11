@@ -7,6 +7,9 @@ pub mod services;
 #[cfg(test)]
 pub mod tests;
 
+use crate::commands::analyzer::{
+    get_live_spectrum, start_live_spectrum_stream, stop_live_spectrum_stream, SpectrumStreamState,
+};
 use crate::commands::channels::{
     add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id,
 };
@@ -135,6 +138,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(Mutex::new(audio_service))
+        .manage(SpectrumStreamState::default())
         .manage(DeviceService::new(host))
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -228,6 +232,9 @@ pub fn run() {
             remove_ir_profile,
             set_delay_delay_time,
             set_delay_level,
+            get_live_spectrum,
+            start_live_spectrum_stream,
+            stop_live_spectrum_stream,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

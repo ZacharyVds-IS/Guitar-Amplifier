@@ -20,6 +20,9 @@ import {
     toggleOnOff
 } from "../domain";
 import {create} from "zustand/react";
+import {emit} from "@tauri-apps/api/event";
+
+export const AMP_ACTIVE_CHANGED_EVENT = "amp-active-changed";
 
 function withUpdatedEffectActiveState<T extends EffectDto>(effect: T, isActive: boolean): T {
     return {
@@ -154,7 +157,8 @@ export const useAmpStore = create<AmpState>((set, get) => ({
 
         setIsActive: (val: boolean) => {
             set({is_active: val});
-            toggleOnOff({isOn: val});
+            void toggleOnOff({isOn: val});
+            void emit(AMP_ACTIVE_CHANGED_EVENT, val);
         },
 
         setGain: (val: number) => {

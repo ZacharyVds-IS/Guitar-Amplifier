@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for main and EQ windows",
+  "windows": ["main", "eq-view"],
   "permissions": [
     "core:default",
     "core:event:allow-listen",
     "core:event:allow-emit",
+    "core:webview:allow-create-webview-window",
     "opener:default"
   ]
 }

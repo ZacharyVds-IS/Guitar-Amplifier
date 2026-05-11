@@ -5,6 +5,15 @@ import {useAmpStore} from "./state/AmpConfigStore.tsx";
 import {listen} from "@tauri-apps/api/event";
 import {ChannelDto} from "./domain";
 
+type RustriffWindow = Window & {
+    __RUSTRIFF_WINDOW_KIND?: string;
+};
+
+const runtimeWindow = window as RustriffWindow;
+const isEqWindow =
+    runtimeWindow.__RUSTRIFF_WINDOW_KIND === "eq" ||
+    window.location.hash.startsWith("#/eq");
+
 async function configureListeners() {
     await useAmpStore.getState().init();
 
@@ -14,7 +23,11 @@ async function configureListeners() {
     });
 }
 
-configureListeners()
+if (!isEqWindow) {
+    configureListeners().catch((error) => {
+        console.error("Failed to configure backend listeners", error);
+    });
+}
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -1,7 +1,8 @@
-import { createHashRouter } from "react-router-dom";
+import {createHashRouter} from "react-router-dom";
 import {SettingsScreen} from "../../screens/SettingsScreen.tsx";
 import {MainScreen} from "../../screens/MainScreen.tsx";
 import {AppLayout} from "../../screens/AppLayout.tsx";
+import {EqWindow} from "../../windows/EqWindow.tsx";
 
 export const router = createHashRouter([
     {
@@ -17,5 +18,9 @@ export const router = createHashRouter([
                 element: <SettingsScreen />,
             },
         ],
+    },
+    {
+        path: "/eq",
+        element: <EqWindow />,
     },
 ]);

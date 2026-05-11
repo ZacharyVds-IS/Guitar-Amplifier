@@ -1,5 +1,5 @@
 import {AppBar, Box, Button, IconButton, Toolbar, Typography} from "@mui/material";
-import {Outlet, useNavigate} from "react-router-dom";
+import {Link, Outlet, useNavigate} from "react-router-dom";
 import {ChannelSelector} from "../components/ChannelSelector.tsx";
 import {useAmpStore} from "../state/AmpConfigStore.tsx";
 import {useState} from "react";
@@ -51,19 +51,33 @@ export function AppLayout() {
                     borderColor: 'divider'
                 }}
             >
-                <Toolbar variant="dense" sx={{justifyContent: 'space-between'}}>
-                    <Typography variant="h6" sx={{fontWeight: 'bold'}}>
+                <Toolbar variant="dense" sx={{justifyContent: 'space-between', gap: 2, minWidth: 0}}>
+                    <Typography variant="h6" sx={{fontWeight: 'bold', textDecoration: "none", color: "initial"}}
+                                component={Link} to={"/"}>
                         Rust Riff
                     </Typography>
-                    <Box sx={{display: 'flex', direction: "row", alignItems: 'center', gap: 2, width: "25%"}}>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            gap: 1,
+                            flex: 1,
+                            minWidth: 0,
+                            overflowX: 'auto',
+                            whiteSpace: 'nowrap'
+                        }}
+                    >
                         {channels.length > 0 ? (
                             <>
-                                <ChannelSelector
-                                    channels={channelOptions}
-                                    currentChannelId={currentChannelId >= 0 ? currentChannelId : 0}
-                                    onChannelChange={handleChannelChange}
-                                    onAdd={() => setDialogOpen(true)}
-                                />
+                                <Box sx={{width: 200, minWidth: 200, flexShrink: 0}}>
+                                    <ChannelSelector
+                                        channels={channelOptions}
+                                        currentChannelId={currentChannelId >= 0 ? currentChannelId : 0}
+                                        onChannelChange={handleChannelChange}
+                                        onAdd={() => setDialogOpen(true)}
+                                    />
+                                </Box>
                                 <AddChannelDialog open={dialogOpen} onClose={() => setDialogOpen(false)}
                                                   onCreate={handleAddChannel}/>
                                 {currentChannelId != 0 &&
@@ -83,7 +97,6 @@ export function AppLayout() {
                             </Typography>
                         )}
                         <Button color="inherit" onClick={() => navigate("/")}>Home</Button>
-                        <Button color="inherit" onClick={() => navigate("/settings")}>Settings</Button>
                         <Button
                             color="inherit"
                             onClick={async () => {
@@ -96,6 +109,7 @@ export function AppLayout() {
                         >
                             EQ
                         </Button>
+                        <Button color="inherit" onClick={() => navigate("/settings")}>Settings</Button>
                     </Box>
                 </Toolbar>
             </AppBar>

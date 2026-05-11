@@ -27,6 +27,7 @@ export function ChannelSelector({channels, currentChannelId, onChannelChange, on
             onAdd={onAdd}
             hasBorder={false}
             hasLabel={false}
+
         />
     );
 

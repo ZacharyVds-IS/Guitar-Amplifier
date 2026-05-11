@@ -154,11 +154,12 @@ export function SettingsScreen() {
                     p: 3,
                 }}
             >
-                <Box sx={{display: "flex", gap: 3, flex: 1, minHeight: 0, overflow: "hidden"}}>
+                <Box sx={{display: "flex", gap: 3, flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden"}}>
                     {/* Left: General Settings */}
                     <Box
                         sx={{
-                            flex: "0 0 50%",
+                            flex: 1,
+                            minWidth: 0,
                             display: "flex",
                             flexDirection: "column",
                             gap: 2,
@@ -283,16 +284,18 @@ export function SettingsScreen() {
                         </Box>
                     </Box>
 
-                    <Divider orientation="vertical"/>
+                    <Divider orientation="vertical" flexItem />
 
                     {/* Right: Device Settings */}
                     <Box
                         sx={{
-                            flex: "0 0 50%",
+                            flex: 1,
+                            minWidth: 0,
                             display: "flex",
                             flexDirection: "column",
                             gap: 2,
                             pl: 2,
+                            overflowY: "auto",
                             overflowX: "hidden",
                         }}
                     >
@@ -317,4 +320,3 @@ export function SettingsScreen() {
         </Box>
     );
 }
-

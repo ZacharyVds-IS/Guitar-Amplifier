@@ -43,7 +43,7 @@ interface AmpState extends AmpConfigDto {
     setGain: (val: number) => void;
     setVolume: (val: number) => void;
     setMasterVolume: (val: number) => void;
-    setIsActive: (val: boolean) => void;
+    setIsActive: (val: boolean) => Promise<void>;
     setBass: (val: number) => void;
     setMiddle: (val: number) => void;
     setTreble: (val: number) => void;
@@ -155,10 +155,15 @@ export const useAmpStore = create<AmpState>((set, get) => ({
             setMasterVolume({masterVolume: val})
         },
 
-        setIsActive: (val: boolean) => {
+        setIsActive: async (val: boolean) => {
             set({is_active: val});
-            void toggleOnOff({isOn: val});
-            void emit(AMP_ACTIVE_CHANGED_EVENT, val);
+            try {
+                await toggleOnOff({isOn: val});
+                void emit(AMP_ACTIVE_CHANGED_EVENT, val);
+            } catch (error) {
+                console.error("Failed to toggle amp on/off, rolling back:", error);
+                set({is_active: !val});
+            }
         },
 
         setGain: (val: number) => {

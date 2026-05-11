@@ -3,16 +3,12 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import {useAmpStore} from "./state/AmpConfigStore.tsx";
 import {listen} from "@tauri-apps/api/event";
+import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
 import {ChannelDto} from "./domain";
 
-type RustriffWindow = Window & {
-    __RUSTRIFF_WINDOW_KIND?: string;
-};
+const ANALYZER_WINDOW_LABEL = "analyzer-view";
 
-const runtimeWindow = window as RustriffWindow;
-const isAnalyzerWindow =
-    runtimeWindow.__RUSTRIFF_WINDOW_KIND === "analyzer" ||
-    window.location.hash.startsWith("#/analyzer");
+const isAnalyzerWindow = getCurrentWebviewWindow().label === ANALYZER_WINDOW_LABEL;
 
 async function configureListeners() {
     await useAmpStore.getState().init();

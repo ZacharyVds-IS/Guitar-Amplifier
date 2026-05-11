@@ -8,14 +8,18 @@ export function useAmpActiveSync() {
         let disposed = false;
 
         const sync = async () => {
-            await useAmpStore.getState().init();
-            if (disposed) {
-                return;
-            }
+            try {
+                await useAmpStore.getState().init();
+                if (disposed) {
+                    return;
+                }
 
-            unlisten = await listen<boolean>(AMP_ACTIVE_CHANGED_EVENT, (event) => {
-                useAmpStore.setState({is_active: event.payload});
-            });
+                unlisten = await listen<boolean>(AMP_ACTIVE_CHANGED_EVENT, (event) => {
+                    useAmpStore.setState({is_active: event.payload});
+                });
+            } catch (error) {
+                console.error("[useAmpActiveSync] Failed to initialize amp state sync:", error);
+            }
         };
 
         void sync();

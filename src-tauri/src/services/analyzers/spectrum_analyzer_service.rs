@@ -1,7 +1,9 @@
 use crate::domain::dto::spectrum_snapshot_dto::SpectrumSnapshotDto;
-use crate::services::analyzers::spectrum_tap::SpectrumTap;
+use crate::services::analyzers::spectrum_tap::{SpectrumTap, SPECTRUM_WINDOW_SIZE};
 use rustfft::num_complex::Complex;
-use rustfft::FftPlanner;
+use rustfft::{Fft, FftPlanner};
+use std::cell::RefCell;
+use std::sync::{Arc, OnceLock};
 
 /// Lower bound for analyzer frequencies in Hz.
 const MIN_ANALYZER_FREQ_HZ: f32 = 20.0;
@@ -11,6 +13,50 @@ const MIN_DB: f32 = -90.0;
 const MAX_DB: f32 = 6.0;
 /// Number of points emitted to the frontend per frame.
 const ANALYZER_BINS: usize = 96;
+/// Upper frequency visible in the analyzer. Normal sample rates (≥ 44 100 Hz) always
+/// reach Nyquist above this value, so the log-spaced bin frequencies are session-stable.
+const MAX_ANALYZER_FREQ_HZ: f32 = 20_000.0;
+
+/// Immutable per-session caches: FFT plan, Hann coefficients, and log-spaced frequencies.
+///
+/// All three only depend on the fixed window / bin constants and never change at runtime,
+/// so a single `OnceLock` initialization is sufficient.
+struct AnalyzerCaches {
+    fft: Arc<dyn Fft<f32>>,
+    hann: Vec<f32>,
+    /// Log-spaced center frequencies shared across every frame in the DTO.
+    frequencies_hz: Arc<[f32]>,
+}
+
+static CACHES: OnceLock<AnalyzerCaches> = OnceLock::new();
+
+fn caches() -> &'static AnalyzerCaches {
+    CACHES.get_or_init(|| {
+        let mut planner = FftPlanner::new();
+        let fft = planner.plan_fft_forward(SPECTRUM_WINDOW_SIZE);
+        let hann = (0..SPECTRUM_WINDOW_SIZE)
+            .map(|i| hann_window(i, SPECTRUM_WINDOW_SIZE))
+            .collect();
+        let frequencies_hz: Arc<[f32]> = (0..ANALYZER_BINS)
+            .map(|i| {
+                frequency_for_bin(i, ANALYZER_BINS, MIN_ANALYZER_FREQ_HZ, MAX_ANALYZER_FREQ_HZ)
+            })
+            .collect::<Vec<_>>()
+            .into();
+
+        AnalyzerCaches {
+            fft,
+            hann,
+            frequencies_hz,
+        }
+    })
+}
+
+// Per-thread scratch buffer so the hot path never allocates a Vec<Complex<f32>> per frame.
+thread_local! {
+    static FFT_BUF: RefCell<Vec<Complex<f32>>> =
+        RefCell::new(vec![Complex::new(0.0, 0.0); SPECTRUM_WINDOW_SIZE]);
+}
 
 /// Stateless service that converts time-domain tap samples into log-spaced dB spectrum data.
 pub struct SpectrumAnalyzerService;
@@ -28,42 +74,71 @@ impl SpectrumAnalyzerService {
         if samples.is_empty() {
             return SpectrumSnapshotDto {
                 sample_rate_hz: sample_rate_hz.max(1),
-                frequencies_hz: vec![MIN_ANALYZER_FREQ_HZ; ANALYZER_BINS],
+                frequencies_hz: caches().frequencies_hz.to_vec(),
                 magnitudes: vec![MIN_DB; ANALYZER_BINS],
                 level_db: MIN_DB,
             };
         }
 
         let sample_rate = sample_rate_hz.max(1) as f32;
-        let max_frequency_hz = (sample_rate * 0.5).clamp(MIN_ANALYZER_FREQ_HZ + 1.0, 20_000.0);
 
-        let mut fft_input: Vec<Complex<f32>> = samples
-            .iter()
-            .enumerate()
-            .map(|(i, sample)| Complex::new(*sample * hann_window(i, samples.len()), 0.0))
-            .collect();
+        if samples.len() == SPECTRUM_WINDOW_SIZE {
+            // Hot path: reuse cached plan, Hann coefficients, and per-thread scratch buffer —
+            // no heap allocation occurs here beyond the output magnitudes Vec.
+            let c = caches();
+            FFT_BUF.with(|cell| {
+                let mut buf = cell.borrow_mut();
+                for (i, (dst, &sample)) in buf.iter_mut().zip(samples.iter()).enumerate() {
+                    *dst = Complex::new(sample * c.hann[i], 0.0);
+                }
+                c.fft.process(&mut buf);
 
-        let mut planner = FftPlanner::<f32>::new();
-        planner
-            .plan_fft_forward(samples.len())
-            .process(&mut fft_input);
+                let magnitudes = c
+                    .frequencies_hz
+                    .iter()
+                    .map(|&f| magnitude_db_at_frequency(&buf, sample_rate, f))
+                    .collect();
 
-        let frequencies_hz: Vec<f32> = (0..ANALYZER_BINS)
-            .map(|index| {
-                frequency_for_bin(index, ANALYZER_BINS, MIN_ANALYZER_FREQ_HZ, max_frequency_hz)
+                SpectrumSnapshotDto {
+                    sample_rate_hz: sample_rate_hz.max(1),
+                    frequencies_hz: c.frequencies_hz.to_vec(),
+                    magnitudes,
+                    level_db: rms_db(samples),
+                }
             })
-            .collect();
+        } else {
+            // Fallback path for non-standard window sizes (used in unit tests).
+            let max_frequency_hz =
+                (sample_rate * 0.5).clamp(MIN_ANALYZER_FREQ_HZ + 1.0, MAX_ANALYZER_FREQ_HZ);
 
-        let magnitudes: Vec<f32> = frequencies_hz
-            .iter()
-            .map(|frequency_hz| magnitude_db_at_frequency(&fft_input, sample_rate, *frequency_hz))
-            .collect();
+            let mut fft_input: Vec<Complex<f32>> = samples
+                .iter()
+                .enumerate()
+                .map(|(i, sample)| Complex::new(*sample * hann_window(i, samples.len()), 0.0))
+                .collect();
 
-        SpectrumSnapshotDto {
-            sample_rate_hz: sample_rate_hz.max(1),
-            frequencies_hz,
-            magnitudes,
-            level_db: rms_db(samples),
+            let mut planner = FftPlanner::<f32>::new();
+            planner
+                .plan_fft_forward(samples.len())
+                .process(&mut fft_input);
+
+            let frequencies_hz: Vec<f32> = (0..ANALYZER_BINS)
+                .map(|i| {
+                    frequency_for_bin(i, ANALYZER_BINS, MIN_ANALYZER_FREQ_HZ, max_frequency_hz)
+                })
+                .collect();
+
+            let magnitudes: Vec<f32> = frequencies_hz
+                .iter()
+                .map(|&f| magnitude_db_at_frequency(&fft_input, sample_rate, f))
+                .collect();
+
+            SpectrumSnapshotDto {
+                sample_rate_hz: sample_rate_hz.max(1),
+                frequencies_hz,
+                magnitudes,
+                level_db: rms_db(samples),
+            }
         }
     }
 }

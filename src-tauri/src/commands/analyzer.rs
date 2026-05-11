@@ -1,10 +1,10 @@
 use crate::domain::dto::spectrum_snapshot_dto::SpectrumSnapshotDto;
 use crate::services::analyzers::spectrum_analyzer_service::SpectrumAnalyzerService;
 use crate::services::audio_service::AudioService;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::Emitter;
+use tokio::time::{interval, Duration};
 
 /// Tauri event name emitted by the backend when a new spectrum frame is available.
 const LIVE_SPECTRUM_EVENT: &str = "live-spectrum";
@@ -15,17 +15,25 @@ const STREAM_INTERVAL_MS: u64 = 16;
 ///
 /// The task is started by `start_live_spectrum_stream` and stopped by either
 /// `stop_live_spectrum_stream` or when the target window can no longer receive events.
+///
+/// An `AtomicBool` shutdown flag is used so the async task can exit cleanly on the
+/// next tick without relying on `JoinHandle::abort`, which cannot forcibly stop a
+/// blocking thread spawned by `spawn_blocking`.
 #[derive(Default)]
 pub struct SpectrumStreamState {
     task: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    shutdown: Arc<AtomicBool>,
 }
 
 /// Returns a single, immediate spectrum snapshot.
 ///
 /// This command is useful for first paint / fallback reads before the push stream
 /// starts delivering `live-spectrum` events.
+///
+/// FFT analysis is offloaded to a blocking task so the async command handler never
+/// stalls the Tauri runtime thread.
 #[tauri::command]
-pub fn get_live_spectrum(
+pub async fn get_live_spectrum(
     audio_service: tauri::State<'_, Mutex<AudioService>>,
 ) -> Result<SpectrumSnapshotDto, String> {
     let tap = {
@@ -35,14 +43,17 @@ pub fn get_live_spectrum(
         service.spectrum_tap().clone()
     };
 
-    Ok(SpectrumAnalyzerService::analyze_tap(tap.as_ref()))
+    tauri::async_runtime::spawn_blocking(move || SpectrumAnalyzerService::analyze_tap(tap.as_ref()))
+        .await
+        .map_err(|e| format!("FFT analysis task failed: {e}"))
 }
 
 /// Starts (or restarts) push-based live spectrum streaming for the calling window.
 ///
 /// Behavior:
 /// - Captures the current shared `SpectrumTap` from `AudioService`.
-/// - Aborts any previously running stream task.
+/// - Signals any previously running stream task to shut down via an `AtomicBool` flag,
+///   then replaces it. This avoids leaking threads that `JoinHandle::abort` cannot stop.
 /// - Spawns a background loop that analyzes the tap and emits `live-spectrum`
 ///   events at `STREAM_INTERVAL_MS` cadence.
 /// - Automatically exits when event emission fails (for example, when window closes).
@@ -59,21 +70,38 @@ pub fn start_live_spectrum_stream(
         service.spectrum_tap().clone()
     };
 
-    if let Some(existing) = stream_state
+    // Signal the previous task to stop on its next tick before replacing it.
+    stream_state.shutdown.store(true, Ordering::Relaxed);
+    stream_state
         .task
         .lock()
         .map_err(|_| "Failed to lock spectrum stream state".to_string())?
-        .take()
-    {
-        existing.abort();
-    }
+        .take();
 
-    let handle = tauri::async_runtime::spawn_blocking(move || loop {
-        let snapshot = SpectrumAnalyzerService::analyze_tap(tap.as_ref());
-        if window.emit(LIVE_SPECTRUM_EVENT, snapshot).is_err() {
-            break;
+    let shutdown = Arc::clone(&stream_state.shutdown);
+    shutdown.store(false, Ordering::Relaxed);
+
+    let handle = tauri::async_runtime::spawn(async move {
+        let mut ticker = interval(Duration::from_millis(STREAM_INTERVAL_MS));
+        loop {
+            ticker.tick().await;
+            if shutdown.load(Ordering::Relaxed) {
+                break;
+            }
+            let tap_ref = Arc::clone(&tap);
+            let snapshot = tauri::async_runtime::spawn_blocking(move || {
+                SpectrumAnalyzerService::analyze_tap(tap_ref.as_ref())
+            })
+            .await;
+            match snapshot {
+                Ok(data) => {
+                    if window.emit(LIVE_SPECTRUM_EVENT, data).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
         }
-        std::thread::sleep(Duration::from_millis(STREAM_INTERVAL_MS));
     });
 
     stream_state
@@ -88,18 +116,17 @@ pub fn start_live_spectrum_stream(
 /// Stops the active live spectrum stream task, if one exists.
 ///
 /// This is safe to call repeatedly; when no task is active it becomes a no-op.
+/// Sets the shutdown flag so the async loop exits cleanly on its next tick.
 #[tauri::command]
 pub fn stop_live_spectrum_stream(
     stream_state: tauri::State<'_, SpectrumStreamState>,
 ) -> Result<(), String> {
-    if let Some(existing) = stream_state
+    stream_state.shutdown.store(true, Ordering::Relaxed);
+    stream_state
         .task
         .lock()
         .map_err(|_| "Failed to lock spectrum stream state".to_string())?
-        .take()
-    {
-        existing.abort();
-    }
+        .take();
 
     Ok(())
 }

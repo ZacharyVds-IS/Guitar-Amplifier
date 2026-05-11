@@ -7,13 +7,29 @@ pub mod services;
 #[cfg(test)]
 pub mod tests;
 
-use crate::commands::channels::{add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id};
-use crate::commands::default_controls::{get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_tone_stack, set_treble, set_volume, toggle_on_off};
-use crate::commands::effect_commands::cabinet_ir::{get_all_ir_profiles, remove_ir_profile, upload_ir_profile};
-use crate::commands::effect_commands::hc_distortion::{set_hc_distortion_level, set_hc_distortion_threshold};
-use crate::commands::latency_testing::{measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency, measure_round_trip_latency, test_gain_latency};
+use crate::commands::channels::{
+    add_channel, get_all_channels, get_channel_id, remove_channel, set_channel_id,
+};
+use crate::commands::default_controls::{
+    get_amp_config, set_bass, set_gain, set_master_volume, set_middle, set_tone_stack, set_treble,
+    set_volume, toggle_on_off,
+};
+use crate::commands::effect_commands::cabinet_ir::{
+    get_all_ir_profiles, remove_ir_profile, upload_ir_profile,
+};
+use crate::commands::effect_commands::delay::{set_delay_delay_time, set_delay_level};
+use crate::commands::effect_commands::hc_distortion::{
+    set_hc_distortion_level, set_hc_distortion_threshold,
+};
+use crate::commands::latency_testing::{
+    measure_all_dsp_algorithmic_latency, measure_all_dsp_cpu_timings, measure_buffer_latency,
+    measure_round_trip_latency, test_gain_latency,
+};
 use crate::commands::loopback::start_loopback;
-use crate::commands::settings::{get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames, set_input_device, set_output_device};
+use crate::commands::settings::{
+    get_buffer_size_frames, get_input_device_list, get_output_device_list, set_buffer_size_frames,
+    set_input_device, set_output_device,
+};
 use crate::config::{get_default_ir_file, init_tracing};
 use crate::infrastructure::file_loader::FileLoader;
 use crate::infrastructure::persistence::json_amp_config_repository::JsonFileAmpConfigRepository;
@@ -21,7 +37,9 @@ use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
 use crate::services::device_service::DeviceService;
 use crate::services::file_service::FileService;
-use commands::effect_commands::effects::{add_effect, apply_effect_order_change, remove_effect, toggle_effect};
+use commands::effect_commands::effects::{
+    add_effect, apply_effect_order_change, remove_effect, toggle_effect,
+};
 use cpal::default_host;
 use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{BufferSize, StreamConfig};
@@ -29,7 +47,6 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
-use crate::commands::effect_commands::delay::{set_delay_delay_time, set_delay_level};
 
 const AMP_CONFIG_FILE_NAME: &str = "amp-config.json";
 
@@ -117,7 +134,6 @@ pub fn run() {
 
     let audio_service = AudioService::new(input, output, input_config, output_config);
 
-
     tauri::Builder::default()
         .manage(Mutex::new(audio_service))
         .manage(DeviceService::new(host))
@@ -152,14 +168,16 @@ pub fn run() {
                 }
             }
 
-            let resource_root = app
-                .path()
-                .resource_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
+            let resource_root = app.path().resource_dir().unwrap_or_else(|_| {
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources")
+            });
             info!("Using resource root: {}", resource_root.display());
 
             let custom_ir_directory = config_dir.join("default_ir_custom");
-            info!("Using custom IR directory: {}", custom_ir_directory.display());
+            info!(
+                "Using custom IR directory: {}",
+                custom_ir_directory.display()
+            );
             std::env::set_var("RUSTRIFF_CUSTOM_IR_DIR", &custom_ir_directory);
 
             let file_service = FileService::new(

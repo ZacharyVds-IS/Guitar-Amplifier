@@ -62,7 +62,8 @@ impl FileService {
     /// [`get_all_ir_profiles`]: crate::commands::effect_commands::cabinet_ir::get_all_ir_profiles
     pub fn get_all_ir_profiles(&self) -> Result<Vec<IrProfileDto>, String> {
         let default_directory = self.resolve_default_ir_directory()?;
-        self.file_loader.ensure_directory(&self.custom_ir_directory)?;
+        self.file_loader
+            .ensure_directory(&self.custom_ir_directory)?;
 
         let mut profiles = self
             .file_loader
@@ -103,7 +104,11 @@ impl FileService {
     /// in surrounding whitespace) is returned so the caller can display it.
     /// ## Errors
     /// Returns `Err` if any validation step fails or the file cannot be written.
-    pub fn save_custom_ir_profile(&self, file_name: &str, file_bytes: &[u8]) -> Result<String, String> {
+    pub fn save_custom_ir_profile(
+        &self,
+        file_name: &str,
+        file_bytes: &[u8],
+    ) -> Result<String, String> {
         let sanitized_file_name = sanitize_wav_file_name(file_name)?;
 
         self.file_loader.validate_ir_wav_bytes(
@@ -121,9 +126,11 @@ impl FileService {
             ));
         }
 
-        self.file_loader.ensure_directory(&self.custom_ir_directory)?;
+        self.file_loader
+            .ensure_directory(&self.custom_ir_directory)?;
         let custom_path = self.custom_ir_directory.join(&sanitized_file_name);
-        self.file_loader.write_file_bytes(&custom_path, file_bytes)?;
+        self.file_loader
+            .write_file_bytes(&custom_path, file_bytes)?;
 
         Ok(sanitized_file_name)
     }
@@ -180,11 +187,9 @@ impl FileService {
     /// All skipped paths are logged at `WARN` level to aid debugging.
     fn resolve_default_ir_directory(&self) -> Result<PathBuf, String> {
         let mut candidates = if cfg!(debug_assertions) {
-            vec![
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join(RESOURCES_DIRECTORY_NAME)
-                    .join(DEFAULT_IR_DIRECTORY_NAME),
-            ]
+            vec![PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join(RESOURCES_DIRECTORY_NAME)
+                .join(DEFAULT_IR_DIRECTORY_NAME)]
         } else {
             vec![
                 self.resource_root.join(DEFAULT_IR_DIRECTORY_NAME),
@@ -201,7 +206,10 @@ impl FileService {
                 info!("Using default IR directory: {}", candidate.display());
                 return Ok(candidate.clone());
             }
-            warn!("Skipping missing IR directory candidate: {}", candidate.display());
+            warn!(
+                "Skipping missing IR directory candidate: {}",
+                candidate.display()
+            );
         }
 
         let searched = candidates
@@ -210,10 +218,11 @@ impl FileService {
             .collect::<Vec<_>>()
             .join(", ");
 
-        Err(format!("Could not locate default IR directory. Searched: {searched}"))
+        Err(format!(
+            "Could not locate default IR directory. Searched: {searched}"
+        ))
     }
 }
-
 
 /// Converts a `.wav` filename into a human-readable label for display in the UI.
 /// Transformations applied:
@@ -246,7 +255,11 @@ mod tests {
     }
 
     fn build_service(custom_ir_directory: PathBuf) -> FileService {
-        FileService::new(Box::new(FileLoader::new()), unique_test_dir(), custom_ir_directory)
+        FileService::new(
+            Box::new(FileLoader::new()),
+            unique_test_dir(),
+            custom_ir_directory,
+        )
     }
 
     fn write_float_wav_file(path: &Path, samples: &[f32]) {
@@ -259,7 +272,9 @@ mod tests {
 
         let mut writer = WavWriter::create(path, spec).expect("wav file should be creatable");
         for sample in samples {
-            writer.write_sample(*sample).expect("sample should be writable");
+            writer
+                .write_sample(*sample)
+                .expect("sample should be writable");
         }
         writer.finalize().expect("wav writer should finalize");
     }
@@ -280,14 +295,23 @@ mod tests {
 
         #[test]
         fn sanitize_wav_file_name_trims_whitespace_and_accepts_valid_names() {
-            assert_eq!(sanitize_wav_file_name("  my-ir.wav  ").unwrap(), "my-ir.wav");
+            assert_eq!(
+                sanitize_wav_file_name("  my-ir.wav  ").unwrap(),
+                "my-ir.wav"
+            );
             assert_eq!(sanitize_wav_file_name("room.WAV").unwrap(), "room.WAV");
         }
 
         #[test]
         fn to_readable_label_strips_extension_and_replaces_separators() {
-            assert_eq!(to_readable_label("vintage-4x12_cab.WAV"), "vintage 4x12 cab");
-            assert_eq!(to_readable_label("info-support-hallway.wav"), "info support hallway");
+            assert_eq!(
+                to_readable_label("vintage-4x12_cab.WAV"),
+                "vintage 4x12 cab"
+            );
+            assert_eq!(
+                to_readable_label("info-support-hallway.wav"),
+                "info support hallway"
+            );
         }
 
         #[test]
@@ -308,7 +332,9 @@ mod tests {
                 .expect("IR profile listing should succeed");
 
             assert_eq!(profiles.len(), default_names.len() + 2);
-            assert!(profiles.windows(2).all(|pair| pair[0].label <= pair[1].label));
+            assert!(profiles
+                .windows(2)
+                .all(|pair| pair[0].label <= pair[1].label));
             assert!(profiles.iter().all(|profile| !profile.is_in_use));
 
             let bright = profiles
@@ -424,4 +450,3 @@ mod tests {
         }
     }
 }
-

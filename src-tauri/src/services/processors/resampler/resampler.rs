@@ -3,7 +3,6 @@ use rubato::{
 };
 use tracing::{error, info, warn};
 
-
 /// A streaming, sample-accurate resampler backed by rubato's [`SincFixedIn`].
 ///
 /// Samples are fed one at a time through [`process_sample`]. Internally they
@@ -281,11 +280,7 @@ impl ResamplePolicy {
     pub fn flush(&mut self, dsp: &mut impl FnMut(f32) -> f32) -> Vec<f32> {
         match self {
             Self::Bypass => Vec::new(),
-            Self::PreDsp(resampler) => resampler
-                .flush()
-                .into_iter()
-                .map(|s| dsp(s))
-                .collect(),
+            Self::PreDsp(resampler) => resampler.flush().into_iter().map(|s| dsp(s)).collect(),
             Self::PostDsp(resampler) => resampler.flush(),
         }
     }
@@ -311,7 +306,10 @@ mod tests {
                 }
                 produced += resampler.flush().len();
 
-                assert!(produced > 0, "Upsampler should eventually produce output samples");
+                assert!(
+                    produced > 0,
+                    "Upsampler should eventually produce output samples"
+                );
             }
 
             #[test]
@@ -324,7 +322,10 @@ mod tests {
                 }
                 produced += resampler.flush().len();
 
-                assert!(produced < 128, "Downsampler should produce fewer samples than consumed");
+                assert!(
+                    produced < 128,
+                    "Downsampler should produce fewer samples than consumed"
+                );
             }
 
             #[test]
@@ -332,7 +333,10 @@ mod tests {
                 let chunk_size = 16;
                 let mut resampler = ResamplerImpl::new(44_100, 48_000, chunk_size).unwrap();
                 for _ in 0..(chunk_size - 1) {
-                    assert!(resampler.process_sample(0.1).is_empty(), "Should buffer until chunk is full");
+                    assert!(
+                        resampler.process_sample(0.1).is_empty(),
+                        "Should buffer until chunk is full"
+                    );
                 }
 
                 let _ = resampler.process_sample(0.1);
@@ -359,16 +363,25 @@ mod tests {
                     resampler.process_sample(0.1);
                 }
 
-                assert!(!resampler.input_buffer.is_empty(), "Input buffer should contain pending samples before flush");
+                assert!(
+                    !resampler.input_buffer.is_empty(),
+                    "Input buffer should contain pending samples before flush"
+                );
                 let _ = resampler.flush();
-                assert!(resampler.input_buffer.is_empty(), "Flush should clear pending input samples");
+                assert!(
+                    resampler.input_buffer.is_empty(),
+                    "Flush should clear pending input samples"
+                );
             }
 
             #[test]
             fn flush_on_empty_buffer_returns_nothing() {
                 let mut resampler = ResamplerImpl::new(44_100, 48_000, 32).unwrap();
                 let flushed = resampler.flush();
-                assert!(flushed.is_empty(), "Flush on an empty buffer should return no samples");
+                assert!(
+                    flushed.is_empty(),
+                    "Flush on an empty buffer should return no samples"
+                );
             }
         }
 
@@ -425,7 +438,10 @@ mod tests {
                 let result = policy.process(0.5, &mut |s| s * 2.0);
 
                 assert_eq!(result.len(), 1);
-                assert!((result[0] - 1.0).abs() < 1e-6, "Bypass should apply DSP directly");
+                assert!(
+                    (result[0] - 1.0).abs() < 1e-6,
+                    "Bypass should apply DSP directly"
+                );
             }
 
             #[test]
@@ -433,7 +449,10 @@ mod tests {
                 let mut policy = ResamplePolicy::Bypass;
                 let result = policy.flush(&mut |s| s);
 
-                assert!(result.is_empty(), "Bypass flush should always return nothing");
+                assert!(
+                    result.is_empty(),
+                    "Bypass flush should always return nothing"
+                );
             }
 
             #[test]
@@ -453,7 +472,10 @@ mod tests {
                     s
                 });
 
-                assert!(dsp_called, "PreDsp should call DSP on the downsampled samples");
+                assert!(
+                    dsp_called,
+                    "PreDsp should call DSP on the downsampled samples"
+                );
             }
 
             #[test]
@@ -468,7 +490,10 @@ mod tests {
                         s
                     });
                 }
-                assert_eq!(dsp_call_count, input_count, "PostDsp should call DSP once per input sample");
+                assert_eq!(
+                    dsp_call_count, input_count,
+                    "PostDsp should call DSP once per input sample"
+                );
             }
         }
 
@@ -478,13 +503,19 @@ mod tests {
             #[test]
             fn invalid_rates_fall_back_to_bypass() {
                 let policy = ResamplePolicy::from_rates(0, 48_000, 32);
-                assert!(matches!(policy, ResamplePolicy::Bypass), "Invalid rates should fall back to Bypass");
+                assert!(
+                    matches!(policy, ResamplePolicy::Bypass),
+                    "Invalid rates should fall back to Bypass"
+                );
             }
 
             #[test]
             fn zero_chunk_size_falls_back_to_bypass() {
                 let policy = ResamplePolicy::from_rates(44_100, 48_000, 0);
-                assert!(matches!(policy, ResamplePolicy::Bypass), "Zero chunk size should fall back to Bypass");
+                assert!(
+                    matches!(policy, ResamplePolicy::Bypass),
+                    "Zero chunk size should fall back to Bypass"
+                );
             }
         }
     }

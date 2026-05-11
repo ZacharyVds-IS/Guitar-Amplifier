@@ -25,24 +25,24 @@ impl AmpConfigPersistenceService {
 
         // Persist snapshots on a single background worker to keep command paths non-blocking.
         // The pending slot is single-item and overwrite-only: newest snapshot always wins.
-        thread::spawn(move || {
-            loop {
-                let latest_snapshot = {
-                    let (lock, cv) = &*worker_pending_snapshot;
-                    let mut pending = lock.lock().expect("pending snapshot lock should be available");
-                    while pending.is_none() {
-                        pending = cv
-                            .wait(pending)
-                            .expect("pending snapshot lock should be available after wait");
-                    }
-                    pending
-                        .take()
-                        .expect("snapshot should be available when worker wakes")
-                };
-
-                if let Err(err) = worker_repository.save(&latest_snapshot) {
-                    error!("Failed to persist amp config snapshot in background worker: {err}");
+        thread::spawn(move || loop {
+            let latest_snapshot = {
+                let (lock, cv) = &*worker_pending_snapshot;
+                let mut pending = lock
+                    .lock()
+                    .expect("pending snapshot lock should be available");
+                while pending.is_none() {
+                    pending = cv
+                        .wait(pending)
+                        .expect("pending snapshot lock should be available after wait");
                 }
+                pending
+                    .take()
+                    .expect("snapshot should be available when worker wakes")
+            };
+
+            if let Err(err) = worker_repository.save(&latest_snapshot) {
+                error!("Failed to persist amp config snapshot in background worker: {err}");
             }
         });
 
@@ -111,7 +111,11 @@ mod tests {
             }
         }
 
-        fn wait_for_saved_count(&self, minimum_count: usize, timeout: Duration) -> Vec<AmpConfigDto> {
+        fn wait_for_saved_count(
+            &self,
+            minimum_count: usize,
+            timeout: Duration,
+        ) -> Vec<AmpConfigDto> {
             let mut saved = self
                 .saved_configs
                 .lock()
@@ -222,7 +226,10 @@ mod tests {
         let loaded = service.load_amp_config().expect("load should succeed");
 
         assert!(loaded.is_some());
-        assert_eq!(loaded.expect("value should be present").current_channel, expected.current_channel);
+        assert_eq!(
+            loaded.expect("value should be present").current_channel,
+            expected.current_channel
+        );
     }
 
     #[test]
@@ -317,10 +324,21 @@ mod tests {
         let saved = state.wait_for_saved_count(2, Duration::from_secs(1));
 
         assert_eq!(saved.len(), 2);
-        assert_eq!(saved.first().expect("first snapshot exists").current_channel, 1);
-        assert_eq!(saved.last().expect("at least one snapshot saved").current_channel, 3);
+        assert_eq!(
+            saved
+                .first()
+                .expect("first snapshot exists")
+                .current_channel,
+            1
+        );
+        assert_eq!(
+            saved
+                .last()
+                .expect("at least one snapshot saved")
+                .current_channel,
+            3
+        );
         assert!(saved.iter().any(|cfg| cfg.current_channel == 3));
         assert!(!saved.iter().any(|cfg| cfg.current_channel == 2));
     }
 }
-

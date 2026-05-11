@@ -22,4 +22,3 @@ pub trait AmpConfigPersistence: Send + Sync {
     /// state is considered the canonical persisted config.
     fn save(&self, config: &AmpConfigDto) -> Result<(), String>;
 }
-

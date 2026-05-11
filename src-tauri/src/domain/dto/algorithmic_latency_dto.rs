@@ -43,7 +43,11 @@ impl AlgorithmicLatencyDto {
     /// * `latency_samples` — Number of samples of algorithmic delay.
     /// * `sample_rate_hz` — Output sample rate used for the ms conversion.
     ///   If `0`, `latency_ms` is set to `0.0` to avoid a division-by-zero.
-    pub fn new(processor_name: impl Into<String>, latency_samples: u32, sample_rate_hz: u32) -> Self {
+    pub fn new(
+        processor_name: impl Into<String>,
+        latency_samples: u32,
+        sample_rate_hz: u32,
+    ) -> Self {
         let latency_ms = if sample_rate_hz == 0 {
             0.0
         } else {

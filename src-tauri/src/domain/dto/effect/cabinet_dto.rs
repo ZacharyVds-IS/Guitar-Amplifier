@@ -23,4 +23,3 @@ pub struct CabinetDto {
     #[serde(default = "default_ir_file_path")]
     pub ir_file_path: String,
 }
-

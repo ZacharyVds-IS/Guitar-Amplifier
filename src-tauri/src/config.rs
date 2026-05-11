@@ -24,8 +24,7 @@ pub fn init_tracing() {
 
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 }
@@ -38,6 +37,3 @@ pub fn init_tracing() {
 pub fn get_default_ir_file() -> String {
     DEFAULT_IR_FILE.to_string()
 }
-
-
-

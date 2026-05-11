@@ -13,5 +13,5 @@ pub struct AudioDeviceDto {
     /// Human-readable device name shown in the UI.
     pub name: String,
     /// Default sample rate the device is configured in.
-    pub sample_rate: u32
+    pub sample_rate: u32,
 }

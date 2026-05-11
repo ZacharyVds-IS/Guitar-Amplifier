@@ -265,7 +265,6 @@ mod tests {
             biquad.set_gain_db(-12.0);
             let input = 1.0;
 
-
             let output = biquad.process(input);
             assert!(!output.is_nan());
             assert!(!output.is_infinite());

@@ -109,26 +109,23 @@ impl Cabinet {
                 Err(err) => {
                     warn!(
                         "Invalid cabinet IR file '{}': {}. Falling back to default '{}'.",
-                        ir_file_path,
-                        err,
-                        DEFAULT_IR_FILE
+                        ir_file_path, err, DEFAULT_IR_FILE
                     );
                     DEFAULT_IR_FILE.to_string()
                 }
             }
         };
 
-        let temp_file_path = Self::resolve_ir_file_path(&selected_ir_file)
-            .unwrap_or_else(|| {
-                warn!(
-                    "Could not resolve IR '{}' in known directories. Falling back to default location.",
-                    selected_ir_file
-                );
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("resources")
-                    .join("default_ir")
-                    .join(&selected_ir_file)
-            });
+        let temp_file_path = Self::resolve_ir_file_path(&selected_ir_file).unwrap_or_else(|| {
+            warn!(
+                "Could not resolve IR '{}' in known directories. Falling back to default location.",
+                selected_ir_file
+            );
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("resources")
+                .join("default_ir")
+                .join(&selected_ir_file)
+        });
 
         let ir_buffer = file_loader.read_wav_to_buffer(&temp_file_path);
         let ir_sample_rate = file_loader
@@ -230,8 +227,7 @@ impl Cabinet {
             Err(err) => {
                 warn!(
                     "Refusing to resolve invalid IR file name '{}': {}",
-                    file_name,
-                    err
+                    file_name, err
                 );
                 return None;
             }

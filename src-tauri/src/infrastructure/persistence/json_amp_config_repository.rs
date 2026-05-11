@@ -75,11 +75,19 @@ impl AmpConfigPersistence for JsonFileAmpConfigRepository {
             return Ok(None);
         }
 
-        let payload = fs::read_to_string(&self.config_path)
-            .map_err(|e| format!("Failed to read amp config '{}': {e}", self.config_path.display()))?;
+        let payload = fs::read_to_string(&self.config_path).map_err(|e| {
+            format!(
+                "Failed to read amp config '{}': {e}",
+                self.config_path.display()
+            )
+        })?;
 
-        let persisted = serde_json::from_str::<PersistedAmpConfig>(&payload)
-            .map_err(|e| format!("Failed to parse amp config JSON '{}': {e}", self.config_path.display()))?;
+        let persisted = serde_json::from_str::<PersistedAmpConfig>(&payload).map_err(|e| {
+            format!(
+                "Failed to parse amp config JSON '{}': {e}",
+                self.config_path.display()
+            )
+        })?;
 
         Ok(Some(AmpConfigDto::from(persisted)))
     }
@@ -100,7 +108,10 @@ impl AmpConfigPersistence for JsonFileAmpConfigRepository {
     /// formatted with `to_string_pretty` so it remains reasonably human-readable
     /// during development and debugging.
     fn save(&self, config: &AmpConfigDto) -> Result<(), String> {
-        let parent = self.config_path.parent().filter(|p| !p.as_os_str().is_empty());
+        let parent = self
+            .config_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty());
 
         if let Some(dir) = parent {
             fs::create_dir_all(dir).map_err(|e| {
@@ -117,18 +128,17 @@ impl AmpConfigPersistence for JsonFileAmpConfigRepository {
         let tmp_path = self.config_path.with_extension("json.tmp");
 
         {
-            let mut tmp_file = fs::File::create(&tmp_path).map_err(|e| {
-                format!("Failed to create temp file '{}': {e}", tmp_path.display())
-            })?;
+            let mut tmp_file = fs::File::create(&tmp_path)
+                .map_err(|e| format!("Failed to create temp file '{}': {e}", tmp_path.display()))?;
 
-            tmp_file.write_all(json.as_bytes()).map_err(|e| {
-                format!("Failed to write temp file '{}': {e}", tmp_path.display())
-            })?;
+            tmp_file
+                .write_all(json.as_bytes())
+                .map_err(|e| format!("Failed to write temp file '{}': {e}", tmp_path.display()))?;
 
             // Flush kernel buffers to disk before we rename.
-            tmp_file.sync_all().map_err(|e| {
-                format!("Failed to sync temp file '{}': {e}", tmp_path.display())
-            })?;
+            tmp_file
+                .sync_all()
+                .map_err(|e| format!("Failed to sync temp file '{}': {e}", tmp_path.display()))?;
         } // file handle is dropped (closed) here before rename
 
         fs::rename(&tmp_path, &self.config_path).map_err(|e| {
@@ -168,7 +178,10 @@ mod tests {
         repo.save(&config).expect("save should succeed");
 
         let tmp = path.with_extension("json.tmp");
-        assert!(!tmp.exists(), "temp file should be gone after a successful save");
+        assert!(
+            !tmp.exists(),
+            "temp file should be gone after a successful save"
+        );
 
         let _ = fs::remove_file(path);
     }
@@ -186,7 +199,10 @@ mod tests {
         };
 
         repo.save(&config).expect("save should succeed");
-        let loaded = repo.load().expect("load should succeed").expect("config should exist");
+        let loaded = repo
+            .load()
+            .expect("load should succeed")
+            .expect("config should exist");
         let raw_json = fs::read_to_string(path.clone()).expect("saved file should be readable");
 
         assert!((loaded.master_volume - config.master_volume).abs() < 1e-6);
@@ -206,5 +222,3 @@ mod tests {
         assert!(loaded.is_none());
     }
 }
-
-

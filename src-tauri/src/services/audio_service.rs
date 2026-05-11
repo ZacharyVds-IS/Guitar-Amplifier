@@ -185,7 +185,6 @@ impl AudioService {
             let shutdown = Arc::new(AtomicBool::new(false));
             let worker_shutdown = shutdown.clone();
 
-
             let worker = thread::spawn(move || {
                 let mut gain = GainProcessor::new(gain_arc);
                 let mut volume = GainProcessor::new(volume_arc);

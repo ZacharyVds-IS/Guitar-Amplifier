@@ -11,9 +11,8 @@ use tracing::error;
 /// - Look up devices by their ID
 /// - Convert device information into [`AudioDeviceDto`] for frontend consumption
 pub struct DeviceService {
-    host:Host
+    host: Host,
 }
-
 
 impl DeviceService {
     /// Creates a new `DeviceService` with the given CPAL host.
@@ -48,7 +47,7 @@ impl DeviceService {
                     Some(AudioDeviceDto {
                         id,
                         name,
-                        sample_rate:default_sample_rate
+                        sample_rate: default_sample_rate,
                     })
                 })
                 .collect(),
@@ -142,6 +141,4 @@ impl DeviceService {
 
         None
     }
-
-
 }

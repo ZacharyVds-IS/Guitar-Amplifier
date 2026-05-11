@@ -29,7 +29,6 @@ pub(crate) fn set_channel_id(
     persist_amp_config(&service, &persistence_service);
 }
 
-
 /// Returns the currently active channel ID.
 ///
 /// Retrieves the identifier of the [`Channel`] that is currently selected
@@ -50,7 +49,6 @@ pub(crate) fn get_channel_id(audio_service: tauri::State<Mutex<AudioService>>) -
     let service = audio_service.inner().lock().unwrap();
     *service.current_channel_id()
 }
-
 
 /// Adds a new channel to the audio service.
 ///
@@ -83,24 +81,26 @@ pub(crate) fn add_channel(
 
     let mut service = audio_service.inner().lock().unwrap();
     let channel_id = service.add_channel(channel_name.clone());
-    let channel = service.channels().iter().find(|c| c.id() == channel_id).unwrap();
+    let channel = service
+        .channels()
+        .iter()
+        .find(|c| c.id() == channel_id)
+        .unwrap();
     let channel_dto = ChannelDto::from(channel);
     persist_amp_config(&service, &persistence_service);
 
-    info!("emitting channel-added event for id={} name={}", channel_dto.id, channel_dto.name);
+    info!(
+        "emitting channel-added event for id={} name={}",
+        channel_dto.id, channel_dto.name
+    );
 
-
-    app.emit(
-        "channel-added",
-        channel_dto,
-    )
+    app.emit("channel-added", channel_dto)
         .map_err(|e| e.to_string())?;
 
     info!("channel-added event emitted successfully");
 
     Ok(())
 }
-
 
 /// Returns all available channels.
 ///
@@ -130,7 +130,6 @@ pub(crate) fn get_all_channels(
         .map(|channel| ChannelDto::from(channel))
         .collect()
 }
-
 
 /// Removes a channel from the audio service.
 ///

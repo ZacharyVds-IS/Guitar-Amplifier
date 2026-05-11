@@ -53,8 +53,11 @@ impl AudioLatencyMeasurementService {
     ///
     /// [`GainProcessor`]: crate::services::processors::gain::gain_processor::GainProcessor
     pub fn measure_gain_latency(audio_service: &AudioService, block_size: usize) -> f64 {
-        let channel = audio_service.channels().iter()
-            .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
+        let channel = audio_service
+            .channels()
+            .iter()
+            .find(|c| c.id() == *audio_service.current_channel_id())
+            .unwrap();
         let mut gain = GainProcessor::new(channel.gain().clone());
         LatencyAnalyzer::measure_effect_added_execution_us(&mut gain, 256, block_size)
     }
@@ -76,9 +79,15 @@ impl AudioLatencyMeasurementService {
     /// [`ToneStackProcessor`]: crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor
     /// [`measure_gain_latency`]: AudioLatencyMeasurementService::measure_gain_latency
     pub fn measure_tone_stack_latency(audio_service: &AudioService, block_size: usize) -> f64 {
-        let channel = audio_service.channels().iter()
-            .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
-        let mut tone_stack = ToneStackProcessor::new(channel.tone_stack().clone(), audio_service.dsp_chain_sample_rate());
+        let channel = audio_service
+            .channels()
+            .iter()
+            .find(|c| c.id() == *audio_service.current_channel_id())
+            .unwrap();
+        let mut tone_stack = ToneStackProcessor::new(
+            channel.tone_stack().clone(),
+            audio_service.dsp_chain_sample_rate(),
+        );
         LatencyAnalyzer::measure_effect_added_execution_us(&mut tone_stack, 256, block_size)
     }
 
@@ -99,8 +108,11 @@ impl AudioLatencyMeasurementService {
     ///
     /// [`GainProcessor`]: crate::services::processors::gain::gain_processor::GainProcessor
     pub fn measure_volume_latency(audio_service: &AudioService, block_size: usize) -> f64 {
-        let channel = audio_service.channels().iter()
-            .find(|c| c.id() == *audio_service.current_channel_id()).unwrap();
+        let channel = audio_service
+            .channels()
+            .iter()
+            .find(|c| c.id() == *audio_service.current_channel_id())
+            .unwrap();
         let mut volume = GainProcessor::new(channel.volume().clone());
         LatencyAnalyzer::measure_effect_added_execution_us(&mut volume, 256, block_size)
     }
@@ -130,7 +142,10 @@ impl AudioLatencyMeasurementService {
     /// [`measure_tone_stack_latency`]: AudioLatencyMeasurementService::measure_tone_stack_latency
     /// [`measure_volume_latency`]: AudioLatencyMeasurementService::measure_volume_latency
     /// [`GainProcessor`]: crate::services::processors::gain::gain_processor::GainProcessor
-    pub fn measure_all_dsp_timings(audio_service: &AudioService, block_size: usize) -> Vec<ExecutionTimingDto> {
+    pub fn measure_all_dsp_timings(
+        audio_service: &AudioService,
+        block_size: usize,
+    ) -> Vec<ExecutionTimingDto> {
         let gain_us = Self::measure_gain_latency(audio_service, block_size);
         let tone_stack_us = Self::measure_tone_stack_latency(audio_service, block_size);
         let volume_us = Self::measure_volume_latency(audio_service, block_size);
@@ -160,7 +175,9 @@ impl AudioLatencyMeasurementService {
     ///
     /// A `Vec<AlgorithmicLatencyDto>` with exactly four entries (Gain, Tone Stack, Volume,
     /// Master Volume), each reporting `latency_samples = 0` and `latency_ms = 0.0`.
-    pub fn measure_all_dsp_algorithmic_latency(audio_service: &AudioService) -> Vec<AlgorithmicLatencyDto> {
+    pub fn measure_all_dsp_algorithmic_latency(
+        audio_service: &AudioService,
+    ) -> Vec<AlgorithmicLatencyDto> {
         let sample_rate_hz = audio_service.audio_handler().output_sample_rate();
 
         vec![
@@ -209,8 +226,12 @@ impl AudioLatencyMeasurementService {
             BufferSize::Default => DEFAULT_BUFFER_FRAMES_FALLBACK,
         };
 
-        let input_ms = (input_frames as f64 / audio_service.audio_handler().input_sample_rate() as f64) * 1000.0;
-        let output_ms = (output_frames as f64 / audio_service.audio_handler().output_sample_rate() as f64) * 1000.0;
+        let input_ms = (input_frames as f64
+            / audio_service.audio_handler().input_sample_rate() as f64)
+            * 1000.0;
+        let output_ms = (output_frames as f64
+            / audio_service.audio_handler().output_sample_rate() as f64)
+            * 1000.0;
 
         BufferLatencyDto::new(input_ms, output_ms)
     }
@@ -252,7 +273,11 @@ impl AudioLatencyMeasurementService {
     /// [`AudioService`]: crate::services::audio_service::AudioService
     /// [`RoundTripLatencyDto`]: crate::domain::dto::round_trip_latency_dto::RoundTripLatencyDto
     pub fn measure_round_trip_latency(handler: &dyn AudioHandlerTrait) -> RoundTripLatencyDto {
-        match RoundTripLatencySession::run(handler, Duration::from_secs(10), Duration::from_millis(1500)) {
+        match RoundTripLatencySession::run(
+            handler,
+            Duration::from_secs(10),
+            Duration::from_millis(1500),
+        ) {
             Ok(latency_ms) => RoundTripLatencyDto::success(latency_ms),
             Err(error) => RoundTripLatencyDto::failure(error),
         }
@@ -322,7 +347,9 @@ mod tests {
             assert_eq!(timings[1].processor_name, "Tone Stack");
             assert_eq!(timings[2].processor_name, "Volume");
             assert_eq!(timings[3].processor_name, "Master Volume");
-            assert!(timings.iter().all(|t| t.execution_us_per_sample.is_finite()));
+            assert!(timings
+                .iter()
+                .all(|t| t.execution_us_per_sample.is_finite()));
             assert!(timings.iter().all(|t| t.execution_us_per_sample >= 0.0));
         }
 
@@ -335,7 +362,8 @@ mod tests {
                 BufferSize::Fixed(256),
             );
 
-            let latency = AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
+            let latency =
+                AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
 
             assert_eq!(latency.len(), 4);
             assert_eq!(latency[0].processor_name, "Gain");
@@ -379,10 +407,21 @@ mod tests {
             let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
             let expected_single_side_ms = (256.0 / 48_000.0) * 1000.0;
 
-            assert_approx_eq(latency.input_buffer_latency_ms, expected_single_side_ms, 1e-9);
-            assert_approx_eq(latency.output_buffer_latency_ms, expected_single_side_ms, 1e-9);
-            assert_approx_eq(latency.total_buffer_latency_ms, expected_single_side_ms * 2.0, 1e-9);
+            assert_approx_eq(
+                latency.input_buffer_latency_ms,
+                expected_single_side_ms,
+                1e-9,
+            );
+            assert_approx_eq(
+                latency.output_buffer_latency_ms,
+                expected_single_side_ms,
+                1e-9,
+            );
+            assert_approx_eq(
+                latency.total_buffer_latency_ms,
+                expected_single_side_ms * 2.0,
+                1e-9,
+            );
         }
     }
 }
-

@@ -81,8 +81,9 @@ impl RoundTripLatencySession {
             }
         }
 
-        let configured_frames = frames_or_default(handler.input_config().buffer_size.clone())
-            .max(frames_or_default(handler.output_config().buffer_size.clone()));
+        let configured_frames = frames_or_default(handler.input_config().buffer_size.clone()).max(
+            frames_or_default(handler.output_config().buffer_size.clone()),
+        );
         let ringbuffer_size = (configured_frames * 4).max(512);
 
         let (i_producer, mut i_consumer) = AudioHandler::create_ringbuffer(ringbuffer_size);
@@ -93,18 +94,14 @@ impl RoundTripLatencySession {
         input_stream.play();
         output_stream.play();
 
-        println!(
-            "[RT-MEASURE] Dedicated streams started. Warming up for {stream_warmup:?}..."
-        );
+        println!("[RT-MEASURE] Dedicated streams started. Warming up for {stream_warmup:?}...");
         thread::sleep(stream_warmup);
 
         let mut drained = 0usize;
         while i_consumer.try_pop().is_some() {
             drained += 1;
         }
-        println!(
-            "[RT-MEASURE] Drained {drained} stale warmup samples. Starting calibration."
-        );
+        println!("[RT-MEASURE] Drained {drained} stale warmup samples. Starting calibration.");
 
         let mut state = RoundTripMeasurementState::new();
         let overall_deadline =

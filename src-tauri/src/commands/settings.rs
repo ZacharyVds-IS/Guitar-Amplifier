@@ -37,7 +37,9 @@ fn normalize_channels(channels: u16) -> u16 {
 ///
 /// A [`Vec`] of [`AudioDeviceDto`] representing available input devices.
 #[tauri::command]
-pub(crate) fn get_input_device_list(device_service: tauri::State<DeviceService>) -> Vec<AudioDeviceDto> {
+pub(crate) fn get_input_device_list(
+    device_service: tauri::State<DeviceService>,
+) -> Vec<AudioDeviceDto> {
     device_service.get_input_devices()
 }
 
@@ -54,7 +56,9 @@ pub(crate) fn get_input_device_list(device_service: tauri::State<DeviceService>)
 ///
 /// A [`Vec`] of [`AudioDeviceDto`] representing available output devices.
 #[tauri::command]
-pub(crate) fn get_output_device_list(device_service: tauri::State<DeviceService>) -> Vec<AudioDeviceDto> {
+pub(crate) fn get_output_device_list(
+    device_service: tauri::State<DeviceService>,
+) -> Vec<AudioDeviceDto> {
     device_service.get_output_devices()
 }
 
@@ -88,9 +92,12 @@ pub fn set_input_device(
         .description()
         .map(|d| d.name().to_string())
         .unwrap_or_else(|_| "Unknown".to_string());
-    let supported_config = device
-        .default_input_config()
-        .map_err(|e| format!("Failed to get default input config for '{}': {}", device_name, e))?;
+    let supported_config = device.default_input_config().map_err(|e| {
+        format!(
+            "Failed to get default input config for '{}': {}",
+            device_name, e
+        )
+    })?;
 
     let mut input_config = supported_config.config();
     let normalized_channels = normalize_channels(input_config.channels);
@@ -146,9 +153,12 @@ pub fn set_output_device(
         .description()
         .map(|d| d.name().to_string())
         .unwrap_or_else(|_| "Unknown".to_string());
-    let supported_config = device
-        .default_output_config()
-        .map_err(|e| format!("Failed to get default output config for '{}': {}", device_name, e))?;
+    let supported_config = device.default_output_config().map_err(|e| {
+        format!(
+            "Failed to get default output config for '{}': {}",
+            device_name, e
+        )
+    })?;
 
     let mut output_config = supported_config.config();
     let normalized_channels = normalize_channels(output_config.channels);

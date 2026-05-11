@@ -83,7 +83,7 @@ impl ToneStack {
     pub fn set_middle(&self, middle: f32) {
         if middle.is_sign_positive() && middle <= 1.0 {
             self.middle.store(middle, Ordering::Relaxed);
-        }else {
+        } else {
             error!("Middle must be a positive number between 0 and 1");
             panic!("Middle must be positive and between 0 and 1");
         }
@@ -101,7 +101,7 @@ impl ToneStack {
     ///
     /// Panics if `treble` is negative or greater than 1.0.
     pub fn set_treble(&self, treble: f32) {
-        if treble.is_sign_positive() && treble <= 1.0{
+        if treble.is_sign_positive() && treble <= 1.0 {
             self.treble.store(treble, Ordering::Relaxed);
         } else {
             error!("Treble must be a positive number between 0 and 1");

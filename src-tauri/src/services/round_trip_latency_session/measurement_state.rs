@@ -144,9 +144,7 @@ impl RoundTripMeasurementState {
             return false;
         }
 
-        self.threshold = (self.ambient_peak * 2.0)
-            .max(0.05)
-            .min(IMPULSE_AMPLITUDE * 0.5);
+        self.threshold = (self.ambient_peak * 2.0).clamp(0.05, IMPULSE_AMPLITUDE * 0.5);
 
         println!(
             "[RT-MEASURE] Calibration done. Peak: {:.4}, threshold: {:.4}",
@@ -262,13 +260,8 @@ impl RoundTripMeasurementState {
                     push_output(0.0);
 
                     if self.check_echo(sample) {
-                        let elapsed_ms = self
-                            .impulse_sent_at
-                            .take()
-                            .unwrap()
-                            .elapsed()
-                            .as_secs_f64()
-                            * 1000.0;
+                        let elapsed_ms =
+                            self.impulse_sent_at.take().unwrap().elapsed().as_secs_f64() * 1000.0;
                         self.impulse_deadline = None;
                         self.echo_durations_ms.push(elapsed_ms);
 
@@ -308,6 +301,12 @@ impl RoundTripMeasurementState {
                 RoundTripTickOutcome::Ongoing
             }
         }
+    }
+}
+
+impl Default for RoundTripMeasurementState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -412,9 +411,19 @@ mod tests {
             let mut state = RoundTripMeasurementState::new();
             let mut emitted = Vec::new();
             for _ in 0..CALIBRATION_SAMPLES {
-                state.tick(0.0, &mut |v| { emitted.push(v); true }, Duration::from_secs(10));
+                state.tick(
+                    0.0,
+                    &mut |v| {
+                        emitted.push(v);
+                        true
+                    },
+                    Duration::from_secs(10),
+                );
             }
-            assert!(emitted.iter().all(|&v| v == 0.0), "calibration must output only silence");
+            assert!(
+                emitted.iter().all(|&v| v == 0.0),
+                "calibration must output only silence"
+            );
         }
 
         #[test]
@@ -429,7 +438,7 @@ mod tests {
             let mut state = RoundTripMeasurementState::new();
             let peak = 0.1_f32;
             complete_calibration_with_peak(&mut state, peak);
-            let expected = (peak * 2.0).max(0.05).min(IMPULSE_AMPLITUDE * 0.5);
+            let expected = (peak * 2.0).clamp(0.05, IMPULSE_AMPLITUDE * 0.5);
             assert!((state.threshold - expected).abs() < 1e-6);
         }
 
@@ -455,7 +464,14 @@ mod tests {
             complete_calibration(&mut state);
 
             let mut emitted_values: Vec<f32> = Vec::new();
-            state.tick(0.0, &mut |v| { emitted_values.push(v); true }, Duration::from_secs(10));
+            state.tick(
+                0.0,
+                &mut |v| {
+                    emitted_values.push(v);
+                    true
+                },
+                Duration::from_secs(10),
+            );
 
             assert!(
                 emitted_values.contains(&IMPULSE_AMPLITUDE),
@@ -478,7 +494,14 @@ mod tests {
             emit_impulse(&mut state, Duration::from_secs(10));
 
             let mut emitted: Vec<f32> = Vec::new();
-            state.tick(0.0, &mut |v| { emitted.push(v); true }, Duration::from_secs(10));
+            state.tick(
+                0.0,
+                &mut |v| {
+                    emitted.push(v);
+                    true
+                },
+                Duration::from_secs(10),
+            );
             assert!(emitted.iter().all(|&v| v == 0.0));
         }
     }
@@ -540,7 +563,10 @@ mod tests {
                 // (200 ms) pass naturally while we spin.
                 let input = match state.phase {
                     RoundTripMeasurementPhase::WaitingForEcho(_)
-                        if state.impulse_sent_at.is_some() => 1.0,
+                        if state.impulse_sent_at.is_some() =>
+                    {
+                        1.0
+                    }
                     _ => 0.0,
                 };
 
@@ -573,7 +599,9 @@ mod tests {
             let mut outcome = RoundTripTickOutcome::Ongoing;
             for _ in 0..(GUARD_SAMPLES + 2) {
                 outcome = state.tick(0.0, &mut |_| true, Duration::ZERO);
-                if matches!(outcome, RoundTripTickOutcome::TimedOut) { break; }
+                if matches!(outcome, RoundTripTickOutcome::TimedOut) {
+                    break;
+                }
             }
             assert!(
                 matches!(outcome, RoundTripTickOutcome::TimedOut),
@@ -591,7 +619,9 @@ mod tests {
                 if matches!(
                     state.tick(0.0, &mut |_| true, Duration::ZERO),
                     RoundTripTickOutcome::TimedOut
-                ) { break; }
+                ) {
+                    break;
+                }
             }
             assert_eq!(state.phase, RoundTripMeasurementPhase::Idle);
         }
@@ -611,7 +641,14 @@ mod tests {
             drive_to_idle_via_timeout(&mut state);
 
             let mut emitted: Vec<f32> = Vec::new();
-            state.tick(0.0, &mut |v| { emitted.push(v); true }, Duration::from_secs(10));
+            state.tick(
+                0.0,
+                &mut |v| {
+                    emitted.push(v);
+                    true
+                },
+                Duration::from_secs(10),
+            );
             assert!(emitted.iter().all(|&v| v == 0.0));
         }
 
@@ -624,4 +661,3 @@ mod tests {
         }
     }
 }
-

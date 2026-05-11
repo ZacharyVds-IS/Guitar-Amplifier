@@ -39,4 +39,3 @@ pub const INTER_IMPULSE_GAP: Duration = Duration::from_millis(200);
 /// passing through lossy physical paths.  The detection threshold is clamped to at most
 /// `IMPULSE_AMPLITUDE * 0.5` so that a valid echo is always detectable.
 pub const IMPULSE_AMPLITUDE: f32 = 0.95;
-

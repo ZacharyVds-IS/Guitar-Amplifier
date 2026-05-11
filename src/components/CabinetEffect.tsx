@@ -10,16 +10,21 @@ interface CabinetEffectProps {
 }
 
 export function CabinetEffect({ effect, onToggle }: CabinetEffectProps) {
-    if (effect.kind !== "Cabinet") return null;
-
+    const isCabinet = effect.kind === "Cabinet";
     const [isActive, setIsActive] = useState(effect.data.is_active);
     const updateEffectActiveState = useAmpStore((state) => state.updateEffectActiveState);
-    const cabBlackColor = "#1E1E1D"
-    const baseColor = chroma(effect.data.color).desaturate(0.4).hex();
 
     useEffect(() => {
+        if (!isCabinet) {
+            return;
+        }
         setIsActive(effect.data.is_active);
-    }, [effect.data.id, effect.data.is_active]);
+    }, [isCabinet, effect.data.id, effect.data.is_active]);
+
+    if (!isCabinet) return null;
+
+    const cabBlackColor = "#1E1E1D";
+    const baseColor = chroma(effect.data.color).desaturate(0.4).hex();
 
     async function handlePowerToggle() {
         try {

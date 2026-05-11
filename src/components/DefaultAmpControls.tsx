@@ -48,14 +48,13 @@ export function DefaultAmpControls() {
         if (developerMode) {
             const fetchTimings = async () => {
                 try {
-                    const promises: Promise<any>[] = [
+                    const [latencyResults, cpuTimingResults] = await Promise.all([
                         measureAllDspAlgorithmicLatency(),
-                        measureAllDspCpuTimings()
-                    ];
+                        measureAllDspCpuTimings(),
+                    ] as const);
 
-                    const results = await Promise.all(promises);
-                    setLatency(results[0] || []);
-                    setCpuTimings(results[1] || []);
+                    setLatency(latencyResults || []);
+                    setCpuTimings(cpuTimingResults || []);
                 } catch (error) {
                     console.error("Failed to fetch latency metrics:", error);
                 }

@@ -158,7 +158,8 @@ impl AudioHandlerTrait for AudioHandler {
     ///
     /// Panics if CPAL fails to build the input stream.
     fn build_input_stream(&self, mut producer: HeapProd<f32>) -> Box<dyn PlayableStream> {
-        let stream = self.input_device
+        let stream = self
+            .input_device
             .build_input_stream(
                 &self.input_config,
                 move |data: &[f32], _| {
@@ -183,7 +184,8 @@ impl AudioHandlerTrait for AudioHandler {
     ///
     /// Panics if CPAL fails to build the output stream.
     fn build_output_stream(&self, mut consumer: HeapCons<f32>) -> Box<dyn PlayableStream> {
-        let stream = self.output_device
+        let stream = self
+            .output_device
             .build_output_stream(
                 &self.output_config,
                 move |out: &mut [f32], _| {
@@ -222,7 +224,6 @@ impl AudioHandlerTrait for AudioHandler {
     fn output_sample_rate(&self) -> u32 {
         self.output_sample_rate
     }
-
 }
 
 #[cfg(test)]

@@ -28,12 +28,16 @@ impl AmpConfigDto {
     ///
     /// * `service` - The [`AudioService`] to snapshot.
     pub fn from_service(service: &AudioService) -> Self {
-        let channel = service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap();
+        let channel = service
+            .channels()
+            .iter()
+            .find(|c| c.id() == *service.current_channel_id())
+            .unwrap();
 
         Self {
             master_volume: service.master_volume().load(Ordering::Relaxed),
             is_active: *service.is_active(),
-            channels: service.channels().iter().map(|c| ChannelDto::from(c)).collect(),
+            channels: service.channels().iter().map(ChannelDto::from).collect(),
             current_channel: channel.id(),
         }
     }

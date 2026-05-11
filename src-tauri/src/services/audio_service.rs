@@ -3,9 +3,6 @@ use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
-use crate::services::effects::delay::delay::Delay;
-use crate::services::effects::cabinet::cabinet::Cabinet;
-use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
@@ -18,6 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 use tracing::{error, info};
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
@@ -132,6 +130,7 @@ impl AudioService {
         let handler = self.audio_handler.clone();
         let channel_id = self.current_channel_id;
         let master_volume_arc = self.master_volume.clone();
+        let dsp_sample_rate = self.dsp_chain_sample_rate();
 
         let (gain_arc, volume_arc, tone_stack_arc, effect_chain_arc) = {
             let channel = self
@@ -187,7 +186,7 @@ impl AudioService {
                 let mut gain = GainProcessor::new(gain_arc);
                 let mut volume = GainProcessor::new(volume_arc);
                 let mut master_volume = GainProcessor::new(master_volume_arc);
-                let mut tone_stack = ToneStackProcessor::new(tone_stack_arc);
+                let mut tone_stack = ToneStackProcessor::new(tone_stack_arc, dsp_sample_rate);
 
                 let mut run_dsp = |sample: f32| -> f32 {
                     let sample = gain.process(sample);
@@ -217,12 +216,10 @@ impl AudioService {
                             let _ = o_producer.try_push(processed_sample);
                         }
                     } else {
-                        thread::yield_now();
+                        thread::sleep(Duration::from_millis(1));
                     }
                 }
 
-                // Drain any samples still sitting in the resampler's input buffer
-                // when the loopback is stopped so we don't lose the tail.
                 for processed_sample in
                     policy.flush(&mut |resampled_sample| run_dsp(resampled_sample))
                 {
@@ -385,7 +382,7 @@ impl AudioService {
             let id = self.next_channel_id;
             self.next_channel_id += 1;
 
-            let new_channel = Channel::new(id, channel_name.into(), None, None);
+            let new_channel = Channel::new(id, channel_name, None, None);
 
             self.channels.push(new_channel);
             self.set_current_channel_id(id);
@@ -484,7 +481,6 @@ impl AudioService {
     /// off even though this method is capable of applying either state.
     pub fn apply_amp_config(&mut self, config: AmpConfigDto) {
         let mut restored_channels = Vec::new();
-        let dsp_sample_rate = self.dsp_chain_sample_rate();
 
         // Backward compatibility: older snapshots stored tone values as 0..100.
         // New normalized format is 0.0..1.0 end-to-end.
@@ -515,7 +511,7 @@ impl AudioService {
                 .collect::<Vec<_>>();
 
             if !restored_effects.is_empty() {
-                channel.replace_effect_chain(restored_effects);
+                channel.restore_effect_chain(restored_effects);
             }
             restored_channels.push(channel);
         }
@@ -591,7 +587,13 @@ mod tests {
         })
     }
 
-    fn cabinet_effect(id: u32, name: &str, is_active: bool, color: &str, ir_file_path: &str) -> EffectDto {
+    fn cabinet_effect(
+        id: u32,
+        name: &str,
+        is_active: bool,
+        color: &str,
+        ir_file_path: &str,
+    ) -> EffectDto {
         EffectDto::Cabinet(CabinetDto {
             id,
             name: name.to_string(),

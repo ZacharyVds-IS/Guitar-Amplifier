@@ -109,26 +109,23 @@ impl Cabinet {
                 Err(err) => {
                     warn!(
                         "Invalid cabinet IR file '{}': {}. Falling back to default '{}'.",
-                        ir_file_path,
-                        err,
-                        DEFAULT_IR_FILE
+                        ir_file_path, err, DEFAULT_IR_FILE
                     );
                     DEFAULT_IR_FILE.to_string()
                 }
             }
         };
 
-        let temp_file_path = Self::resolve_ir_file_path(&selected_ir_file)
-            .unwrap_or_else(|| {
-                warn!(
-                    "Could not resolve IR '{}' in known directories. Falling back to default location.",
-                    selected_ir_file
-                );
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("resources")
-                    .join("default_ir")
-                    .join(&selected_ir_file)
-            });
+        let temp_file_path = Self::resolve_ir_file_path(&selected_ir_file).unwrap_or_else(|| {
+            warn!(
+                "Could not resolve IR '{}' in known directories. Falling back to default location.",
+                selected_ir_file
+            );
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("resources")
+                .join("default_ir")
+                .join(&selected_ir_file)
+        });
 
         let ir_buffer = file_loader.read_wav_to_buffer(&temp_file_path);
         let ir_sample_rate = file_loader
@@ -222,6 +219,7 @@ impl Cabinet {
     ///    default IRs when running under `cargo run` / `cargo tauri dev`.
     /// 3. `<exe_dir>/resources/default_ir/<file_name>` — bundled resources
     ///    relative to the installed executable in release builds.
+    ///
     /// Returns `None` when no candidate exists; the caller is responsible for
     /// logging a warning and supplying a fallback path.
     fn resolve_ir_file_path(file_name: &str) -> Option<PathBuf> {
@@ -230,8 +228,7 @@ impl Cabinet {
             Err(err) => {
                 warn!(
                     "Refusing to resolve invalid IR file name '{}': {}",
-                    file_name,
-                    err
+                    file_name, err
                 );
                 return None;
             }
@@ -631,11 +628,11 @@ mod tests {
             let input: Vec<f32> = (0..BLOCK_SIZE * 2).map(|i| i as f32 * 0.001).collect();
             let output = feed_samples(&mut cab, &input);
 
-            for i in 0..BLOCK_SIZE {
+            for (i, sample) in output.iter().enumerate().take(BLOCK_SIZE) {
                 assert!(
-                    output[i].abs() < 1e-6,
+                    sample.abs() < 1e-6,
                     "Pre-block output should be silent (got {} at index {i})",
-                    output[i]
+                    sample
                 );
             }
 

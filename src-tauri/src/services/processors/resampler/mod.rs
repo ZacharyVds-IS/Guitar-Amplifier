@@ -1,2 +1,3 @@
-pub mod resampler;
+#![allow(clippy::module_inception)]
 
+pub mod resampler;

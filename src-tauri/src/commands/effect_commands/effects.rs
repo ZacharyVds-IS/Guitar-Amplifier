@@ -34,7 +34,8 @@ pub(crate) fn add_effect(
 pub(crate) fn remove_effect(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
-    effect_id: u32) {
+    effect_id: u32,
+) {
     let mut service = audio_service.inner().lock().unwrap();
     let channel_id = *service.current_channel_id();
     let current_channel = service
@@ -59,8 +60,10 @@ pub(crate) fn apply_effect_order_change(
         .iter_mut()
         .find(|c| c.id() == channel_id)
         .unwrap();
-    let boxed_effects: Vec<Box<dyn Effect>> =
-        effects.into_iter().map(|dto| dto.to_domain(dsp_sample_rate)).collect();
+    let boxed_effects: Vec<Box<dyn Effect>> = effects
+        .into_iter()
+        .map(|dto| dto.to_domain(dsp_sample_rate))
+        .collect();
     current_channel.restore_effect_chain(boxed_effects);
 }
 

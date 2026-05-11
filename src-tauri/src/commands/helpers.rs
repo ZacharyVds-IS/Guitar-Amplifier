@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use tauri::State;
 use tracing::error;
 
-/// Persists the current amplifier state after a successful command mutation.
+/// Snapshots and enqueues amp-config persistence after a successful command mutation.
 pub(crate) fn persist_amp_config(
     service: &AudioService,
     persistence_service_state: &State<'_, Mutex<AmpConfigPersistenceService>>,

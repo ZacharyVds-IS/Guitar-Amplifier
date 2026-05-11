@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod audio_service_integration_tests {
+mod suite {
     use std::sync::Arc;
 
     use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
@@ -14,10 +14,18 @@ mod audio_service_integration_tests {
         *service.is_active()
     }
 
-    fn make_timed_stream_mock(input_rate: u32, output_rate: u32, stream_build_times: usize) -> MockAudioHandlerTrait {
+    fn make_timed_stream_mock(
+        input_rate: u32,
+        output_rate: u32,
+        stream_build_times: usize,
+    ) -> MockAudioHandlerTrait {
         let mut mock = MockAudioHandlerTrait::new();
-        mock.expect_build_input_stream().times(stream_build_times).returning(|_| Box::new(FakeStream));
-        mock.expect_build_output_stream().times(stream_build_times).returning(|_| Box::new(FakeStream));
+        mock.expect_build_input_stream()
+            .times(stream_build_times)
+            .returning(|_| Box::new(FakeStream));
+        mock.expect_build_output_stream()
+            .times(stream_build_times)
+            .returning(|_| Box::new(FakeStream));
         mock.expect_input_sample_rate().return_const(input_rate);
         mock.expect_output_sample_rate().return_const(output_rate);
         mock
@@ -89,8 +97,12 @@ mod audio_service_integration_tests {
         #[test]
         fn toggle_false_when_already_inactive_is_no_op() {
             let mut mock = MockAudioHandlerTrait::new();
-            mock.expect_build_input_stream().times(0).returning(|_| Box::new(FakeStream));
-            mock.expect_build_output_stream().times(0).returning(|_| Box::new(FakeStream));
+            mock.expect_build_input_stream()
+                .times(0)
+                .returning(|_| Box::new(FakeStream));
+            mock.expect_build_output_stream()
+                .times(0)
+                .returning(|_| Box::new(FakeStream));
             mock.expect_input_sample_rate().return_const(48_000u32);
             mock.expect_output_sample_rate().return_const(48_000u32);
 
@@ -118,10 +130,20 @@ mod audio_service_integration_tests {
         fn swap_handler_while_inactive_does_not_build_streams() {
             let mut service = build_service(make_mock_handler());
             let mut new_handler = MockAudioHandlerTrait::new();
-            new_handler.expect_build_input_stream().times(0).returning(|_| Box::new(FakeStream));
-            new_handler.expect_build_output_stream().times(0).returning(|_| Box::new(FakeStream));
-            new_handler.expect_input_sample_rate().return_const(48_000u32);
-            new_handler.expect_output_sample_rate().return_const(48_000u32);
+            new_handler
+                .expect_build_input_stream()
+                .times(0)
+                .returning(|_| Box::new(FakeStream));
+            new_handler
+                .expect_build_output_stream()
+                .times(0)
+                .returning(|_| Box::new(FakeStream));
+            new_handler
+                .expect_input_sample_rate()
+                .return_const(48_000u32);
+            new_handler
+                .expect_output_sample_rate()
+                .return_const(48_000u32);
 
             service.set_audio_handler(Arc::new(new_handler));
         }

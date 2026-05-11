@@ -15,7 +15,7 @@ use tracing::info;
 /// from other threads (e.g., the UI thread) without requiring locks.
 pub struct GainProcessor {
     gain: Arc<AtomicF32>,
-    current: f32
+    current: f32,
 }
 
 impl GainProcessor {
@@ -27,8 +27,8 @@ impl GainProcessor {
     /// # Arguments
     ///
     /// * `gain` - An [`Arc<AtomicF32>`] that holds the target gain value.
-    ///            This value can be updated from other threads, and changes
-    ///            will be smoothly transitioned.
+    ///   This value can be updated from other threads, and changes
+    ///   will be smoothly transitioned.
     pub fn new(gain: Arc<AtomicF32>) -> Self {
         info!("initi gain processor");
         let initial = gain.load(Ordering::Relaxed);
@@ -87,7 +87,6 @@ mod tests {
         let gain = Arc::new(AtomicF32::new(initial_gain));
         GainProcessor::new(gain)
     }
-
 
     #[cfg(test)]
     mod success_path {

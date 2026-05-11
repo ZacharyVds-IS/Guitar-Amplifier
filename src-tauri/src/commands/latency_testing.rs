@@ -45,7 +45,9 @@ use tracing::info;
 /// [`GainProcessor`]: crate::services::processors::gain::gain_processor::GainProcessor
 /// [`AudioService`]: crate::services::audio_service::AudioService
 #[tauri::command]
-pub fn test_gain_latency(audio_service: tauri::State<'_, Mutex<AudioService>>) -> Result<(), String> {
+pub fn test_gain_latency(
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
+) -> Result<(), String> {
     let service = audio_service
         .lock()
         .map_err(|_| "Failed to lock audio service".to_string())?;
@@ -242,9 +244,15 @@ pub fn measure_round_trip_latency(
     .map_err(|_| "Round-trip measurement thread panicked".to_string())?;
 
     if latency.is_valid {
-        info!(round_trip_latency_ms = latency.latency_ms, "Round-trip latency measurement");
+        info!(
+            round_trip_latency_ms = latency.latency_ms,
+            "Round-trip latency measurement"
+        );
     } else {
-        info!(error = latency.error.clone(), "Round-trip latency measurement failed");
+        info!(
+            error = latency.error.clone(),
+            "Round-trip latency measurement failed"
+        );
     }
 
     Ok(latency)

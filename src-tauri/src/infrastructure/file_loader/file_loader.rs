@@ -48,6 +48,12 @@ impl FileLoader {
     }
 }
 
+impl Default for FileLoader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FileLoaderTrait for FileLoader {
     fn read_wav_sample_rate(&self, path: &Path) -> Option<u32> {
         WavReader::open(path)
@@ -257,7 +263,9 @@ mod tests {
 
         let mut writer = WavWriter::create(path, spec).expect("wav file should be creatable");
         for sample in samples {
-            writer.write_sample(*sample).expect("sample should be writable");
+            writer
+                .write_sample(*sample)
+                .expect("sample should be writable");
         }
         writer.finalize().expect("wav writer should finalize");
     }
@@ -270,9 +278,12 @@ mod tests {
             sample_format: SampleFormat::Float,
         };
 
-        let mut writer = WavWriter::create(path, spec).expect("stereo wav file should be creatable");
+        let mut writer =
+            WavWriter::create(path, spec).expect("stereo wav file should be creatable");
         for sample in samples {
-            writer.write_sample(*sample).expect("sample should be writable");
+            writer
+                .write_sample(*sample)
+                .expect("sample should be writable");
         }
         writer.finalize().expect("wav writer should finalize");
     }
@@ -307,7 +318,10 @@ mod tests {
                 .list_ir_profile_file_names(&dir)
                 .expect("listing IR profiles should succeed");
 
-            assert_eq!(names, vec!["A-clean.WAV".to_string(), "z-room.wav".to_string()]);
+            assert_eq!(
+                names,
+                vec!["A-clean.WAV".to_string(), "z-room.wav".to_string()]
+            );
 
             let _ = fs::remove_dir_all(dir);
         }
@@ -407,4 +421,3 @@ mod tests {
         }
     }
 }
-

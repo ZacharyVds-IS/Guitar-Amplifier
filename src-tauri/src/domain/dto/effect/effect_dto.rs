@@ -47,8 +47,8 @@ impl EffectDto {
                 dto.color,
                 dsp_sample_rate,
                 dto.delay_time,
-                dto.level
-            ))
+                dto.level,
+            )),
         }
     }
 
@@ -78,7 +78,7 @@ impl EffectDto {
                 dsp_sample_rate,
                 dto.delay_time,
                 dto.level,
-            ))
+            )),
         }
     }
 }

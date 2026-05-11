@@ -23,4 +23,3 @@ pub fn sanitize_wav_file_name(file_name: &str) -> Result<String, String> {
 
     Ok(trimmed.to_string())
 }
-

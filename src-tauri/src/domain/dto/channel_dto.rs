@@ -22,14 +22,17 @@ pub struct ChannelDto {
     pub effect_chain: Vec<EffectDto>,
 }
 
-
 impl From<&Channel> for ChannelDto {
     fn from(channel: &Channel) -> Self {
         let effect_dtos = match channel.effect_chain().lock() {
             Ok(chain) => chain.iter().map(|effect| effect.to_dto()).collect(),
             Err(poisoned) => {
                 error!("Effect chain mutex poisoned for channel {}", channel.id());
-                poisoned.into_inner().iter().map(|effect| effect.to_dto()).collect()
+                poisoned
+                    .into_inner()
+                    .iter()
+                    .map(|effect| effect.to_dto())
+                    .collect()
             }
         };
 
@@ -43,4 +46,3 @@ impl From<&Channel> for ChannelDto {
         }
     }
 }
-

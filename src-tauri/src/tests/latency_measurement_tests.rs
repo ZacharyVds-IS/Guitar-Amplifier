@@ -7,7 +7,7 @@
 //!   `BufferLatencyDto`, `RoundTripLatencyDto`)
 
 #[cfg(test)]
-mod latency_measurement_tests {
+mod suite {
     use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
     use crate::services::audio_latency_measurement_service::AudioLatencyMeasurementService;
     use crate::services::audio_service::AudioService;
@@ -46,7 +46,12 @@ mod latency_measurement_tests {
     }
 
     fn default_service() -> AudioService {
-        make_service(48_000, 48_000, BufferSize::Fixed(256), BufferSize::Fixed(256))
+        make_service(
+            48_000,
+            48_000,
+            BufferSize::Fixed(256),
+            BufferSize::Fixed(256),
+        )
     }
 
     // AudioLatencyMeasurementService — CPU timing measurements
@@ -61,14 +66,18 @@ mod latency_measurement_tests {
             fn measure_gain_latency_returns_non_negative_value() {
                 let service = default_service();
                 let result = AudioLatencyMeasurementService::measure_gain_latency(&service, 512);
-                assert!(result >= 0.0, "gain latency must be non-negative, got {result}");
+                assert!(
+                    result >= 0.0,
+                    "gain latency must be non-negative, got {result}"
+                );
                 assert!(result.is_finite(), "gain latency must be finite");
             }
 
             #[test]
             fn measure_tone_stack_latency_returns_non_negative_value() {
                 let service = default_service();
-                let result = AudioLatencyMeasurementService::measure_tone_stack_latency(&service, 512);
+                let result =
+                    AudioLatencyMeasurementService::measure_tone_stack_latency(&service, 512);
                 assert!(result >= 0.0);
                 assert!(result.is_finite());
             }
@@ -77,14 +86,18 @@ mod latency_measurement_tests {
             fn measure_volume_latency_returns_non_negative_value() {
                 let service = default_service();
                 let result = AudioLatencyMeasurementService::measure_volume_latency(&service, 512);
-                assert!(result >= 0.0, "volume latency must be non-negative, got {result}");
+                assert!(
+                    result >= 0.0,
+                    "volume latency must be non-negative, got {result}"
+                );
                 assert!(result.is_finite(), "volume latency must be finite");
             }
 
             #[test]
             fn measure_all_dsp_timings_returns_three_entries_in_chain_order() {
                 let service = default_service();
-                let timings = AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 512);
+                let timings =
+                    AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 512);
                 assert_eq!(timings.len(), 4);
                 assert_eq!(timings[0].processor_name, "Gain");
                 assert_eq!(timings[1].processor_name, "Tone Stack");
@@ -95,10 +108,19 @@ mod latency_measurement_tests {
             #[test]
             fn measure_all_dsp_timings_all_values_are_non_negative_and_finite() {
                 let service = default_service();
-                let timings = AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 512);
+                let timings =
+                    AudioLatencyMeasurementService::measure_all_dsp_timings(&service, 512);
                 for t in &timings {
-                    assert!(t.execution_us_per_sample >= 0.0, "{} is negative", t.processor_name);
-                    assert!(t.execution_us_per_sample.is_finite(), "{} is not finite", t.processor_name);
+                    assert!(
+                        t.execution_us_per_sample >= 0.0,
+                        "{} is negative",
+                        t.processor_name
+                    );
+                    assert!(
+                        t.execution_us_per_sample.is_finite(),
+                        "{} is not finite",
+                        t.processor_name
+                    );
                 }
             }
 
@@ -127,7 +149,8 @@ mod latency_measurement_tests {
             #[test]
             fn all_current_processors_have_zero_algorithmic_latency() {
                 let service = default_service();
-                let latency = AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
+                let latency =
+                    AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
                 assert_eq!(latency.len(), 4);
                 assert_eq!(latency[2].processor_name, "Volume");
                 assert!(latency.iter().all(|d| d.latency_samples == 0));
@@ -137,10 +160,13 @@ mod latency_measurement_tests {
             #[test]
             fn uses_output_sample_rate_for_ms_conversion() {
                 let service = make_service(
-                    48_000, 96_000,
-                    BufferSize::Fixed(256), BufferSize::Fixed(256),
+                    48_000,
+                    96_000,
+                    BufferSize::Fixed(256),
+                    BufferSize::Fixed(256),
                 );
-                let latency = AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
+                let latency =
+                    AudioLatencyMeasurementService::measure_all_dsp_algorithmic_latency(&service);
                 assert!(latency.iter().all(|d| d.latency_ms == 0.0));
             }
         }
@@ -155,8 +181,10 @@ mod latency_measurement_tests {
             #[test]
             fn symmetric_fixed_buffer_has_equal_input_and_output_latency() {
                 let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Fixed(256), BufferSize::Fixed(256),
+                    48_000,
+                    48_000,
+                    BufferSize::Fixed(256),
+                    BufferSize::Fixed(256),
                 );
                 let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
                 let expected_ms = (256.0 / 48_000.0) * 1000.0;
@@ -168,8 +196,10 @@ mod latency_measurement_tests {
             #[test]
             fn asymmetric_buffer_sizes_are_measured_independently() {
                 let service = make_service(
-                    48_000, 96_000,
-                    BufferSize::Fixed(480), BufferSize::Fixed(960),
+                    48_000,
+                    96_000,
+                    BufferSize::Fixed(480),
+                    BufferSize::Fixed(960),
                 );
                 let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
                 assert!((latency.input_buffer_latency_ms - 10.0).abs() < 1e-9);
@@ -179,14 +209,17 @@ mod latency_measurement_tests {
             #[test]
             fn total_buffer_latency_is_sum_of_sides() {
                 let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Fixed(256), BufferSize::Fixed(512),
+                    48_000,
+                    48_000,
+                    BufferSize::Fixed(256),
+                    BufferSize::Fixed(512),
                 );
                 let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
                 assert!(
                     (latency.total_buffer_latency_ms
                         - (latency.input_buffer_latency_ms + latency.output_buffer_latency_ms))
-                        .abs() < 1e-9
+                        .abs()
+                        < 1e-9
                 );
             }
         }
@@ -196,10 +229,8 @@ mod latency_measurement_tests {
 
             #[test]
             fn default_buffer_size_falls_back_to_256_frames() {
-                let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Default, BufferSize::Default,
-                );
+                let service =
+                    make_service(48_000, 48_000, BufferSize::Default, BufferSize::Default);
                 let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
                 let expected_ms = (256.0 / 48_000.0) * 1000.0;
                 assert!((latency.input_buffer_latency_ms - expected_ms).abs() < 1e-9);
@@ -208,10 +239,8 @@ mod latency_measurement_tests {
 
             #[test]
             fn mixed_default_and_fixed_uses_fallback_for_default_side() {
-                let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Default, BufferSize::Fixed(512),
-                );
+                let service =
+                    make_service(48_000, 48_000, BufferSize::Default, BufferSize::Fixed(512));
                 let latency = AudioLatencyMeasurementService::measure_buffer_latency(&service);
                 let expected_input_ms = (256.0 / 48_000.0) * 1000.0;
                 let expected_output_ms = (512.0 / 48_000.0) * 1000.0;
@@ -231,26 +260,28 @@ mod latency_measurement_tests {
             #[test]
             fn returns_fixed_frame_count_from_input_config() {
                 let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Fixed(512), BufferSize::Fixed(512),
+                    48_000,
+                    48_000,
+                    BufferSize::Fixed(512),
+                    BufferSize::Fixed(512),
                 );
                 assert_eq!(service.buffer_size_frames(), 512);
             }
 
             #[test]
             fn returns_256_fallback_when_buffer_size_is_default() {
-                let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Default, BufferSize::Default,
-                );
+                let service =
+                    make_service(48_000, 48_000, BufferSize::Default, BufferSize::Default);
                 assert_eq!(service.buffer_size_frames(), 256);
             }
 
             #[test]
             fn reflects_the_input_config_not_the_output_config() {
                 let service = make_service(
-                    48_000, 48_000,
-                    BufferSize::Fixed(128), BufferSize::Fixed(512),
+                    48_000,
+                    48_000,
+                    BufferSize::Fixed(128),
+                    BufferSize::Fixed(512),
                 );
                 assert_eq!(service.buffer_size_frames(), 128);
             }

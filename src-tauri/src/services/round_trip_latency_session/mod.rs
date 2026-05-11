@@ -66,4 +66,3 @@ pub use measurement_state::{
     RoundTripMeasurementPhase, RoundTripMeasurementState, RoundTripTickOutcome,
 };
 pub use session::RoundTripLatencySession;
-

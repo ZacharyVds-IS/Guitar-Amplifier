@@ -1,8 +1,8 @@
-use std::sync::Mutex;
-use tracing::info;
 use crate::commands::helpers::persist_amp_config;
 use crate::services::amp_config_service::AmpConfigPersistenceService;
 use crate::services::audio_service::AudioService;
+use std::sync::Mutex;
+use tracing::info;
 
 #[tauri::command]
 pub fn set_delay_level(

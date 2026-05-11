@@ -19,9 +19,10 @@ use std::sync::Mutex;
 /// Returns `Ok(AmpConfigDto)` on success, or `Err(String)` if the service state cannot be locked.
 #[tauri::command]
 pub fn get_amp_config(
-    audio_service: tauri::State<'_, Mutex<AudioService>>
+    audio_service: tauri::State<'_, Mutex<AudioService>>,
 ) -> Result<AmpConfigDto, String> {
-    let service = audio_service.lock()
+    let service = audio_service
+        .lock()
         .map_err(|_| "Failed to lock audio service".to_string())?;
 
     Ok(AmpConfigDto::from_service(&service))
@@ -63,7 +64,12 @@ pub(crate) fn set_gain(
     gain: f32,
 ) {
     let service = audio_service.inner().lock().unwrap();
-    service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap().set_gain(gain);
+    service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .unwrap()
+        .set_gain(gain);
     persist_amp_config(&service, &persistence_service);
 }
 
@@ -88,7 +94,6 @@ pub(crate) fn set_master_volume(
     persist_amp_config(&service, &persistence_service);
 }
 
-
 /// Sets the tone stack configuration for the current channel.
 ///
 /// Applies the provided [`ToneStackDto`] to the active [`Channel`] within the
@@ -106,12 +111,16 @@ pub(crate) fn set_tone_stack(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     tone_stack: ToneStackDto,
-){
+) {
     let service = audio_service.inner().lock().unwrap();
-    service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap().set_tone_stack(tone_stack);
+    service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .unwrap()
+        .set_tone_stack(tone_stack);
     persist_amp_config(&service, &persistence_service);
 }
-
 
 /// Sets the bass level for the current channel.
 ///
@@ -130,13 +139,16 @@ pub(crate) fn set_bass(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     bass: f32,
-){
+) {
     let service = audio_service.inner().lock().unwrap();
-    service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap().set_bass(bass);
+    service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .unwrap()
+        .set_bass(bass);
     persist_amp_config(&service, &persistence_service);
 }
-
-
 
 /// Sets the middle frequency level for the current channel.
 ///
@@ -155,12 +167,16 @@ pub(crate) fn set_middle(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     middle: f32,
-){
+) {
     let service = audio_service.inner().lock().unwrap();
-    service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap().set_middle(middle);
+    service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .unwrap()
+        .set_middle(middle);
     persist_amp_config(&service, &persistence_service);
 }
-
 
 /// Sets the treble level for the current channel.
 ///
@@ -179,9 +195,14 @@ pub(crate) fn set_treble(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     treble: f32,
-){
+) {
     let service = audio_service.inner().lock().unwrap();
-    service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap().set_treble(treble);
+    service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .unwrap()
+        .set_treble(treble);
     persist_amp_config(&service, &persistence_service);
 }
 
@@ -202,8 +223,13 @@ pub(crate) fn set_volume(
     audio_service: tauri::State<Mutex<AudioService>>,
     persistence_service: tauri::State<Mutex<AmpConfigPersistenceService>>,
     volume: f32,
-){
+) {
     let service = audio_service.inner().lock().unwrap();
-    service.channels().iter().find(|c| c.id() == *service.current_channel_id()).unwrap().set_volume(volume);
+    service
+        .channels()
+        .iter()
+        .find(|c| c.id() == *service.current_channel_id())
+        .unwrap()
+        .set_volume(volume);
     persist_amp_config(&service, &persistence_service);
 }

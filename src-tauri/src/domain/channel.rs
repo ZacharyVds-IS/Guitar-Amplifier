@@ -180,7 +180,9 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the value is not between 0.0 and 1.0.
-    pub fn set_middle(&self, middle: f32) { self.tone_stack.set_middle(middle); }
+    pub fn set_middle(&self, middle: f32) {
+        self.tone_stack.set_middle(middle);
+    }
 
     /// Sets the treble level for the tone stack.
     ///
@@ -193,7 +195,9 @@ impl Channel {
     /// # Panics
     ///
     /// Panics if the value is not between 0.0 and 1.0.
-    pub fn set_treble(&self, treble: f32) { self.tone_stack.set_treble(treble); }
+    pub fn set_treble(&self, treble: f32) {
+        self.tone_stack.set_treble(treble);
+    }
 
     /// Returns a cloned [`Arc`] to the tone stack.
     ///
@@ -276,7 +280,11 @@ impl Channel {
     /// No downcasting — every effect self-reports its parameters via
     /// [`Effect::f32_params`](crate::domain::effect::Effect::f32_params).
     pub fn add_effect_to_chain(&mut self, effect: Box<dyn Effect>) {
-        info!("Added effect '{}' (id={}) to chain", effect.name(), effect.id());
+        info!(
+            "Added effect '{}' (id={}) to chain",
+            effect.name(),
+            effect.id()
+        );
 
         let mut combined_params = HashMap::new();
 
@@ -290,10 +298,8 @@ impl Channel {
             combined_params.insert(name, ParamValue::Uint(arc));
         }
 
-        self.effect_handles.insert(
-            effect.id(),
-            Self::build_effect_handles(effect.as_ref()),
-        );
+        self.effect_handles
+            .insert(effect.id(), Self::build_effect_handles(effect.as_ref()));
 
         if let Ok(mut chain) = self.effect_chain.lock() {
             chain.push(effect);
@@ -323,19 +329,6 @@ impl Channel {
     /// Returns the next available unique identifier for an effect in this channel's effect chain.
     pub fn next_effect_id(&self) -> u32 {
         self.next_effect_id
-    }
-
-    /// Replaces the entire effect chain with a new chain of events.
-    /// Typically used when loading a preset/ saved configuration.
-    pub fn replace_effect_chain(&mut self, effects: Vec<Box<dyn Effect>>) {
-        if let Ok(mut chain) = self.effect_chain.lock() {
-            chain.clear();
-        }
-        self.effect_handles.clear();
-
-        for effect in effects {
-            self.add_effect_to_chain(effect);
-        }
     }
 
     /// Returns the set of cabinet IR file names referenced by this channel.
@@ -401,12 +394,20 @@ impl Channel {
     /// * `Err(String)` — Error if:
     ///   - Effect with given ID not found
     ///   - Parameter name not recognised by the effect
-
-    pub fn set_effect_param(&self, effect_id: u32, param: &str, value: impl Into<ParamInput>) -> Result<(), String> {
-        let h = self.effect_handles.get(&effect_id)
+    pub fn set_effect_param(
+        &self,
+        effect_id: u32,
+        param: &str,
+        value: impl Into<ParamInput>,
+    ) -> Result<(), String> {
+        let h = self
+            .effect_handles
+            .get(&effect_id)
             .ok_or_else(|| format!("No effect with id {effect_id}"))?;
 
-        let variant = h.params.get(param)
+        let variant = h
+            .params
+            .get(param)
             .ok_or_else(|| format!("Param '{param}' not found on effect {effect_id}"))?;
 
         match (variant, value.into()) {
@@ -433,14 +434,20 @@ pub enum ParamValue {
     Uint(Arc<AtomicU32>),
 }
 
-impl From<f32> for ParamInput { fn from(f: f32) -> Self { Self::F32(f) } }
-impl From<u32> for ParamInput { fn from(u: u32) -> Self { Self::U32(u) } }
-
+impl From<f32> for ParamInput {
+    fn from(f: f32) -> Self {
+        Self::F32(f)
+    }
+}
+impl From<u32> for ParamInput {
+    fn from(u: u32) -> Self {
+        Self::U32(u)
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::effects::distortion::hc_distortion::HCDistortion;
 
     mod success_path {
         use super::*;
@@ -474,7 +481,9 @@ mod tests {
                 "#e67e22".to_string(),
             )));
 
-            let was = channel.effect_handles[&effect_id].is_active.load(Ordering::Relaxed);
+            let was = channel.effect_handles[&effect_id]
+                .is_active
+                .load(Ordering::Relaxed);
             let next = channel.toggle_effect(effect_id).unwrap();
             assert_eq!(next, !was);
         }
@@ -493,7 +502,9 @@ mod tests {
             )));
 
             // Update the parameter
-            channel.set_effect_param(effect_id, "threshold", 0.3f32).unwrap();
+            channel
+                .set_effect_param(effect_id, "threshold", 0.3f32)
+                .unwrap();
 
             // Access the handle
             let handle = &channel.effect_handles[&effect_id];
@@ -559,22 +570,42 @@ mod tests {
 
             let id_1 = channel.next_effect_id();
             let effect_1 = Box::new(HCDistortion::new(
-                id_1, "Effect 1".to_string(), false, 0.5, 0.0, "#color1".to_string(),
+                id_1,
+                "Effect 1".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#color1".to_string(),
             ));
 
             let id_2 = channel.next_effect_id();
             let effect_2 = Box::new(HCDistortion::new(
-                id_2, "Effect 2".to_string(), false, 0.5, 0.0, "#color2".to_string(),
+                id_2,
+                "Effect 2".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#color2".to_string(),
             ));
 
             channel.add_effect_to_chain(effect_1);
             channel.add_effect_to_chain(effect_2);
 
             let reordered_1 = Box::new(HCDistortion::new(
-                id_1, "Effect 1".to_string(), false, 0.5, 0.0, "#color1".to_string(),
+                id_1,
+                "Effect 1".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#color1".to_string(),
             ));
             let reordered_2 = Box::new(HCDistortion::new(
-                id_2, "Effect 2".to_string(), false, 0.5, 0.0, "#color2".to_string(),
+                id_2,
+                "Effect 2".to_string(),
+                false,
+                0.5,
+                0.0,
+                "#color2".to_string(),
             ));
 
             let new_order: Vec<Box<dyn Effect>> = vec![reordered_2, reordered_1];
@@ -588,7 +619,8 @@ mod tests {
         }
 
         #[test]
-        fn used_cabinet_ir_profiles_tracks_added_and_removed_cabinet_effects_without_locking_chain() {
+        fn used_cabinet_ir_profiles_tracks_added_and_removed_cabinet_effects_without_locking_chain()
+        {
             let mut channel = Channel::new(1, "Test".to_string(), None, None);
             let cabinet_id = channel.next_effect_id();
             channel.add_effect_to_chain(Box::new(Cabinet::new(

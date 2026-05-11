@@ -1,6 +1,9 @@
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::infrastructure::persistence::amp_config_persistence_trait::AmpConfigPersistence;
 use crate::services::audio_service::AudioService;
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
+use tracing::error;
 
 /// Application service coordinating amplifier configuration persistence.
 ///
@@ -8,13 +11,45 @@ use crate::services::audio_service::AudioService;
 /// directly. That keeps infrastructure details out of the command layer and
 /// provides one place to centralize snapshot-related behavior.
 pub struct AmpConfigPersistenceService {
-    repository: Box<dyn AmpConfigPersistence>,
+    repository: Arc<dyn AmpConfigPersistence>,
+    pending_snapshot: Arc<(Mutex<Option<AmpConfigDto>>, Condvar)>,
 }
 
 impl AmpConfigPersistenceService {
     /// Creates the service with the chosen persistence backend.
     pub fn new(repository: Box<dyn AmpConfigPersistence>) -> Self {
-        Self { repository }
+        let repository: Arc<dyn AmpConfigPersistence> = Arc::from(repository);
+        let pending_snapshot = Arc::new((Mutex::new(None), Condvar::new()));
+        let worker_pending_snapshot = Arc::clone(&pending_snapshot);
+        let worker_repository = Arc::clone(&repository);
+
+        // Persist snapshots on a single background worker to keep command paths non-blocking.
+        // The pending slot is single-item and overwrite-only: newest snapshot always wins.
+        thread::spawn(move || loop {
+            let latest_snapshot = {
+                let (lock, cv) = &*worker_pending_snapshot;
+                let mut pending = lock
+                    .lock()
+                    .expect("pending snapshot lock should be available");
+                while pending.is_none() {
+                    pending = cv
+                        .wait(pending)
+                        .expect("pending snapshot lock should be available after wait");
+                }
+                pending
+                    .take()
+                    .expect("snapshot should be available when worker wakes")
+            };
+
+            if let Err(err) = worker_repository.save(&latest_snapshot) {
+                error!("Failed to persist amp config snapshot in background worker: {err}");
+            }
+        });
+
+        Self {
+            repository,
+            pending_snapshot,
+        }
     }
 
     /// Loads the last persisted amplifier configuration, if any.
@@ -22,13 +57,25 @@ impl AmpConfigPersistenceService {
         self.repository.load()
     }
 
-    /// Captures a snapshot from the current [`AudioService`] state and persists it.
+    /// Captures a snapshot from the current [`AudioService`] state and enqueues it for persistence.
     ///
     /// This is the primary method used by mutating Tauri commands after they
-    /// successfully update amplifier state.
+    /// successfully update amplifier state. Disk I/O is executed by a background
+    /// worker thread so command handlers return quickly.
     pub fn persist_from_audio_service(&self, audio_service: &AudioService) -> Result<(), String> {
         let snapshot = AmpConfigDto::from_service(audio_service);
-        self.repository.save(&snapshot)
+        self.persist_snapshot(snapshot)
+    }
+
+    /// Enqueues a precomputed snapshot for asynchronous persistence.
+    pub fn persist_snapshot(&self, snapshot: AmpConfigDto) -> Result<(), String> {
+        let (lock, cv) = &*self.pending_snapshot;
+        let mut pending = lock
+            .lock()
+            .map_err(|_| "Amp config persistence lock is unavailable".to_string())?;
+        *pending = Some(snapshot);
+        cv.notify_one();
+        Ok(())
     }
 }
 
@@ -36,20 +83,72 @@ impl AmpConfigPersistenceService {
 mod tests {
     use super::*;
     use crate::infrastructure::audio_handler::MockAudioHandlerTrait;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Condvar, Mutex};
+    use std::time::Duration;
 
     struct SpyRepositoryState {
         saved_configs: Mutex<Vec<AmpConfigDto>>,
+        saved_configs_cv: Condvar,
         load_result: Mutex<Result<Option<AmpConfigDto>, String>>,
         save_result: Mutex<Result<(), String>>,
+        save_started_count: Mutex<usize>,
+        save_started_cv: Condvar,
+        block_saves: Mutex<bool>,
+        block_saves_cv: Condvar,
     }
 
     impl SpyRepositoryState {
         fn new() -> Self {
             Self {
                 saved_configs: Mutex::new(Vec::new()),
+                saved_configs_cv: Condvar::new(),
                 load_result: Mutex::new(Ok(None)),
                 save_result: Mutex::new(Ok(())),
+                save_started_count: Mutex::new(0),
+                save_started_cv: Condvar::new(),
+                block_saves: Mutex::new(false),
+                block_saves_cv: Condvar::new(),
+            }
+        }
+
+        fn wait_for_saved_count(
+            &self,
+            minimum_count: usize,
+            timeout: Duration,
+        ) -> Vec<AmpConfigDto> {
+            let mut saved = self
+                .saved_configs
+                .lock()
+                .expect("saved_configs should be lockable");
+
+            let wait_result = self
+                .saved_configs_cv
+                .wait_timeout_while(saved, timeout, |configs| configs.len() < minimum_count)
+                .expect("saved_configs should remain lockable while waiting");
+            saved = wait_result.0;
+            saved.clone()
+        }
+
+        fn wait_for_save_started_count(&self, minimum_count: usize, timeout: Duration) {
+            let started = self
+                .save_started_count
+                .lock()
+                .expect("save_started_count should be lockable");
+
+            let _ = self
+                .save_started_cv
+                .wait_timeout_while(started, timeout, |count| *count < minimum_count)
+                .expect("save_started_count should remain lockable while waiting");
+        }
+
+        fn set_block_saves(&self, should_block: bool) {
+            let mut block_saves = self
+                .block_saves
+                .lock()
+                .expect("block_saves should be lockable");
+            *block_saves = should_block;
+            if !should_block {
+                self.block_saves_cv.notify_all();
             }
         }
     }
@@ -68,11 +167,36 @@ mod tests {
         }
 
         fn save(&self, config: &AmpConfigDto) -> Result<(), String> {
+            {
+                let mut started_count = self
+                    .state
+                    .save_started_count
+                    .lock()
+                    .expect("save_started_count should be lockable");
+                *started_count += 1;
+                self.state.save_started_cv.notify_all();
+            }
+
+            let mut block_saves = self
+                .state
+                .block_saves
+                .lock()
+                .expect("block_saves should be lockable");
+            while *block_saves {
+                block_saves = self
+                    .state
+                    .block_saves_cv
+                    .wait(block_saves)
+                    .expect("block_saves should remain lockable while waiting");
+            }
+            drop(block_saves);
+
             self.state
                 .saved_configs
                 .lock()
                 .expect("saved_configs should be lockable")
                 .push(config.clone());
+            self.state.saved_configs_cv.notify_all();
 
             self.state
                 .save_result
@@ -96,11 +220,16 @@ mod tests {
             .lock()
             .expect("load_result should be lockable") = Ok(Some(expected.clone()));
 
-        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository { state }));
+        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository {
+            state: Arc::clone(&state),
+        }));
         let loaded = service.load_amp_config().expect("load should succeed");
 
         assert!(loaded.is_some());
-        assert_eq!(loaded.expect("value should be present").current_channel, expected.current_channel);
+        assert_eq!(
+            loaded.expect("value should be present").current_channel,
+            expected.current_channel
+        );
     }
 
     #[test]
@@ -111,7 +240,9 @@ mod tests {
             .lock()
             .expect("load_result should be lockable") = Err("load failed".to_string());
 
-        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository { state }));
+        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository {
+            state: Arc::clone(&state),
+        }));
         let err = service.load_amp_config().expect_err("load should fail");
 
         assert_eq!(err, "load failed");
@@ -131,32 +262,83 @@ mod tests {
             .persist_from_audio_service(&audio_service)
             .expect("persist should succeed");
 
-        let saved = state
-            .saved_configs
-            .lock()
-            .expect("saved_configs should be lockable");
+        let saved = state.wait_for_saved_count(1, Duration::from_secs(1));
         assert_eq!(saved.len(), 1);
         assert_eq!(saved[0].current_channel, 0);
         assert!(!saved[0].is_active);
     }
 
     #[test]
-    fn persist_from_audio_service_propagates_repository_error() {
+    fn persist_from_audio_service_enqueues_even_when_background_save_fails() {
         let state = Arc::new(SpyRepositoryState::new());
         *state
             .save_result
             .lock()
             .expect("save_result should be lockable") = Err("save failed".to_string());
 
-        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository { state }));
+        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository {
+            state: Arc::clone(&state),
+        }));
         let mock = MockAudioHandlerTrait::new();
         let audio_service = AudioService::new_with_handler(Arc::new(mock));
 
-        let err = service
+        service
             .persist_from_audio_service(&audio_service)
-            .expect_err("persist should fail");
+            .expect("enqueue should succeed");
 
-        assert_eq!(err, "save failed");
+        let saved = state.wait_for_saved_count(1, Duration::from_secs(1));
+        assert_eq!(saved.len(), 1);
+    }
+
+    #[test]
+    fn persist_snapshot_keeps_only_newest_pending_snapshot() {
+        let state = Arc::new(SpyRepositoryState::new());
+        state.set_block_saves(true);
+
+        let service = AmpConfigPersistenceService::new(Box::new(SpyRepository {
+            state: Arc::clone(&state),
+        }));
+
+        let snapshot = |current_channel: u32| AmpConfigDto {
+            master_volume: 0.5,
+            is_active: false,
+            channels: Vec::new(),
+            current_channel,
+        };
+
+        service
+            .persist_snapshot(snapshot(1))
+            .expect("first snapshot enqueue should succeed");
+
+        state.wait_for_save_started_count(1, Duration::from_secs(1));
+
+        service
+            .persist_snapshot(snapshot(2))
+            .expect("second snapshot enqueue should succeed");
+        service
+            .persist_snapshot(snapshot(3))
+            .expect("third snapshot enqueue should succeed");
+
+        state.set_block_saves(false);
+
+        let saved = state.wait_for_saved_count(2, Duration::from_secs(1));
+
+        assert_eq!(saved.len(), 2);
+        assert_eq!(
+            saved
+                .first()
+                .expect("first snapshot exists")
+                .current_channel,
+            1
+        );
+        assert_eq!(
+            saved
+                .last()
+                .expect("at least one snapshot saved")
+                .current_channel,
+            3
+        );
+        assert!(saved.iter().any(|cfg| cfg.current_channel == 3));
+        assert!(!saved.iter().any(|cfg| cfg.current_channel == 2));
     }
 }
-

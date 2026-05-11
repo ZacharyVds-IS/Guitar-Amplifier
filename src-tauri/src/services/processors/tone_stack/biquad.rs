@@ -192,7 +192,7 @@ impl Biquad {
             }
         };
         //Normalize Coefficients so that a0 is 1
-        (b0 / a0, b1 / a0, b2 / a0, a0 / a0, a1 / a0, a2 / a0)
+        (b0 / a0, b1 / a0, b2 / a0, 1.0, a1 / a0, a2 / a0)
     }
 }
 
@@ -264,7 +264,6 @@ mod tests {
             let mut biquad = Biquad::new_shelf(ShelfType::High, 44100.0, 8000.0, 0.0);
             biquad.set_gain_db(-12.0);
             let input = 1.0;
-
 
             let output = biquad.process(input);
             assert!(!output.is_nan());

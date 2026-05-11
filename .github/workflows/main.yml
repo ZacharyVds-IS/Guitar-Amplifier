@@ -37,21 +37,32 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          node-version: 24
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache Rust dependencies and build outputs
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
           shared-key: tauri-ci-${{ runner.os }}
+
+      - name: Run ESLint (static analysis)
+        run: npm run lint
+
+      - name: Run Rust format check
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Run Rust Clippy (static analysis)
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run React/Vitest tests
         run: npm run test -- --run

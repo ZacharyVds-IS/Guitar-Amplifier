@@ -18,7 +18,7 @@ pub struct Delay {
     write_pos: usize,
     sample_rate: u32,
     delay_in_samples: usize,
-    last_feedback_output: f32
+    last_feedback_output: f32,
 }
 
 const MAX_DELAY_TIME_FLOAT: f32 = 800.0;
@@ -138,8 +138,8 @@ impl AudioProcessor for Delay {
         let f_part = read_pos - i_part as f32;
         let next_i = (i_part + 1) % self.delay_buffer.len();
 
-        let delayed_sample = self.delay_buffer[i_part] * (1.0 - f_part) + self.delay_buffer[next_i] * f_part;
-
+        let delayed_sample =
+            self.delay_buffer[i_part] * (1.0 - f_part) + self.delay_buffer[next_i] * f_part;
 
         let filtered_feedback = (delayed_sample * 0.5) + (self.last_feedback_output * 0.5);
         self.last_feedback_output = filtered_feedback;
@@ -147,7 +147,6 @@ impl AudioProcessor for Delay {
         self.delay_buffer[self.write_pos] = sample + (filtered_feedback * feedback_amount);
 
         self.write_pos = (self.write_pos + 1) % self.delay_buffer.len();
-
 
         sample + (delayed_sample * feedback_amount)
     }
@@ -212,7 +211,15 @@ mod tests {
         fn test_initialization_and_buffer_size() {
             let sample_rate = 44100;
             let delay_time_ms = 100;
-            let delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), sample_rate, delay_time_ms, 0.5);
+            let delay = Delay::new(
+                1,
+                "Test".to_string(),
+                true,
+                "blue".to_string(),
+                sample_rate,
+                delay_time_ms,
+                0.5,
+            );
 
             // Max samples for 800ms (as defined in new()) @ 44.1khz is 35280
             assert!(delay.delay_buffer().len() >= 35280);
@@ -221,7 +228,15 @@ mod tests {
 
         #[test]
         fn test_signal_passthrough_on_first_sample() {
-            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), 44100, 100, 0.5);
+            let mut delay = Delay::new(
+                1,
+                "Test".to_string(),
+                true,
+                "blue".to_string(),
+                44100,
+                100,
+                0.5,
+            );
             let input = 0.8;
             let output = delay.process(input);
 
@@ -234,7 +249,15 @@ mod tests {
         fn test_delay_echo_occurs() {
             let sample_rate = 1000; // Low SR for easier math
             let delay_time_ms = 100; // 100ms = 100 samples at 1000Hz
-            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), sample_rate, delay_time_ms, 0.5);
+            let mut delay = Delay::new(
+                1,
+                "Test".to_string(),
+                true,
+                "blue".to_string(),
+                sample_rate,
+                delay_time_ms,
+                0.5,
+            );
 
             // Input an impulse
             delay.process(1.0);
@@ -256,7 +279,15 @@ mod tests {
         #[test]
         fn test_parameter_clamping() {
             // Test level clamping (max 0.95)
-            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), 44100, 100, 2.0);
+            let mut delay = Delay::new(
+                1,
+                "Test".to_string(),
+                true,
+                "blue".to_string(),
+                44100,
+                100,
+                2.0,
+            );
             assert!(delay.level().load(Ordering::Relaxed) <= 0.95);
 
             // Test delay time clamping via setter (20ms - 300ms)
@@ -269,7 +300,15 @@ mod tests {
 
         #[test]
         fn test_empty_buffer_safety() {
-            let mut delay = Delay::new(1, "Test".to_string(), true, "blue".to_string(), 44100, 100, 0.5);
+            let mut delay = Delay::new(
+                1,
+                "Test".to_string(),
+                true,
+                "blue".to_string(),
+                44100,
+                100,
+                0.5,
+            );
             // Manually force an empty buffer (edge case)
             delay.set_sample_rate(0);
             // Should not crash and should return dry signal

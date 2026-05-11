@@ -13,7 +13,7 @@ pub struct DelayDto {
     pub is_active: bool,
     /// UI colour for the pedal chassis. Hex string format: `"#rrggbb"`.
     pub color: String,
-    /// Time (ms) between the original sample and the echo's 
+    /// Time (ms) between the original sample and the echo's
     pub delay_time: u32,
     /// Output level of the Echo's in `[0.0, 0.95]`.
     /// - `0.0` = no audio

@@ -7,10 +7,10 @@
 //! - [`default_controls`] — Gain, master volume, and tone stack equalizer configuration
 //! - [`settings`] — Input/output device selection and enumeration
 
-pub mod loopback;
-pub mod default_controls;
-pub mod settings;
-pub mod latency_testing;
 pub mod channels;
-pub mod helpers;
+pub mod default_controls;
 pub mod effect_commands;
+pub mod helpers;
+pub mod latency_testing;
+pub mod loopback;
+pub mod settings;

@@ -57,4 +57,3 @@ mod tests {
         assert_eq!(processor.process(-0.25), -0.25);
     }
 }
-

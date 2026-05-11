@@ -220,7 +220,7 @@ impl AudioService {
                             let _ = o_producer.try_push(processed_sample);
                         }
                     } else {
-                        thread::sleep(Duration::from_millis(1));
+                        thread::park()
                     }
                 }
 

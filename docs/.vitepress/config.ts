@@ -26,6 +26,7 @@ export default defineConfig({
         items:[
           {text:'Relation to real amp', link:'/guide/amp_design/structure'},
           {text:'Resampling', link:'/guide/amp_design/resampling.md'},
+          {text:'Visual analysis', link:'/guide/amp_design/spectrum-analyzer.md'},
           {text:'Latency', link:'/guide/amp_design/latency'},
           {text:'Gain', link:'/guide/amp_design/gain'},
           {text:'Master Volume', link:'/guide/amp_design/master-volume'},

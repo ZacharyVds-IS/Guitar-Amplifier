@@ -5,8 +5,7 @@ import {useAmpStore} from "./state/AmpConfigStore.tsx";
 import {listen} from "@tauri-apps/api/event";
 import {getCurrentWebviewWindow} from "@tauri-apps/api/webviewWindow";
 import {ChannelDto} from "./domain";
-
-const ANALYZER_WINDOW_LABEL = "analyzer-view";
+import {ANALYZER_WINDOW_LABEL} from "./windows/AnalyzerWindow";
 
 const isAnalyzerWindow = getCurrentWebviewWindow().label === ANALYZER_WINDOW_LABEL;
 

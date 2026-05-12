@@ -2,7 +2,7 @@ import {WebviewWindow} from "@tauri-apps/api/webviewWindow";
 
 export {AnalyzerWindow} from "./AnalyzerWindow.tsx";
 
-const ANALYZER_WINDOW_LABEL = "analyzer-view";
+export const ANALYZER_WINDOW_LABEL = "analyzer-view";
 const ANALYZER_ROUTE = "/#/analyzer";
 export async function openAnalyzerWindow(): Promise<void> {
     const existingWindow = await WebviewWindow.getByLabel(ANALYZER_WINDOW_LABEL);

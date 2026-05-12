@@ -151,6 +151,10 @@ fn magnitude_db_at_frequency(
 ) -> f32 {
     let n = spectrum.len().max(2);
     let half = n / 2;
+    if half <= 1 {
+        return MIN_DB;
+    }
+
     let bin_index = ((frequency_hz / sample_rate) * n as f32)
         .round()
         .clamp(1.0, (half - 1) as f32) as usize;
@@ -238,6 +242,13 @@ mod tests {
             assert_eq!(snapshot.magnitudes.len(), ANALYZER_BINS);
             assert!(snapshot.magnitudes.iter().all(|value| *value == MIN_DB));
             assert_eq!(snapshot.level_db, MIN_DB);
+        }
+
+        #[test]
+        fn magnitude_db_with_tiny_fft_input_returns_min_db_instead_of_panicking() {
+            let tiny = vec![Complex::new(0.0_f32, 0.0_f32); 2];
+            let db = magnitude_db_at_frequency(&tiny, 48_000.0, 1_000.0);
+            assert_eq!(db, MIN_DB);
         }
     }
 }

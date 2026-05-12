@@ -7,6 +7,7 @@
 //! - [`default_controls`] — Gain, master volume, and tone stack equalizer configuration
 //! - [`settings`] — Input/output device selection and enumeration
 
+pub mod analyzer;
 pub mod channels;
 pub mod default_controls;
 pub mod effect_commands;

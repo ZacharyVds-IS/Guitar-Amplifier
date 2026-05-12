@@ -21,6 +21,9 @@ import {
     toggleOnOff
 } from "../domain";
 import {create} from "zustand/react";
+import {emit} from "@tauri-apps/api/event";
+
+export const AMP_ACTIVE_CHANGED_EVENT = "amp-active-changed";
 
 function withUpdatedEffectActiveState<T extends EffectDto>(effect: T, isActive: boolean): T {
     return {
@@ -155,8 +158,19 @@ export const useAmpStore = create<AmpState>((set, get) => ({
         },
 
         setIsActive: (val: boolean) => {
+            const previousIsActive = get().is_active;
             set({is_active: val});
-            toggleOnOff({isOn: val});
+
+            // Keep public store API callback-friendly (void), but handle async backend sync safely.
+            void (async () => {
+                try {
+                    await toggleOnOff({isOn: val});
+                    await emit(AMP_ACTIVE_CHANGED_EVENT, val);
+                } catch (error) {
+                    console.error("Failed to toggle amp on/off, rolling back:", error);
+                    set({is_active: previousIsActive});
+                }
+            })();
         },
 
         setGain: (val: number) => {
@@ -424,3 +438,4 @@ export const useAmpStore = create<AmpState>((set, get) => ({
         },
     }))
 ;
+

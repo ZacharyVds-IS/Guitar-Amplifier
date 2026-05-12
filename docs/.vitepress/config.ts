@@ -1,4 +1,5 @@
 import {defineConfig} from 'vitepress'
+import {katex} from "@mdit/plugin-katex";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -65,5 +66,10 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', link: 'https://github.com/ZacharyVds-IS/Guitar-Amplifier' }
     ]
+  },
+  markdown:{
+    config: (md) => {
+      md.use(katex)
+    }
   }
 })

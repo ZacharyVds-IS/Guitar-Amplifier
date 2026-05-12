@@ -22,15 +22,17 @@
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hello-pangea/dnd": "^18.0.1",
+    "@hookform/resolvers": "^3.9.0",
+    "@mdit/plugin-katex": "^0.25.2",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "chroma-js": "^3.2.0",
+    "katex": "^0.16.45",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.53.0",
@@ -51,8 +53,8 @@
     "globals": "^16.0.0",
     "typedoc": "^0.28.19",
     "typedoc-plugin-react": "^0.1.0",
-    "typescript-eslint": "^8.31.1",
     "typescript": "~5.8.3",
+    "typescript-eslint": "^8.31.1",
     "vite": "^7.0.4",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.4"

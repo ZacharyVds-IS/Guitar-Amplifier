@@ -6,6 +6,7 @@ use crate::services::effects::cabinet::cabinet::Cabinet;
 use crate::services::effects::delay::delay::Delay;
 use crate::services::effects::distortion::hc_distortion::HCDistortion;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// A serialisable, tagged representation of any effect in the signal chain.
 ///
@@ -22,10 +23,10 @@ pub enum EffectDto {
 }
 
 impl EffectDto {
-    pub fn add_to_domain(self, next_effect_id: u32, dsp_sample_rate: u32) -> Box<dyn Effect> {
+    pub fn add_to_domain(self, dsp_sample_rate: u32) -> Box<dyn Effect> {
         match self {
             EffectDto::HCDistortion(dto) => Box::new(HCDistortion::new(
-                next_effect_id,
+                Uuid::new_v4(),
                 dto.name,
                 dto.is_active,
                 dto.threshold,
@@ -33,7 +34,7 @@ impl EffectDto {
                 dto.color,
             )),
             EffectDto::Cabinet(dto) => Box::new(Cabinet::new(
-                next_effect_id,
+                Uuid::new_v4(),
                 dto.name,
                 dto.is_active,
                 dto.color,
@@ -41,7 +42,7 @@ impl EffectDto {
                 dsp_sample_rate,
             )),
             EffectDto::Delay(dto) => Box::new(Delay::new(
-                next_effect_id,
+                Uuid::new_v4(),
                 dto.name,
                 dto.is_active,
                 dto.color,
@@ -55,7 +56,7 @@ impl EffectDto {
     pub fn to_domain(self, dsp_sample_rate: u32) -> Box<dyn Effect> {
         match self {
             EffectDto::HCDistortion(dto) => Box::new(HCDistortion::new(
-                dto.id,
+                Uuid::parse_str(dto.id.as_str()).expect("invalid uuid"),
                 dto.name,
                 dto.is_active,
                 dto.threshold,
@@ -63,7 +64,7 @@ impl EffectDto {
                 dto.color,
             )),
             EffectDto::Cabinet(dto) => Box::new(Cabinet::new(
-                dto.id,
+                Uuid::parse_str(dto.id.as_str()).expect("invalid uuid"),
                 dto.name,
                 dto.is_active,
                 dto.color,
@@ -71,7 +72,7 @@ impl EffectDto {
                 dsp_sample_rate,
             )),
             EffectDto::Delay(dto) => Box::new(Delay::new(
-                dto.id,
+                Uuid::parse_str(dto.id.as_str()).expect("invalid uuid"),
                 dto.name,
                 dto.is_active,
                 dto.color,

@@ -18,6 +18,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use tracing::{error, info};
+use uuid::{uuid, Uuid};
 
 const DEFAULT_ANALYZER_SAMPLE_RATE_HZ: u32 = 48_000;
 
@@ -49,9 +50,8 @@ pub struct AudioService {
     loopback_thread: Option<JoinHandle<()>>,
     is_active: bool,
     channels: Vec<Channel>,
-    current_channel_id: u32,
+    current_channel_id: Uuid,
     master_volume: Arc<AtomicF32>,
-    next_channel_id: u32,
     spectrum_tap: Arc<SpectrumTap>,
 }
 
@@ -94,14 +94,19 @@ impl AudioService {
     ///
     /// * `handler` - An [`Arc`]-wrapped implementation of [`AudioHandlerTrait`].
     pub fn new_with_handler(handler: Arc<dyn AudioHandlerTrait>) -> Self {
+        let default_channel_id = Uuid::new_v4();
         Self {
             audio_handler: handler,
             loopback_thread: None,
             is_active: false,
-            channels: vec![Channel::new(0, "Default".to_string(), None, None)],
+            channels: vec![Channel::new(
+                default_channel_id,
+                "Default".to_string(),
+                None,
+                None,
+            )],
             master_volume: Arc::new(AtomicF32::new(1.0)),
-            current_channel_id: 0,
-            next_channel_id: 1,
+            current_channel_id: default_channel_id,
             // Keep constructor side-effect free for tests using minimal mocks.
             // Real sample-rate metadata is applied when loopback starts.
             spectrum_tap: Arc::new(SpectrumTap::new(DEFAULT_ANALYZER_SAMPLE_RATE_HZ)),
@@ -390,10 +395,9 @@ impl AudioService {
     /// * `channel_name` - The name of the new channel (30 characters max).
     ///
     /// [`set_current_channel_id`]: AudioService::set_current_channel_id
-    pub fn add_channel(&mut self, channel_name: String) -> u32 {
+    pub fn add_channel(&mut self, channel_name: String) -> Uuid {
         if channel_name.len() <= 30 {
-            let id = self.next_channel_id;
-            self.next_channel_id += 1;
+            let id = Uuid::new_v4();
 
             let new_channel = Channel::new(id, channel_name, None, None);
 
@@ -418,10 +422,11 @@ impl AudioService {
     /// * `channel_id` - The id of the channel to remove. Cannot be 0 (default channel).
     ///
     /// [`set_current_channel_id`]: AudioService::set_current_channel_id
-    pub fn remove_channel(&mut self, channel_id: u32) {
-        if channel_id != 0 {
+    pub fn remove_channel(&mut self, channel_id: Uuid) {
+        let default_channel_id = self.channels.get(0).unwrap().id();
+        if channel_id != default_channel_id {
             self.channels.retain(|c| c.id() != channel_id);
-            self.set_current_channel_id(0);
+            self.set_current_channel_id(default_channel_id);
         } else {
             error!("Cannot remove default channel");
         }
@@ -435,7 +440,7 @@ impl AudioService {
     ///
     /// [`start_loopback`]: AudioService::start_loopback
     /// [`stop_loopback`]: AudioService::stop_loopback
-    pub fn set_current_channel_id(&mut self, new_current_channel_id: u32) {
+    pub fn set_current_channel_id(&mut self, new_current_channel_id: Uuid) {
         let was_on = self.is_active;
         self.stop_loopback();
         self.current_channel_id = new_current_channel_id;
@@ -507,7 +512,7 @@ impl AudioService {
 
         for channel_dto in config.channels {
             let mut channel = Channel::new(
-                channel_dto.id,
+                Uuid::parse_str(channel_dto.id.as_str()).expect("Could not parse UUID"),
                 channel_dto.name,
                 Some(channel_dto.gain.max(0.0001)),
                 Some(channel_dto.volume.max(0.0001)),
@@ -530,21 +535,26 @@ impl AudioService {
         }
 
         if restored_channels.is_empty() {
-            restored_channels.push(Channel::new(0, "Default".to_string(), None, None));
+            restored_channels.push(Channel::new(
+                Uuid::new_v4(),
+                "Default".to_string(),
+                None,
+                None,
+            ));
         }
 
         let current_channel = if restored_channels
             .iter()
-            .any(|c| c.id() == config.current_channel)
+            .any(|c| c.id().to_string() == config.current_channel)
         {
             config.current_channel
         } else {
-            restored_channels[0].id()
+            restored_channels[0].id().to_string()
         };
 
         self.channels = restored_channels;
-        self.current_channel_id = current_channel;
-        self.next_channel_id = self.channels.iter().map(|c| c.id()).max().unwrap_or(0) + 1;
+        self.current_channel_id =
+            Uuid::parse_str(current_channel.as_str()).expect("Could not parse UUID");
         self.master_volume
             .store(config.master_volume.max(0.0001), Ordering::Relaxed);
 
@@ -583,7 +593,7 @@ mod tests {
     }
 
     fn distortion_effect(
-        id: u32,
+        id: String,
         name: &str,
         is_active: bool,
         threshold: f32,
@@ -601,7 +611,7 @@ mod tests {
     }
 
     fn cabinet_effect(
-        id: u32,
+        id: String,
         name: &str,
         is_active: bool,
         color: &str,
@@ -617,7 +627,7 @@ mod tests {
     }
 
     fn channel_dto(
-        id: u32,
+        id: String,
         name: &str,
         gain: f32,
         volume: f32,
@@ -660,7 +670,6 @@ mod tests {
 
             assert_eq!(service.channels.len(), 2);
             assert_eq!(test_channel.name(), "TestChannel");
-            assert_eq!(test_channel.id(), 1);
             assert_eq!(test_channel.gain().load(Ordering::Relaxed), 1.0);
             assert_eq!(test_channel.volume().load(Ordering::Relaxed), 1.0);
             assert_eq!(
@@ -679,34 +688,56 @@ mod tests {
         }
 
         #[test]
-        fn remove_channel_removes_channel_and_sets_current_channel_id_to_0() {
+        fn remove_channel_removes_channel_and_sets_current_channel_id_to_default() {
             let mock = MockAudioHandlerTrait::new();
             let mut service = AudioService::new_with_handler(Arc::new(mock));
+            let default_channel_id = service.channels[0].id();
             let test_channel_id = service.add_channel("TestChannel".to_string());
             service.remove_channel(test_channel_id);
 
             assert_eq!(service.channels.len(), 1);
-            assert_eq!(*service.current_channel_id(), 0);
+            assert_eq!(*service.current_channel_id(), default_channel_id);
         }
 
         #[test]
         fn apply_amp_config_restores_channels_tones_effects_and_master_volume() {
             let mut service = build_service(make_mock_handler());
+            let id_1 = Uuid::new_v4();
+            let id_2 = Uuid::new_v4();
+            let eff_id = Uuid::new_v4();
+
+            let channel_id_1 = id_1.to_string();
+            let channel_id_2 = id_2.to_string();
+            let effect_id = eff_id.to_string();
             let config = AmpConfigDto {
                 master_volume: 0.42,
                 is_active: false,
                 channels: vec![
-                    channel_dto(4, "Clean", 1.25, 0.8, tone_stack(25.0, 0.45, 130.0), vec![]),
                     channel_dto(
-                        7,
+                        channel_id_1.clone(),
+                        "Clean",
+                        1.25,
+                        0.8,
+                        tone_stack(25.0, 0.45, 130.0),
+                        vec![],
+                    ),
+                    channel_dto(
+                        channel_id_2.clone(),
                         "Lead",
                         2.0,
                         0.65,
                         tone_stack(0.6, 80.0, -0.5),
-                        vec![distortion_effect(11, "Drive", true, 0.33, 0.7, "#ff6600")],
+                        vec![distortion_effect(
+                            effect_id.clone(),
+                            "Drive",
+                            true,
+                            0.33,
+                            0.7,
+                            "#ff6600",
+                        )],
                     ),
                 ],
-                current_channel: 7,
+                current_channel: channel_id_2.clone(),
             };
 
             service.apply_amp_config(config);
@@ -715,18 +746,17 @@ mod tests {
             let clean = snapshot
                 .channels
                 .iter()
-                .find(|channel| channel.id == 4)
+                .find(|channel| channel.id == channel_id_1)
                 .unwrap();
             let lead = snapshot
                 .channels
                 .iter()
-                .find(|channel| channel.id == 7)
+                .find(|channel| channel.id == channel_id_2)
                 .unwrap();
 
             assert_eq!(snapshot.channels.len(), 2);
-            assert_eq!(snapshot.current_channel, 7);
+            assert_eq!(snapshot.current_channel, channel_id_2);
             assert!(!snapshot.is_active);
-            assert_eq!(service.next_channel_id, 8);
             assert!((snapshot.master_volume - 0.42).abs() < f32::EPSILON);
 
             assert_eq!(clean.name, "Clean");
@@ -744,7 +774,7 @@ mod tests {
             // Compare effect fields individually so floating-point round-trips through
             // the internal gain mapping (level → 1.0+level → level-1.0) don't fail.
             if let EffectDto::HCDistortion(dto) = &lead.effect_chain[0] {
-                assert_eq!(dto.id, 11);
+                assert_eq!(dto.id, effect_id);
                 assert_eq!(dto.name, "Drive");
                 assert!(dto.is_active);
                 assert_eq!(dto.color, "#ff6600");
@@ -758,18 +788,26 @@ mod tests {
         #[test]
         fn apply_amp_config_restores_cabinet_effect_ir_file_path() {
             let mut service = build_service(make_mock_handler());
+            let channel_id_1 = Uuid::new_v4();
+            let effect_id = Uuid::new_v4();
             let config = AmpConfigDto {
                 master_volume: 0.8,
                 is_active: false,
                 channels: vec![channel_dto(
-                    2,
+                    channel_id_1.to_string(),
                     "Cab Channel",
                     1.0,
                     1.0,
                     tone_stack(0.5, 0.5, 0.5),
-                    vec![cabinet_effect(9, "Cab", true, "#445566", "Vox-ac30.wav")],
+                    vec![cabinet_effect(
+                        effect_id.to_string(),
+                        "Cab",
+                        true,
+                        "#445566",
+                        "Vox-ac30.wav",
+                    )],
                 )],
-                current_channel: 2,
+                current_channel: channel_id_1.to_string(),
             };
 
             service.apply_amp_config(config);
@@ -779,7 +817,7 @@ mod tests {
             assert_eq!(snapshot.channels[0].effect_chain.len(), 1);
 
             if let EffectDto::Cabinet(dto) = &snapshot.channels[0].effect_chain[0] {
-                assert_eq!(dto.id, 9);
+                assert_eq!(dto.id, effect_id.to_string());
                 assert_eq!(dto.name, "Cab");
                 assert!(dto.is_active);
                 assert_eq!(dto.color, "#445566");
@@ -792,18 +830,19 @@ mod tests {
         #[test]
         fn apply_amp_config_clamps_non_positive_levels_and_falls_back_to_first_channel() {
             let mut service = build_service(make_mock_handler());
+            let channel_id_1 = Uuid::new_v4();
             let config = AmpConfigDto {
                 master_volume: 0.0,
                 is_active: false,
                 channels: vec![channel_dto(
-                    4,
+                    channel_id_1.to_string(),
                     "Crunch",
                     -2.0,
                     0.0,
                     tone_stack(0.2, 0.4, 0.6),
                     vec![],
                 )],
-                current_channel: 999,
+                current_channel: Uuid::new_v4().to_string(),
             };
 
             service.apply_amp_config(config);
@@ -811,12 +850,11 @@ mod tests {
             let channel = service
                 .channels
                 .iter()
-                .find(|channel| channel.id() == 4)
+                .find(|channel| channel.id() == channel_id_1)
                 .unwrap();
 
             assert_eq!(service.channels.len(), 1);
-            assert_eq!(*service.current_channel_id(), 4);
-            assert_eq!(service.next_channel_id, 5);
+            assert_eq!(*service.current_channel_id(), channel.id());
             assert!((channel.gain().load(Ordering::Relaxed) - 0.0001).abs() < 1e-6);
             assert!((channel.volume().load(Ordering::Relaxed) - 0.0001).abs() < 1e-6);
             assert!((service.master_volume().load(Ordering::Relaxed) - 0.0001).abs() < 1e-6);
@@ -830,33 +868,31 @@ mod tests {
                 master_volume: 0.75,
                 is_active: false,
                 channels: vec![],
-                current_channel: 321,
+                current_channel: Uuid::new_v4().to_string(),
             });
 
             assert_eq!(service.channels.len(), 1);
-            assert_eq!(service.channels[0].id(), 0);
             assert_eq!(service.channels[0].name(), "Default");
-            assert_eq!(*service.current_channel_id(), 0);
-            assert_eq!(service.next_channel_id, 1);
+            assert_eq!(*service.current_channel_id(), service.channels[0].id());
             assert!((service.master_volume().load(Ordering::Relaxed) - 0.75).abs() < f32::EPSILON);
         }
 
         #[test]
         fn apply_amp_config_with_active_flag_starts_loopback() {
             let mut service = build_service(make_mock_handler());
-
+            let channel_id_1 = Uuid::new_v4();
             service.apply_amp_config(AmpConfigDto {
                 master_volume: 0.9,
                 is_active: true,
                 channels: vec![channel_dto(
-                    2,
+                    channel_id_1.to_string(),
                     "Loopback",
                     1.0,
                     1.0,
                     tone_stack(0.5, 0.5, 0.5),
                     vec![],
                 )],
-                current_channel: 2,
+                current_channel: channel_id_1.to_string(),
             });
 
             assert!(*service.is_active());
@@ -883,7 +919,8 @@ mod tests {
         fn removing_default_channel_should_do_nothing() {
             let mock = MockAudioHandlerTrait::new();
             let mut service = AudioService::new_with_handler(Arc::new(mock));
-            service.remove_channel(0);
+            let default_channel_id = service.channels[0].id();
+            service.remove_channel(default_channel_id);
 
             assert_eq!(service.channels.len(), 1);
         }

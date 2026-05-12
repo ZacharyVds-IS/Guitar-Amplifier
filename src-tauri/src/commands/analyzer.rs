@@ -1,3 +1,4 @@
+use crate::domain::dto::spectrum_contract_dto::SpectrumContractDto;
 use crate::domain::dto::spectrum_snapshot_dto::SpectrumSnapshotDto;
 use crate::services::analyzers::spectrum_analyzer_service::SpectrumAnalyzerService;
 use crate::services::audio_service::AudioService;
@@ -29,6 +30,15 @@ pub struct SpectrumStreamState {
     task: Mutex<Option<StreamTask>>,
 }
 
+/// Lower bound for analyzer frequencies in Hz, shared with frontend chart config.
+const MIN_ANALYZER_FREQ_HZ: f32 = 20.0;
+/// Upper frequency bound pushed to frontend chart config.
+const MAX_ANALYZER_FREQ_HZ: f32 = 20_000.0;
+/// Lower clamp for displayed magnitudes (dBFS), shared with frontend chart config.
+const MIN_DB: f32 = -90.0;
+/// Upper clamp for displayed magnitudes (dBFS), shared with frontend chart config.
+const MAX_DB: f32 = 6.0;
+
 /// Returns a single, immediate spectrum snapshot.
 ///
 /// This command is useful for first paint / fallback reads before the push stream
@@ -50,6 +60,18 @@ pub async fn get_live_spectrum(
     tauri::async_runtime::spawn_blocking(move || SpectrumAnalyzerService::analyze_tap(tap.as_ref()))
         .await
         .map_err(|e| format!("FFT analysis task failed: {e}"))
+}
+
+/// Returns static analyzer metadata consumed by frontend chart/state code.
+#[tauri::command]
+pub fn get_spectrum_contract() -> SpectrumContractDto {
+    SpectrumContractDto {
+        live_spectrum_event: LIVE_SPECTRUM_EVENT.to_string(),
+        min_db: MIN_DB,
+        max_db: MAX_DB,
+        min_frequency_hz: MIN_ANALYZER_FREQ_HZ,
+        max_frequency_hz: MAX_ANALYZER_FREQ_HZ,
+    }
 }
 
 /// Starts (or restarts) push-based live spectrum streaming for the calling window.

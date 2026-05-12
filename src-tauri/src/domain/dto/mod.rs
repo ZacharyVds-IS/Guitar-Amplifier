@@ -6,5 +6,6 @@ pub mod channel_dto;
 pub mod effect;
 pub mod execution_timing_dto;
 pub mod round_trip_latency_dto;
+pub mod spectrum_contract_dto;
 pub mod spectrum_snapshot_dto;
 pub mod tone_stack_dto;

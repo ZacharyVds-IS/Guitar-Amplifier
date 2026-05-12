@@ -1,21 +1,27 @@
-import {invoke} from "@tauri-apps/api/core";
 import {listen, type UnlistenFn} from "@tauri-apps/api/event";
 import {useEffect, useState} from "react";
+import {
+    getLiveSpectrum,
+    getSpectrumContract,
+    type SpectrumContractDto,
+    type SpectrumSnapshotDto,
+    startLiveSpectrumStream,
+    stopLiveSpectrumStream,
+} from "../domain";
 
-const LIVE_SPECTRUM_EVENT = "live-spectrum";
 const ATTACK_ALPHA = 0.18;
 const RELEASE_ALPHA = 0.08;
 const JITTER_DEADBAND_DB = 0.35;
 
-export type SpectrumSnapshot = {
-    sample_rate_hz: number;
-    frequencies_hz: number[];
-    magnitudes: number[];
-    level_db: number;
+export type LiveSpectrumState = {
+    spectrum: SpectrumSnapshotDto | null;
+    contract: SpectrumContractDto | null;
+    loadError: string | null;
 };
 
-export function useLiveSpectrum() {
-    const [spectrum, setSpectrum] = useState<SpectrumSnapshot | null>(null);
+export function useLiveSpectrum(): LiveSpectrumState {
+    const [spectrum, setSpectrum] = useState<SpectrumSnapshotDto | null>(null);
+    const [contract, setContract] = useState<SpectrumContractDto | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -24,7 +30,13 @@ export function useLiveSpectrum() {
 
         const bind = async () => {
             try {
-                unlisten = await listen<SpectrumSnapshot>(LIVE_SPECTRUM_EVENT, (event) => {
+                const nextContract = await getSpectrumContract();
+                if (disposed) {
+                    return;
+                }
+                setContract(nextContract);
+
+                unlisten = await listen<SpectrumSnapshotDto>(nextContract.live_spectrum_event, (event) => {
                     if (disposed) {
                         return;
                     }
@@ -32,13 +44,13 @@ export function useLiveSpectrum() {
                     setLoadError(null);
                 });
 
-                const initial = await invoke<SpectrumSnapshot>("get_live_spectrum");
+                const initial = await getLiveSpectrum();
                 if (!disposed) {
                     setSpectrum((previous) => blendSpectrum(previous, initial));
                     setLoadError(null);
                 }
 
-                await invoke("start_live_spectrum_stream");
+                await startLiveSpectrumStream();
             } catch (error) {
                 if (!disposed) {
                     setLoadError(error instanceof Error ? error.message : "Failed to read spectrum");
@@ -53,14 +65,14 @@ export function useLiveSpectrum() {
             if (unlisten) {
                 unlisten();
             }
-            void invoke("stop_live_spectrum_stream");
+            void stopLiveSpectrumStream();
         };
     }, []);
 
-    return {spectrum, loadError};
+    return {spectrum, contract, loadError};
 }
 
-function blendSpectrum(previous: SpectrumSnapshot | null, next: SpectrumSnapshot): SpectrumSnapshot {
+function blendSpectrum(previous: SpectrumSnapshotDto | null, next: SpectrumSnapshotDto): SpectrumSnapshotDto {
     if (!previous || previous.magnitudes.length !== next.magnitudes.length) {
         return next;
     }
@@ -78,5 +90,4 @@ function blendSpectrum(previous: SpectrumSnapshot | null, next: SpectrumSnapshot
         }),
     };
 }
-
 

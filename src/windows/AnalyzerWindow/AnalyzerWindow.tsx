@@ -5,21 +5,26 @@ import {AmpEnabledBoundary} from "../../components/boundary/AmpEnabledBoundary.t
 import {FallbackText} from "../../components/FallbackText.tsx";
 import {useLiveSpectrum} from "../../hooks/useLiveSpectrum.ts";
 
-const MIN_DB = -90;
-const MAX_DB = 6;
-const MIN_FREQ = 20;
-const MAX_FREQ = 20_000;
+const DEFAULT_MIN_DB = -90;
+const DEFAULT_MAX_DB = 6;
+const DEFAULT_MIN_FREQ = 20;
+const DEFAULT_MAX_FREQ = 20_000;
 const FREQ_GRID = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10_000, 20_000];
 
 export function AnalyzerWindow() {
-    const {spectrum, loadError} = useLiveSpectrum();
+    const {spectrum, contract, loadError} = useLiveSpectrum();
     const theme = useTheme();
+
+    const minDb = contract?.min_db ?? DEFAULT_MIN_DB;
+    const maxDb = contract?.max_db ?? DEFAULT_MAX_DB;
+    const minFrequencyHz = contract?.min_frequency_hz ?? DEFAULT_MIN_FREQ;
+    const maxFrequencyHz = contract?.max_frequency_hz ?? DEFAULT_MAX_FREQ;
 
     const chartData =
         spectrum && spectrum.magnitudes.length > 0
             ? spectrum.frequencies_hz.map((freq, index) => ({
-                  xPosition: frequencyToUniformGridPosition(freq),
-                  magnitude: spectrum.magnitudes[index] ?? MIN_DB,
+                  xPosition: frequencyToUniformGridPosition(freq, minFrequencyHz, maxFrequencyHz),
+                  magnitude: spectrum.magnitudes[index] ?? minDb,
               }))
             : [];
 
@@ -115,8 +120,8 @@ export function AnalyzerWindow() {
                         ]}
                         yAxis={[
                             {
-                                min: MIN_DB,
-                                max: MAX_DB,
+                                min: minDb,
+                                max: maxDb,
                                 label: "Level (dBFS)",
                             },
                         ]}
@@ -143,8 +148,8 @@ export function AnalyzerWindow() {
 }
 
 
-function frequencyToUniformGridPosition(frequencyHz: number): number {
-    const clamped = Math.min(MAX_FREQ, Math.max(MIN_FREQ, frequencyHz));
+function frequencyToUniformGridPosition(frequencyHz: number, minFrequencyHz: number, maxFrequencyHz: number): number {
+    const clamped = Math.min(maxFrequencyHz, Math.max(minFrequencyHz, frequencyHz));
     const logFreq = Math.log10(clamped);
     const gridCells = FREQ_GRID.length - 1;
 

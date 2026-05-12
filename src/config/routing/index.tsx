@@ -1,21 +1,27 @@
-import { createHashRouter } from "react-router-dom";
+import {createHashRouter} from "react-router-dom";
 import {SettingsScreen} from "../../screens/SettingsScreen.tsx";
 import {MainScreen} from "../../screens/MainScreen.tsx";
 import {AppLayout} from "../../screens/AppLayout.tsx";
+import {AnalyzerWindow} from "../../windows/AnalyzerWindow";
+
 
 export const router = createHashRouter([
     {
         path: "/",
-        element: <AppLayout />,
+        element: <AppLayout/>,
         children: [
             {
                 index: true,
-                element: <MainScreen />,
+                element: <MainScreen/>,
             },
             {
                 path: "settings",
-                element: <SettingsScreen />,
+                element: <SettingsScreen/>,
             },
         ],
+    },
+    {
+        path: "/analyzer",
+        element: <AnalyzerWindow/>,
     },
 ]);

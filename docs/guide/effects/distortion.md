@@ -12,7 +12,10 @@ This give the audio a more warm and compressed sound.
 
 The function we use to smooth out the signal is defined as:
 
-$$f(x)=\frac{Cx}{(1+|x|^n)^{\frac{1}{n}}}$$
+$$f(x)=\frac{x}{(1+|x|^n)^{\frac{1}{n}}}$$
 
-Where $f(x)$ is the output or wet sample, $x$ is the ingoing/dry sample, $C$ is the clipping roof and $n$ is the smoothness parameter set between 1 and 10. 
+Where $f(x)$ is the output or wet sample, $x$ is the ingoing/dry sample and $n$ is the smoothness parameter set between 1 and 10. 
 1 being maximum smoothing and 10 minimal. If we don't limit $n$, then $n \rightarrow \infty$ would create Hard Clipping Distortion.
+
+Because this function smoothed towards -1 and 1, 
+we need to normalize the ingoing sample by dividing it by the configurable clipping limit and denormalizing the outgoing sample to get back to the desired amplitude.

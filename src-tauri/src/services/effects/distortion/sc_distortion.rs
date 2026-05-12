@@ -110,12 +110,30 @@ impl SCDistortion {
 }
 
 impl AudioProcessor for SCDistortion {
+    /// Processes a single audio sample through hard clipping and level boost.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. **Load clipping threshold & the smoothing factor** atomically (lock-free)
+    /// 2. **Normalize the sample** to the clipping threshold. Needs to be done because smoothing algorithm smooths towards 1.0 and -1.0
+    /// 3. **Smooth the curve** towards the limit
+    /// 4. **Denormalize the sample** to get back to the desired amplitude
+    /// 5. **Apply gain boost** via the [`GainProcessor`] with smoothed transitions
+    ///
+    /// # Parameters
+    ///
+    /// * `sample` — audio sample, typically `-1.0` to `1.0`
+    ///
+    /// # Returns
+    /// Processed sample: clipped, smoothed and boosted by the level knob
     fn process(&mut self, sample: f32) -> f32 {
         let limit = self.limit.load(Ordering::Relaxed);
         let smoothing = self.smoothing.load(Ordering::Relaxed);
-        let abs_sample = sample.abs();
-        let distorted = sample / (1.0 + abs_sample.powf(smoothing)).powf(1.0 / smoothing);
-        self.level_gain.process(limit * distorted)
+        let normalized_sample = sample/limit;
+        let abs_normalized_sample = normalized_sample.abs();
+        let smoothed = normalized_sample / (1.0 + abs_normalized_sample.powf(smoothing)).powf(1.0 / smoothing);
+        let denormalized_sample = smoothed * limit;
+        self.level_gain.process(denormalized_sample)
     }
 }
 
@@ -129,6 +147,25 @@ impl Effect for SCDistortion {
     fn get_color(&self) -> String {
         self.color.clone()
     }
+    /// Converts this effect into its serialisable DTO representation.
+    ///
+    /// Called when sending effect state to the frontend or external clients.
+    ///
+    /// # Returns
+    ///
+    /// [`EffectDto::SCDistortion`] with all current parameters
+    fn to_dto(&self) -> EffectDto {
+        EffectDto::SCDistortion(ScDistortionDto {
+            id: self.id,
+            name: self.name.clone(),
+            is_active: self.is_active.load(Ordering::Relaxed),
+            color: self.color.clone(),
+            threshold: self.limit.load(Ordering::Relaxed),
+            level: self.level(),
+            smoothing: self.smoothing.load(Ordering::Relaxed),
+        })
+    }
+
     fn active_flag(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.is_active)
     }
@@ -155,25 +192,6 @@ impl Effect for SCDistortion {
         map.insert("level", Arc::clone(&self.level));
         map.insert("smoothing", Arc::clone(&self.smoothing));
         map
-    }
-
-    /// Converts this effect into its serialisable DTO representation.
-    ///
-    /// Called when sending effect state to the frontend or external clients.
-    ///
-    /// # Returns
-    ///
-    /// [`EffectDto::SCDistortion`] with all current parameters
-    fn to_dto(&self) -> EffectDto {
-        EffectDto::SCDistortion(ScDistortionDto {
-            id: self.id,
-            name: self.name.clone(),
-            is_active: self.is_active.load(Ordering::Relaxed),
-            color: self.color.clone(),
-            threshold: self.limit.load(Ordering::Relaxed),
-            level: self.level(),
-            smoothing: self.smoothing.load(Ordering::Relaxed),
-        })
     }
 }
 

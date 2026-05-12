@@ -177,7 +177,7 @@ pub fn set_sc_distortion_smoothing(
     info!(
         channel_id = *service.current_channel_id(),
         effect_id,
-        threshold = safe_smoothing,
+        smoothing = safe_smoothing,
         "SCDistortion smoothing updated"
     );
     persist_amp_config(&service, &persistence_service);

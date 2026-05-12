@@ -3,6 +3,7 @@ use crate::domain::channel::Channel;
 use crate::domain::dto::amp_config_dto::AmpConfigDto;
 use crate::domain::dto::effect::effect_dto::EffectDto;
 use crate::infrastructure::audio_handler::{AudioHandler, AudioHandlerTrait};
+use crate::services::analyzers::spectrum_tap::SpectrumTap;
 use crate::services::processors::gain::gain_processor::GainProcessor;
 use crate::services::processors::resampler::resampler::ResamplePolicy;
 use crate::services::processors::tone_stack::tone_stack_processor::ToneStackProcessor;
@@ -17,6 +18,8 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use tracing::{error, info};
+
+const DEFAULT_ANALYZER_SAMPLE_RATE_HZ: u32 = 48_000;
 
 /// The main service that orchestrates real-time audio loopback between an input and output device.
 ///
@@ -49,6 +52,7 @@ pub struct AudioService {
     current_channel_id: u32,
     master_volume: Arc<AtomicF32>,
     next_channel_id: u32,
+    spectrum_tap: Arc<SpectrumTap>,
 }
 
 impl AudioService {
@@ -98,6 +102,9 @@ impl AudioService {
             master_volume: Arc::new(AtomicF32::new(1.0)),
             current_channel_id: 0,
             next_channel_id: 1,
+            // Keep constructor side-effect free for tests using minimal mocks.
+            // Real sample-rate metadata is applied when loopback starts.
+            spectrum_tap: Arc::new(SpectrumTap::new(DEFAULT_ANALYZER_SAMPLE_RATE_HZ)),
         }
     }
 
@@ -131,6 +138,8 @@ impl AudioService {
         let channel_id = self.current_channel_id;
         let master_volume_arc = self.master_volume.clone();
         let dsp_sample_rate = self.dsp_chain_sample_rate();
+        let spectrum_tap = self.spectrum_tap.clone();
+        spectrum_tap.set_sample_rate_hz(dsp_sample_rate);
 
         let (gain_arc, volume_arc, tone_stack_arc, effect_chain_arc) = {
             let channel = self
@@ -197,7 +206,9 @@ impl AudioService {
                         }
                     }
                     let sample = volume.process(sample);
-                    master_volume.process(sample)
+                    let sample = master_volume.process(sample);
+                    spectrum_tap.push_sample(sample);
+                    sample
                 };
 
                 loop {
@@ -295,6 +306,8 @@ impl AudioService {
         }
 
         self.audio_handler = new_handler;
+        self.spectrum_tap
+            .set_sample_rate_hz(self.dsp_chain_sample_rate());
 
         if was_active {
             self.start_loopback();

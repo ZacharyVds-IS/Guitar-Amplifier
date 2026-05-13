@@ -63,12 +63,11 @@ describe("useAudioDevices", () => {
             const outputsPromise = new Promise<any>((res) => { resolveOutputs = res; });
             vi.mocked(getInputDeviceList).mockReturnValueOnce(inputsPromise);
             vi.mocked(getOutputDeviceList).mockReturnValueOnce(outputsPromise);
-            let latest: HookValue | null = null;
             let firstRender: HookValue | null = null;
 
             // Act – render but do not flush so fetch is still in-flight
             await act(async () => {
-                root.render(<Probe onChange={(v) => (latest = v)} onFirstRender={(v) => (firstRender = v)} />);
+                root.render(<Probe onChange={() => undefined} onFirstRender={(v) => (firstRender = v)} />);
             });
 
             // Assert initial state captured during FIRST RENDER (before effects ran)

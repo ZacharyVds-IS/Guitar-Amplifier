@@ -11,31 +11,6 @@ vi.mock("../../hooks/useAmpActiveSync", () => ({
     useAmpActiveSync: vi.fn(),
 }));
 
-type RenderOutput = {
-    container: HTMLDivElement;
-    getText: () => string;
-};
-
-function renderComponent(ampActive: boolean, fallback?: React.ReactNode): RenderOutput {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-
-    useAmpStore.setState({is_active: ampActive});
-
-    act(() => {
-        root.render(
-            <AmpEnabledBoundary fallback={fallback || <div>Amp is inactive</div>}>
-                <div>Amp is active</div>
-            </AmpEnabledBoundary>
-        );
-    });
-
-    return {
-        container,
-        getText: () => container.textContent || "",
-    };
-}
 
 describe("AmpEnabledBoundary", () => {
     beforeAll(() => {
@@ -114,9 +89,6 @@ describe("AmpEnabledBoundary", () => {
             // This is a logic test verifying the dependency
 
             // Assert - The component should render without errors
-            const container = document.createElement("div");
-            document.body.appendChild(container);
-            const root = createRoot(container);
 
             // This would be called by the component during render
             expect(useAmpActiveSyncModule.useAmpActiveSync).toBeDefined();

@@ -58,13 +58,12 @@ describe("useChannels", () => {
             // Arrange – gate the fetch so we can observe the initial state
             let resolve: (v: any) => void;
             vi.mocked(getAllChannels).mockReturnValueOnce(new Promise((res) => { resolve = res; }));
-            let latest: HookValue | null = null;
             let firstRender: HookValue | null = null;
 
             // Act – render without flushing; onFirstRender captures state BEFORE effects fire
             await act(async () => {
                 root.render(<Probe
-                    onChange={(v) => (latest = v)}
+                    onChange={() => undefined}
                     onFirstRender={(v) => (firstRender = v)}
                 />);
             });

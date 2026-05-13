@@ -257,7 +257,7 @@ describe("useLiveSpectrum", () => {
 
             // delta=0.35 (exact float, subtracting 0) passes the strict deadband:
             // blended = 0 + 0.35 * 0.18 (attack) ≈ 0.063  (must be > 0, not == 0)
-            const blended = requireLatest(latest).spectrum?.magnitudes[0]!;
+            const blended = requireLatest(latest).spectrum!.magnitudes[0];
             expect(blended).toBeGreaterThan(0);
             expect(blended).not.toBe(0); // confirms it was NOT suppressed by deadband
 
@@ -335,7 +335,7 @@ describe("useLiveSpectrum", () => {
             });
 
             // Lengths differ → no blending: all values must be exactly 9
-            const mags = requireLatest(latest).spectrum?.magnitudes!;
+            const mags = requireLatest(latest).spectrum!.magnitudes;
             expect(mags.length).toBe(20);
             expect(mags.every((v) => v === 9)).toBe(true);
 

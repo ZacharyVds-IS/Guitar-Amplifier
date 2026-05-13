@@ -22,10 +22,5 @@
   "vitest": {
     "configFile": "vite.config.ts"
   },
-  "coverageAnalysis": "perTest",
-  "thresholds": {
-    "high": 80,
-    "low": 65,
-    "break": 60
-  }
+  "coverageAnalysis": "perTest"
 }

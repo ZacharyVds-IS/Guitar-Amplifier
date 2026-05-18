@@ -14,6 +14,7 @@ const AUDIO_DRIVER_ASIO: &str = "ASIO";
 /// - List available input and output devices
 /// - Look up devices by their ID
 /// - Convert device information into [`AudioDeviceDto`] for frontend consumption
+#[derive(Default)]
 pub struct DeviceService {
     selected_audio_driver: Mutex<String>,
 }

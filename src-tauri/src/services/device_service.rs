@@ -20,17 +20,25 @@ pub struct DeviceService {
 }
 
 impl DeviceService {
-    /// Creates a new `DeviceService` with the given CPAL host.
+    /// Creates a new `DeviceService` initialized to the default driver.
     ///
-    /// # Arguments
+    /// # Returns
     ///
-    /// * `host` - A CPAL [`Host`] instance.
+    /// A new instance of `DeviceService`.
     pub fn new() -> Self {
         Self {
             selected_audio_driver: Mutex::new(AUDIO_DRIVER_DEFAULT.to_string()),
         }
     }
 
+    /// Retrieves a list of available audio driver names supported by the system.
+    ///
+    /// On Windows, this includes both "Default" (WASAPI) and "ASIO". On other operating
+    /// systems, only the "Default" option is available.
+    ///
+    /// # Returns
+    ///
+    /// A [`Vec`] of [`String`] containing the available driver names.
     pub fn available_audio_drivers(&self) -> Vec<String> {
         if cfg!(target_os = "windows") {
             vec![
@@ -42,6 +50,13 @@ impl DeviceService {
         }
     }
 
+    /// Gets the currently selected audio driver name.
+    ///
+    /// If the internal lock is poisoned, it falls back to returning the default driver name.
+    ///
+    /// # Returns
+    ///
+    /// A [`String`] representing the active audio driver.
     pub fn selected_audio_driver(&self) -> String {
         self.selected_audio_driver
             .lock()
@@ -49,6 +64,17 @@ impl DeviceService {
             .unwrap_or_else(|_| AUDIO_DRIVER_DEFAULT.to_string())
     }
 
+    /// Sets the selected audio driver to the specified driver name.
+    ///
+    /// The input string is normalized and validated against the platform's supported drivers.
+    ///
+    /// # Arguments
+    ///
+    /// * `driver` - A string slice representing the desired driver name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the driver is unsupported or if the internal lock is poisoned.
     pub fn set_selected_audio_driver(&self, driver: &str) -> Result<(), String> {
         let normalized = Self::normalize_driver(driver)
             .ok_or_else(|| format!("Unsupported audio driver '{}'.", driver))?;
@@ -61,10 +87,28 @@ impl DeviceService {
         Ok(())
     }
 
+    /// Checks whether the ASIO audio driver is currently selected.
+    ///
+    /// This will always return `false` on non-Windows platforms.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the system is Windows and ASIO is selected, `false` otherwise.
     pub fn is_asio_selected(&self) -> bool {
         cfg!(target_os = "windows") && self.selected_audio_driver() == AUDIO_DRIVER_ASIO
     }
 
+    /// Normalizes and validates an audio driver name string.
+    ///
+    /// Matches the string case-insensitively against available options based on the platform.
+    ///
+    /// # Arguments
+    ///
+    /// * `driver` - The driver name string slice to normalize.
+    ///
+    /// # Returns
+    ///
+    /// `Some(&'static str)` containing the canonical driver name if valid, otherwise `None`.
     fn normalize_driver(driver: &str) -> Option<&'static str> {
         if driver.eq_ignore_ascii_case(AUDIO_DRIVER_DEFAULT) {
             return Some(AUDIO_DRIVER_DEFAULT);
@@ -77,10 +121,27 @@ impl DeviceService {
         None
     }
 
+    /// Obtains a CPAL [`Host`] instance matching the currently selected driver.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the host initialization fails or the driver is unavailable.
     fn host_for_selected_driver(&self) -> Result<Host, String> {
         Self::host_for_driver(&self.selected_audio_driver())
     }
 
+    /// Obtains a CPAL [`Host`] instance for a given driver name.
+    ///
+    /// Maps "ASIO" to the Asio host and "Default" to the Wasapi host on Windows.
+    /// On other platforms, it returns the platform's default host.
+    ///
+    /// # Arguments
+    ///
+    /// * `driver` - The driver name to find a host for.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the required host cannot be located or initialized.
     fn host_for_driver(driver: &str) -> Result<Host, String> {
         if cfg!(target_os = "windows") {
             if driver.eq_ignore_ascii_case(AUDIO_DRIVER_ASIO) {
@@ -93,6 +154,15 @@ impl DeviceService {
         Ok(default_host())
     }
 
+    /// Iterates through available CPAL host IDs to find one matching the requested backend name.
+    ///
+    /// # Arguments
+    ///
+    /// * `backend_name` - The case-insensitive debug name of the desired backend (e.g., "Wasapi", "Asio").
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the host is not found or fails to initialize.
     fn host_from_backend_name(backend_name: &str) -> Result<Host, String> {
         for host_id in available_hosts() {
             if format!("{:?}", host_id).eq_ignore_ascii_case(backend_name) {
@@ -104,6 +174,16 @@ impl DeviceService {
         Err(format!("{} host is not available", backend_name))
     }
 
+    /// Converts a CPAL [`Device`] and sample rate into an [`AudioDeviceDto`].
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The CPAL device instance.
+    /// * `sample_rate` - The sample rate to assign to the DTO.
+    ///
+    /// # Returns
+    ///
+    /// `Some(AudioDeviceDto)` if the device properties were successfully queried, otherwise `None`.
     fn device_to_audio_device_dto(device: Device, sample_rate: u32) -> Option<AudioDeviceDto> {
         let desc = device.description().ok()?;
         let name = desc.name().to_string();
@@ -117,6 +197,14 @@ impl DeviceService {
         })
     }
 
+    /// Enumerates duplex devices that support both input and output operations.
+    ///
+    /// This is primarily used for ASIO handling, where a single device handles both stream directions.
+    /// The assigned sample rate will be the minimum of the default input and output configurations.
+    ///
+    /// # Returns
+    ///
+    /// A [`Vec`] of [`AudioDeviceDto`] objects representing valid duplex devices.
     fn get_duplex_devices(&self) -> Vec<AudioDeviceDto> {
         let host = match self.host_for_selected_driver() {
             Ok(host) => host,
@@ -142,6 +230,16 @@ impl DeviceService {
         }
     }
 
+    /// Retrieves the default input and output devices for the currently selected driver.
+    ///
+    /// For ASIO, this searches for the first device supporting both input and output configurations
+    /// and returns it for both tuple elements. For standard drivers, it retrieves the host's separate
+    /// default input and output devices.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the host cannot be reached, device enumeration fails, or a default device
+    /// cannot be found.
     pub fn default_devices_for_selected_driver(&self) -> Result<(Device, Device), String> {
         let host = self.host_for_selected_driver()?;
 
@@ -300,6 +398,17 @@ impl DeviceService {
         None
     }
 
+    /// Finds a duplex device supporting both input and output by its string ID.
+    ///
+    /// Utilized during ASIO configurations where inputs and outputs belong to the same hardware device.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The device ID string to search for (debug-formatted CPAL device ID).
+    ///
+    /// # Returns
+    ///
+    /// `Some(device)` if a matching duplex device is found, `None` otherwise.
     fn find_duplex_device_by_id(&self, id: &str) -> Option<cpal::Device> {
         let host = self.host_for_selected_driver().ok()?;
         let devices = host.devices().ok()?;

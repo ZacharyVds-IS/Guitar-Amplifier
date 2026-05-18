@@ -80,8 +80,8 @@ function knobsForEffect(
             const SMOOTHING_MAX = 10.0;
             const smoothingKnobValue = ((SMOOTHING_MAX - data.smoothing) / (SMOOTHING_MAX - SMOOTHING_MIN)) * 100;
             return (
-                <Stack sx={{width:200}}>
-                    <Stack direction="row" sx={{justifyContent:"space-around"}}>
+                <Stack sx={{width: 200}}>
+                    <Stack direction="row" sx={{justifyContent: "space-around"}}>
                         <Knob
                             label="Drive"
                             value={Math.max(0, Math.min(100, driveKnobValue))}
@@ -109,7 +109,7 @@ function knobsForEffect(
                             }}
                         />
                     </Stack>
-                    <Stack sx={{alignItems:"center"}}>
+                    <Stack sx={{alignItems: "center"}}>
                         <Knob
                             label="Smoothing"
                             value={Math.max(0, Math.min(100, smoothingKnobValue))}
@@ -268,7 +268,9 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
                 flexDirection: 'column',
                 alignItems: 'center',
                 position: 'relative',
-                filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.4))',
+                filter: (theme) => theme.palette.mode === 'dark'
+                    ? 'drop-shadow(0 12px 24px rgba(255, 255, 255, 0.3))'
+                    : 'drop-shadow(0 6px 12px rgba(0,0,0,0.4))',
             }}
         >
             {/* Top Chassis */}
@@ -302,7 +304,7 @@ export function EffectPedal({effect, onToggle}: EffectPedalProps) {
 
                 <Stack direction="row" spacing={1} sx={{justifyContent: 'center'}}>
                     {knobsForEffect(effect, {
-                        onThresholdChange: effect.kind == "HCDistortion" ?  handleHCThresholdChange : handleSCThresholdChange,
+                        onThresholdChange: effect.kind == "HCDistortion" ? handleHCThresholdChange : handleSCThresholdChange,
                         onLevelChange: effect.kind == "Delay" ? handleDelayLevelChange : effect.kind == "HCDistortion" ? handleHCDLevelChange : handleSCLevelChange,
                         onDelayTimeChange: handleDelayTimeChange,
                         onSmoothingChange: handleSmoothingChange

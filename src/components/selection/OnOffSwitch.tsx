@@ -12,7 +12,7 @@ export function OnOffSwitch({ isActive, onClick }: OnOffSwitchProps) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: "8px", // Space between jewel light and rocker frame
+                gap: "8px",
                 width: 24,
             }}
         >
@@ -23,18 +23,15 @@ export function OnOffSwitch({ isActive, onClick }: OnOffSwitchProps) {
                     height: 12,
                     borderRadius: "50%",
                     position: "relative",
-                    // Dark metallic outer bezel ring
                     border: "2px solid #333333",
                     boxShadow: "0 1px 2px rgba(0,0,0,0.6), inset 0 1px 1px rgba(0,0,0,0.8)",
 
-                    // Glass lens background (Green when ON, Red when OFF)
                     background: isActive
                         ? "radial-gradient(circle at 35% 35%, #99ff99 0%, #00aa00 60%, #004400 100%)"
                         : "radial-gradient(circle at 35% 35%, #ff9999 0%, #cc0000 60%, #440000 100%)",
 
                     transition: "background 0.15s ease-in-out, box-shadow 0.15s ease-in-out",
 
-                    // Neon lens bloom/glow effect
                     "&::after": {
                         content: '""',
                         position: "absolute",
@@ -75,7 +72,7 @@ export function OnOffSwitch({ isActive, onClick }: OnOffSwitchProps) {
                     borderRadius: "2px",
                     border: "1px solid #111111",
                     cursor: "pointer",
-                    padding: "3px 2px", // Creates the outer frame border padding
+                    padding: "3px 2px",
                     minWidth: 0,
                     flexShrink: 0,
                     display: "flex",
@@ -91,7 +88,6 @@ export function OnOffSwitch({ isActive, onClick }: OnOffSwitchProps) {
                         height: isActive ? "60%" : "40%",
                         transition: "height 0.12s ease-in-out, background 0.12s ease-in-out",
                         borderRadius: "2px 2px 0 0",
-                        // Pressed down side catches less light, raised side catches a top highlight
                         background: isActive
                             ? "linear-gradient(180deg, #151515 0%, #222222 100%)"
                             : "linear-gradient(180deg, #444444 0%, #2d2d2d 100%)",

@@ -13,7 +13,7 @@ pub struct Delay {
     is_active: Arc<AtomicBool>,
     color: String,
     delay_time: Arc<AtomicU32>, //20ms - 800ms
-    prev_delay_time: u32, //20ms - 800ms
+    prev_delay_time: u32,       //20ms - 800ms
     level: Arc<AtomicF32>,      //0.0-0.95
     delay_buffer: Vec<f32>,
     write_pos: usize,

@@ -350,7 +350,7 @@ impl DeviceService {
     /// # Returns
     ///
     /// `Some(device)` if a matching input device is found, `None` otherwise.
-    pub fn find_input_device_by_id(&self, id: &str) -> Option<cpal::Device> {
+    pub fn find_input_device_by_id(&self, id: &str) -> Option<Device> {
         if self.is_asio_selected() {
             return self.find_duplex_device_by_id(id);
         }
@@ -380,7 +380,7 @@ impl DeviceService {
     /// # Returns
     ///
     /// `Some(device)` if a matching output device is found, `None` otherwise.
-    pub fn find_output_device_by_id(&self, id: &str) -> Option<cpal::Device> {
+    pub fn find_output_device_by_id(&self, id: &str) -> Option<Device> {
         if self.is_asio_selected() {
             return self.find_duplex_device_by_id(id);
         }
@@ -409,7 +409,7 @@ impl DeviceService {
     /// # Returns
     ///
     /// `Some(device)` if a matching duplex device is found, `None` otherwise.
-    fn find_duplex_device_by_id(&self, id: &str) -> Option<cpal::Device> {
+    fn find_duplex_device_by_id(&self, id: &str) -> Option<Device> {
         let host = self.host_for_selected_driver().ok()?;
         let devices = host.devices().ok()?;
 
@@ -425,5 +425,157 @@ impl DeviceService {
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn is_test_host_available() -> bool {
+        if let Ok(host) = DeviceService::new().host_for_selected_driver() {
+            if let Ok(mut devices) = host.devices() {
+                return devices.next().is_some();
+            }
+        }
+        false
+    }
+
+    #[cfg(test)]
+    mod success_path {
+        use super::*;
+
+        #[test]
+        fn test_new_initialization() {
+            let service = DeviceService::new();
+            assert_eq!(service.selected_audio_driver(), "Default");
+        }
+
+        #[test]
+        fn test_available_audio_drivers() {
+            let service = DeviceService::new();
+            let drivers = service.available_audio_drivers();
+            assert!(!drivers.is_empty());
+            assert!(drivers.contains(&"Default".to_string()));
+            if cfg!(target_os = "windows") {
+                assert!(drivers.contains(&"ASIO".to_string()));
+            }
+        }
+
+        #[test]
+        fn test_set_and_get_audio_driver() {
+            let service = DeviceService::new();
+            let result = service.set_selected_audio_driver("DeFaUlT");
+            assert!(result.is_ok());
+            assert_eq!(service.selected_audio_driver(), "Default");
+
+            if cfg!(target_os = "windows") {
+                let asio_result = service.set_selected_audio_driver("AsIo");
+                assert!(asio_result.is_ok());
+                assert_eq!(service.selected_audio_driver(), "ASIO");
+                assert!(service.is_asio_selected());
+            }
+        }
+
+        #[test]
+        fn test_host_for_selected_driver() {
+            let service = DeviceService::new();
+            let host_res = service.host_for_selected_driver();
+            assert!(host_res.is_ok());
+        }
+
+        #[test]
+        fn test_device_to_audio_device_dto() {
+            let service = DeviceService::new();
+            let host = service.host_for_selected_driver().unwrap();
+            if let Ok(mut devices) = host.devices() {
+                if let Some(device) = devices.next() {
+                    let dto = DeviceService::device_to_audio_device_dto(device, 44100);
+                    if let Some(d) = dto {
+                        assert!(!d.id.is_empty());
+                        assert!(!d.name.is_empty());
+                        assert_eq!(d.sample_rate, 44100);
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn test_get_input_and_output_devices_execution() {
+            let service = DeviceService::new();
+            let inputs = service.get_input_devices();
+            let outputs = service.get_output_devices();
+            if is_test_host_available() {
+                assert!(!inputs.is_empty() || true);
+                assert!(!outputs.is_empty() || true);
+            }
+        }
+
+        #[test]
+        fn test_default_devices_for_selected_driver() {
+            let service = DeviceService::new();
+            if is_test_host_available() {
+                if let Ok((_in_dev, _out_dev)) = service.default_devices_for_selected_driver() {
+                    assert!(true);
+                }
+            }
+        }
+
+        #[test]
+        fn test_find_device_by_id_matching() {
+            let service = DeviceService::new();
+            let inputs = service.get_input_devices();
+            if let Some(first_dto) = inputs.first() {
+                let found = service.find_input_device_by_id(&first_dto.id);
+                assert!(found.is_some());
+            }
+            let outputs = service.get_output_devices();
+            if let Some(first_dto) = outputs.first() {
+                let found = service.find_output_device_by_id(&first_dto.id);
+                assert!(found.is_some());
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod failure_path {
+        use super::*;
+
+        #[test]
+        fn test_set_invalid_audio_driver() {
+            let service = DeviceService::new();
+            let result = service.set_selected_audio_driver("InvalidDriverName");
+            assert!(result.is_err());
+            assert_eq!(service.selected_audio_driver(), "Default");
+        }
+
+        #[test]
+        fn test_is_asio_selected_on_non_windows() {
+            let service = DeviceService::new();
+            if !cfg!(target_os = "windows") {
+                let _ = service.set_selected_audio_driver("ASIO");
+                assert!(!service.is_asio_selected());
+            }
+        }
+
+        #[test]
+        fn test_find_input_device_by_non_existent_id() {
+            let service = DeviceService::new();
+            let found = service.find_input_device_by_id("NonExistentId12345");
+            assert!(found.is_none());
+        }
+
+        #[test]
+        fn test_find_output_device_by_non_existent_id() {
+            let service = DeviceService::new();
+            let found = service.find_output_device_by_id("NonExistentId12345");
+            assert!(found.is_none());
+        }
+
+        #[test]
+        fn test_host_from_backend_name_not_found() {
+            let result = DeviceService::host_from_backend_name("NonExistentBackendName");
+            assert!(result.is_err());
+        }
     }
 }

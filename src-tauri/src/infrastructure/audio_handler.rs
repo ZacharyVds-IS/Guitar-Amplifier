@@ -147,6 +147,11 @@ impl AudioHandler {
     /// for the given stream configuration.
     ///
     /// Returns `None` if the device does not report supported formats.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The CPAL input device to check.
+    /// * `config` - The target stream configuration.
     fn detect_input_sample_format(device: &Device, config: &StreamConfig) -> Option<SampleFormat> {
         let mut ranges = device.supported_input_configs().ok()?;
         ranges
@@ -162,6 +167,11 @@ impl AudioHandler {
     /// for the given stream configuration.
     ///
     /// Returns `None` if the device does not report supported formats.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The CPAL output device to check.
+    /// * `config` - The target stream configuration.
     fn detect_output_sample_format(device: &Device, config: &StreamConfig) -> Option<SampleFormat> {
         let mut ranges = device.supported_output_configs().ok()?;
         ranges
@@ -176,6 +186,10 @@ impl AudioHandler {
     /// Builds a typed CPAL input stream for the given sample type `T`.
     ///
     /// Captured samples are converted to `f32` and pushed into the ring buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `producer` - The ring-buffer producer receiving the converted samples.
     ///
     /// # Type Parameters
     ///
@@ -203,6 +217,10 @@ impl AudioHandler {
     ///
     /// Samples are popped from the ring buffer and converted into the output
     /// sample type. Missing samples are replaced with silence (`0.0`).
+    ///
+    /// # Arguments
+    ///
+    /// * `consumer` - The ring-buffer consumer supplying source samples.
     ///
     /// # Type Parameters
     ///
@@ -233,6 +251,10 @@ impl AudioHandler {
     /// # Arguments
     ///
     /// * `size` - The number of `f32` samples the ring buffer can hold.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the [`HeapProd<f32>`] and [`HeapCons<f32>`].
     pub fn create_ringbuffer(size: usize) -> (HeapProd<f32>, HeapCons<f32>) {
         let rb = HeapRb::<f32>::new(size);
         rb.split()
@@ -264,6 +286,14 @@ impl AudioHandlerTrait for AudioHandler {
     /// Samples that cannot be pushed (i.e. the ring buffer is full) are silently
     /// dropped. Input errors are logged.
     ///
+    /// # Arguments
+    ///
+    /// * `producer` - The ring-buffer producer target.
+    ///
+    /// # Returns
+    ///
+    /// A boxed trait object implementing [`PlayableStream`].
+    ///
     /// # Panics
     ///
     /// Panics if CPAL fails to build the input stream.
@@ -293,6 +323,14 @@ impl AudioHandlerTrait for AudioHandler {
     /// Any output slot that has no corresponding sample is filled with `0.0`
     /// (silence). Output errors are printed to stderr.
     ///
+    /// # Arguments
+    ///
+    /// * `consumer` - The ring-buffer consumer source.
+    ///
+    /// # Returns
+    ///
+    /// A boxed trait object implementing [`PlayableStream`].
+    ///
     /// # Panics
     ///
     /// Panics if CPAL fails to build the output stream.
@@ -317,31 +355,55 @@ impl AudioHandlerTrait for AudioHandler {
     }
 
     /// Returns a reference to the CPAL input device.
+    ///
+    /// # Returns
+    ///
+    /// Reference to the internal input [`Device`].
     fn input_device(&self) -> &Device {
         &self.input_device
     }
 
     /// Returns a reference to the CPAL output device.
+    ///
+    /// # Returns
+    ///
+    /// Reference to the internal output [`Device`].
     fn output_device(&self) -> &Device {
         &self.output_device
     }
 
     /// Returns the input stream configuration.
+    ///
+    /// # Returns
+    ///
+    /// Reference to the input [`StreamConfig`].
     fn input_config(&self) -> &StreamConfig {
         &self.input_config
     }
 
     /// Returns the output stream configuration.
+    ///
+    /// # Returns
+    ///
+    /// Reference to the output [`StreamConfig`].
     fn output_config(&self) -> &StreamConfig {
         &self.output_config
     }
 
     /// Returns the configured input sample rate in Hz.
+    ///
+    /// # Returns
+    ///
+    /// The input sample rate value as a `u32`.
     fn input_sample_rate(&self) -> u32 {
         self.input_sample_rate
     }
 
     /// Returns the configured output sample rate in Hz.
+    ///
+    /// # Returns
+    ///
+    /// The output sample rate value as a `u32`.
     fn output_sample_rate(&self) -> u32 {
         self.output_sample_rate
     }
@@ -350,6 +412,33 @@ impl AudioHandlerTrait for AudioHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cpal::traits::HostTrait;
+
+    fn create_null_device() -> Device {
+        let host = cpal::default_host();
+        host.default_input_device().unwrap_or_else(|| {
+            let mut devices = host.devices().unwrap();
+            devices.next().unwrap_or_else(|| {
+                panic!(
+                    "No hardware audio device available to complete structural test evaluation."
+                );
+            })
+        })
+    }
+
+    fn create_dummy_configs() -> (StreamConfig, StreamConfig) {
+        let input = StreamConfig {
+            channels: 1,
+            sample_rate: 44100,
+            buffer_size: cpal::BufferSize::Default,
+        };
+        let output = StreamConfig {
+            channels: 2,
+            sample_rate: 48000,
+            buffer_size: cpal::BufferSize::Default,
+        };
+        (input, output)
+    }
 
     #[cfg(test)]
     mod success_path {
@@ -386,6 +475,31 @@ mod tests {
             }
 
             assert_eq!(out, [10.0, 20.0, 30.0, 0.0, 0.0]);
+        }
+
+        #[test]
+        fn test_getters_and_setters_mutability() {
+            let dev_input = create_null_device();
+            let dev_output = create_null_device();
+            let (config_in, config_out) = create_dummy_configs();
+
+            let mut handler = AudioHandler::new(
+                dev_input.clone(),
+                dev_output.clone(),
+                config_in.clone(),
+                config_out.clone(),
+            );
+
+            assert_eq!(handler.input_sample_rate, 44100);
+            assert_eq!(handler.output_sample_rate, 48000);
+            assert_eq!(handler.input_config().channels, 1);
+            assert_eq!(handler.output_config().channels, 2);
+
+            let new_dev_input = create_null_device();
+            let new_dev_output = create_null_device();
+
+            handler.set_input_device(new_dev_input);
+            handler.set_output_device(new_dev_output);
         }
     }
 

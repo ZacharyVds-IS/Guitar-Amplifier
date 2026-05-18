@@ -22,11 +22,27 @@ impulse-response (IR).
 
 ### Running locally
 
+#### Setting things up (Windows development only)
+Windows users will need to configure their local environment for support with ASIO drivers.
+This requires LLVM installed (cpal uses bindgen to bridge ASIO sdk C++ code to Rust);
+```powershell
+//install via winget as follows:s
+winget install LLVM.LLVM
+
+//Restart terminal and execute:
+setx LIBCLANG_PATH "C:\Program Files\LLVM\bin"
+```
+In combination with this make sure you have installed **Desktop Development with C++** workload in [Visual Studio Installer](https://visualstudio.microsoft.com/downloads/).
+
+or download this toolchain with this command:
+```powershell
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"
+```
+
 ```powershell
 npm install
 npm run tauri dev
 ```
-
 ### Building for production
 ```powershell
 npm install

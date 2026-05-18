@@ -10,6 +10,7 @@ import {
     HcDistortionDto,
     removeChannel,
     removeEffect,
+    ScDistortionDto,
     setBass,
     setChannelId,
     setGain,
@@ -49,6 +50,7 @@ interface AmpState extends AmpConfigDto {
     setTreble: (val: number) => void;
     updateEffectActiveState: (effectId: string, isActive: boolean) => void;
     updateHcDistortionParams: (effectId: string, patch: Partial<Pick<HcDistortionDto, "threshold" | "level">>) => void;
+    updateScDistortionParams: (effectId: string, patch: Partial<Pick<ScDistortionDto, "threshold" | "level" | "smoothing">>) => void;
     updateDelayParams: (effectId: string, patch: Partial<Pick<DelayDto, "delay_time" | "level">>) => void;
     removeEffect: (effectId: string) => void;
     addEffect: (effectDto: EffectDto) => Promise<void>;
@@ -289,7 +291,28 @@ export const useAmpStore = create<AmpState>((set, get) => ({
                 ),
             }));
         },
-
+        updateScDistortionParams: (effectId, patch) => {
+            set((state) => ({
+                channels: state.channels.map((c) =>
+                    c.id === state.current_channel
+                        ? {
+                            ...c,
+                            effect_chain: c.effect_chain.map((effect) =>
+                                effect.kind === "SCDistortion" && effect.data.id === effectId
+                                    ? {
+                                        ...effect,
+                                        data: {
+                                            ...effect.data,
+                                            ...patch,
+                                        },
+                                    }
+                                    : effect
+                            ),
+                        }
+                        : c
+                ),
+            }));
+        },
         updateDelayParams: (effectId, patch) => {
             set((state) => ({
                 channels: state.channels.map((c) =>

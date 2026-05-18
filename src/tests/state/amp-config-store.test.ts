@@ -129,7 +129,7 @@ describe("AmpConfigStore", () => {
 
         it("setChannelById applies optimistic local selection before backend resolves", async () => {
             // Arrange
-            let continueBackend = () => undefined;
+            let continueBackend: (value?: void | PromiseLike<void>) => void = () => undefined;
             const backendGate = new Promise<void>((resolve) => {
                 continueBackend = resolve;
             });

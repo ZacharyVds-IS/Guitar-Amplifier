@@ -1,5 +1,5 @@
 use cpal::traits::{DeviceTrait, StreamTrait};
-use cpal::{Device, Stream, StreamConfig};
+use cpal::{Device, FromSample, Sample, SampleFormat, SizedSample, Stream, StreamConfig};
 use derive_getters::Getters;
 use mockall::automock;
 use ringbuf::consumer::Consumer;
@@ -85,6 +85,8 @@ pub struct AudioHandler {
     output_config: StreamConfig,
     input_sample_rate: u32,
     output_sample_rate: u32,
+    input_sample_format: SampleFormat,
+    output_sample_format: SampleFormat,
 }
 
 impl AudioHandler {
@@ -104,6 +106,23 @@ impl AudioHandler {
     ) -> Self {
         let input_sample_rate = input_config.sample_rate;
         let output_sample_rate = output_config.sample_rate;
+        let input_sample_format = Self::detect_input_sample_format(&input_device, &input_config)
+            .or_else(|| {
+                input_device
+                    .default_input_config()
+                    .ok()
+                    .map(|c| c.sample_format())
+            })
+            .unwrap_or(SampleFormat::F32);
+        let output_sample_format =
+            Self::detect_output_sample_format(&output_device, &output_config)
+                .or_else(|| {
+                    output_device
+                        .default_output_config()
+                        .ok()
+                        .map(|c| c.sample_format())
+                })
+                .unwrap_or(SampleFormat::F32);
 
         Self {
             input_device,
@@ -112,7 +131,68 @@ impl AudioHandler {
             output_config,
             input_sample_rate,
             output_sample_rate,
+            input_sample_format,
+            output_sample_format,
         }
+    }
+
+    fn detect_input_sample_format(device: &Device, config: &StreamConfig) -> Option<SampleFormat> {
+        let mut ranges = device.supported_input_configs().ok()?;
+        ranges
+            .find(|range| {
+                range.channels() == config.channels
+                    && range.min_sample_rate() <= config.sample_rate
+                    && range.max_sample_rate() >= config.sample_rate
+            })
+            .map(|range| range.sample_format())
+    }
+
+    fn detect_output_sample_format(device: &Device, config: &StreamConfig) -> Option<SampleFormat> {
+        let mut ranges = device.supported_output_configs().ok()?;
+        ranges
+            .find(|range| {
+                range.channels() == config.channels
+                    && range.min_sample_rate() <= config.sample_rate
+                    && range.max_sample_rate() >= config.sample_rate
+            })
+            .map(|range| range.sample_format())
+    }
+
+    fn build_typed_input_stream<T>(&self, mut producer: HeapProd<f32>) -> Stream
+    where
+        T: Sample + SizedSample,
+        f32: FromSample<T>,
+    {
+        self.input_device
+            .build_input_stream(
+                &self.input_config,
+                move |data: &[T], _| {
+                    for &s in data {
+                        let _ = producer.try_push(f32::from_sample(s));
+                    }
+                },
+                move |err| error!("Input error: {:?}", err),
+                None,
+            )
+            .unwrap()
+    }
+
+    fn build_typed_output_stream<T>(&self, mut consumer: HeapCons<f32>) -> Stream
+    where
+        T: Sample + SizedSample + FromSample<f32>,
+    {
+        self.output_device
+            .build_output_stream(
+                &self.output_config,
+                move |out: &mut [T], _| {
+                    for o in out.iter_mut() {
+                        *o = T::from_sample(consumer.try_pop().unwrap_or(0.0));
+                    }
+                },
+                move |err| eprintln!("Output error: {:?}", err),
+                None,
+            )
+            .unwrap()
     }
 
     /// Creates a lock-free ring buffer of `f32` samples with the given capacity.
@@ -157,20 +237,23 @@ impl AudioHandlerTrait for AudioHandler {
     /// # Panics
     ///
     /// Panics if CPAL fails to build the input stream.
-    fn build_input_stream(&self, mut producer: HeapProd<f32>) -> Box<dyn PlayableStream> {
-        let stream = self
-            .input_device
-            .build_input_stream(
-                &self.input_config,
-                move |data: &[f32], _| {
-                    for &s in data {
-                        let _ = producer.try_push(s);
-                    }
-                },
-                move |err| error!("Input error: {:?}", err),
-                None,
-            )
-            .unwrap();
+    fn build_input_stream(&self, producer: HeapProd<f32>) -> Box<dyn PlayableStream> {
+        let stream = match self.input_sample_format {
+            SampleFormat::I8 => self.build_typed_input_stream::<i8>(producer),
+            SampleFormat::I16 => self.build_typed_input_stream::<i16>(producer),
+            SampleFormat::I32 => self.build_typed_input_stream::<i32>(producer),
+            SampleFormat::I64 => self.build_typed_input_stream::<i64>(producer),
+            SampleFormat::U8 => self.build_typed_input_stream::<u8>(producer),
+            SampleFormat::U16 => self.build_typed_input_stream::<u16>(producer),
+            SampleFormat::U32 => self.build_typed_input_stream::<u32>(producer),
+            SampleFormat::U64 => self.build_typed_input_stream::<u64>(producer),
+            SampleFormat::F32 => self.build_typed_input_stream::<f32>(producer),
+            SampleFormat::F64 => self.build_typed_input_stream::<f64>(producer),
+            _ => panic!(
+                "Unsupported input sample format for stream building: {:?}",
+                self.input_sample_format
+            ),
+        };
         Box::new(stream)
     }
 
@@ -183,21 +266,23 @@ impl AudioHandlerTrait for AudioHandler {
     /// # Panics
     ///
     /// Panics if CPAL fails to build the output stream.
-    fn build_output_stream(&self, mut consumer: HeapCons<f32>) -> Box<dyn PlayableStream> {
-        let stream = self
-            .output_device
-            .build_output_stream(
-                &self.output_config,
-                move |out: &mut [f32], _| {
-                    //println!("Output buffer: {:?}", &out[..10.min(out.len())]);
-                    for o in out.iter_mut() {
-                        *o = consumer.try_pop().unwrap_or(0.0);
-                    }
-                },
-                move |err| eprintln!("Output error: {:?}", err),
-                None,
-            )
-            .unwrap();
+    fn build_output_stream(&self, consumer: HeapCons<f32>) -> Box<dyn PlayableStream> {
+        let stream = match self.output_sample_format {
+            SampleFormat::I8 => self.build_typed_output_stream::<i8>(consumer),
+            SampleFormat::I16 => self.build_typed_output_stream::<i16>(consumer),
+            SampleFormat::I32 => self.build_typed_output_stream::<i32>(consumer),
+            SampleFormat::I64 => self.build_typed_output_stream::<i64>(consumer),
+            SampleFormat::U8 => self.build_typed_output_stream::<u8>(consumer),
+            SampleFormat::U16 => self.build_typed_output_stream::<u16>(consumer),
+            SampleFormat::U32 => self.build_typed_output_stream::<u32>(consumer),
+            SampleFormat::U64 => self.build_typed_output_stream::<u64>(consumer),
+            SampleFormat::F32 => self.build_typed_output_stream::<f32>(consumer),
+            SampleFormat::F64 => self.build_typed_output_stream::<f64>(consumer),
+            _ => panic!(
+                "Unsupported output sample format for stream building: {:?}",
+                self.output_sample_format
+            ),
+        };
         Box::new(stream)
     }
 

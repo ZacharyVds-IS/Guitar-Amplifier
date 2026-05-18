@@ -26,6 +26,7 @@ export default defineConfig({
         text:'Amp Design',
         items:[
           {text:'Relation to real amp', link:'/guide/amp_design/structure'},
+          {text:'Audio Drivers', link:'/guide/amp_design/driver_support.md'},
           {text:'Resampling', link:'/guide/amp_design/resampling.md'},
           {text:'Visual analysis', link:'/guide/amp_design/spectrum-analyzer.md'},
           {text:'Latency', link:'/guide/amp_design/latency'},

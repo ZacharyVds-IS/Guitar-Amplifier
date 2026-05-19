@@ -3,7 +3,7 @@ import {Knob} from "../selection/Knob.tsx";
 
 interface HCDistortionProps {
     data: HcDistortionDto;
-    handlers: Record<string, (...args: unknown[]) => void>;
+    handlers: Record<string, (...args: any[]) => void>;
 }
 
 export const HCDistortionControls = ({ data, handlers }: HCDistortionProps) => {

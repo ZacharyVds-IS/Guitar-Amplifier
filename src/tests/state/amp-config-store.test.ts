@@ -54,11 +54,11 @@ function resetStore() {
     useAmpStore.setState({
         master_volume: 1,
         is_active: false,
-        current_channel: 0,
+        current_channel: "0",
         chain_snapshot: null,
         channels: [
             {
-                id: 0,
+                id: "0",
                 name: "Clean",
                 gain: 1,
                 tone_stack: {bass: 0.5, middle: 0.5, treble: 0.5},
@@ -66,7 +66,7 @@ function resetStore() {
                 effect_chain: [distortionEffect, delayEffect] as any,
             },
             {
-                id: 1,
+                id: "1",
                 name: "Lead",
                 gain: 1.2,
                 tone_stack: {bass: 0.6, middle: 0.6, treble: 0.6},
@@ -116,7 +116,7 @@ describe("AmpConfigStore", () => {
             vi.mocked(domain.getAmpConfig).mockResolvedValueOnce(backendConfig as any);
 
             // Act
-            await useAmpStore.getState().setChannelById(1);
+            await useAmpStore.getState().setChannelById("1");
 
             // Assert
             expect(domain.setChannelId).toHaveBeenCalledWith({channelId: 1});
@@ -142,7 +142,7 @@ describe("AmpConfigStore", () => {
             } as any);
 
             // Act
-            const pending = useAmpStore.getState().setChannelById(1);
+            const pending = useAmpStore.getState().setChannelById("1");
 
             // Assert
             expect(useAmpStore.getState().current_channel).toBe(1);
@@ -172,7 +172,7 @@ describe("AmpConfigStore", () => {
             await useAmpStore.getState().addChannelFromBackend(dto as any);
 
             // Assert
-            expect(useAmpStore.getState().channels.some((c) => c.id === 5)).toBe(true);
+            expect(useAmpStore.getState().channels.some((c) => c.id === "5")).toBe(true);
             expect(useAmpStore.getState().current_channel).toBe(5);
         });
 
@@ -188,7 +188,7 @@ describe("AmpConfigStore", () => {
             } as any);
 
             // Act
-            await useAmpStore.getState().removeChannel(1);
+            await useAmpStore.getState().removeChannel("1");
 
             // Assert
             expect(domain.removeChannel).toHaveBeenCalledWith({channelId: 1});
@@ -238,8 +238,8 @@ describe("AmpConfigStore", () => {
             useAmpStore.getState().setTreble(0.4);
 
             // Assert
-            const current = useAmpStore.getState().channels.find((c) => c.id === 0)!;
-            const other = useAmpStore.getState().channels.find((c) => c.id === 1)!;
+            const current = useAmpStore.getState().channels.find((c) => c.id === "0")!;
+            const other = useAmpStore.getState().channels.find((c) => c.id === "1")!;
             expect(current.gain).toBe(1.4);
             expect(current.volume).toBe(0.77);
             expect(current.tone_stack).toEqual({bass: 0.2, middle: 0.3, treble: 0.4});
@@ -253,7 +253,7 @@ describe("AmpConfigStore", () => {
 
         it("updateEffectActiveState updates matching effect only", () => {
             // Arrange
-            const effectId = 10;
+            const effectId = "10";
             useAmpStore.setState({
                 channels: [
                     useAmpStore.getState().channels[0],
@@ -280,8 +280,8 @@ describe("AmpConfigStore", () => {
             const store = useAmpStore.getState();
 
             // Act
-            store.updateHcDistortionParams(10, {threshold: 0.8, level: 0.9});
-            store.updateDelayParams(11, {delay_time: 300, level: 0.2});
+            store.updateHcDistortionParams("10", {threshold: 0.8, level: 0.9});
+            store.updateDelayParams("11", {delay_time: 300, level: 0.2});
 
             // Assert
             const effects = useAmpStore.getState().channels[0].effect_chain as any[];
@@ -306,8 +306,8 @@ describe("AmpConfigStore", () => {
                     } as any,
                 ],
             });
-            useAmpStore.getState().updateHcDistortionParams(10, {threshold: 0.33});
-            useAmpStore.getState().updateDelayParams(11, {delay_time: 111});
+            useAmpStore.getState().updateHcDistortionParams("10", {threshold: 0.33});
+            useAmpStore.getState().updateDelayParams("11", {delay_time: 111});
 
             const updatedChain = useAmpStore.getState().channels[0].effect_chain as any[];
             expect(updatedChain.find((e) => e.kind === "Delay" && e.data.id === 10)?.data.delay_time).toBe(220);
@@ -325,7 +325,7 @@ describe("AmpConfigStore", () => {
             } as any);
 
             // Act
-            await useAmpStore.getState().removeEffect(10);
+            await useAmpStore.getState().removeEffect("10");
 
             // Assert
             expect(domain.removeEffect).toHaveBeenCalledWith({effectId: 10});
@@ -413,7 +413,7 @@ describe("AmpConfigStore", () => {
         it("moveEffect only reorders the active channel", async () => {
             // Arrange
             useAmpStore.setState({
-                current_channel: 1,
+                current_channel: "1",
                 channels: [
                     {
                         ...useAmpStore.getState().channels[0],
@@ -490,7 +490,7 @@ describe("AmpConfigStore", () => {
             const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
             // Act
-            await useAmpStore.getState().setChannelById(1);
+            await useAmpStore.getState().setChannelById("1");
 
             // Assert
             expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to set channel index:", expectedError);
@@ -508,8 +508,8 @@ describe("AmpConfigStore", () => {
 
             // Act
             await useAmpStore.getState().addChannel("Bad");
-            await useAmpStore.getState().removeChannel(9);
-            await useAmpStore.getState().removeEffect(10);
+            await useAmpStore.getState().removeChannel("9");
+            await useAmpStore.getState().removeEffect("10");
             await useAmpStore.getState().addEffect(delayEffect as any);
 
             // Assert
@@ -564,9 +564,9 @@ describe("AmpConfigStore", () => {
             const before = structuredClone(useAmpStore.getState().channels[0].effect_chain as any[]);
 
             // Act
-            useAmpStore.getState().updateEffectActiveState(999, false);
-            useAmpStore.getState().updateHcDistortionParams(999, {threshold: 0.1});
-            useAmpStore.getState().updateDelayParams(999, {delay_time: 999});
+            useAmpStore.getState().updateEffectActiveState("999", false);
+            useAmpStore.getState().updateHcDistortionParams("999", {threshold: 0.1});
+            useAmpStore.getState().updateDelayParams("999", {delay_time: 999});
 
             // Assert
             expect(useAmpStore.getState().channels[0].effect_chain).toEqual(before);
@@ -588,11 +588,11 @@ describe("AmpConfigStore", () => {
                         effect_chain: [{kind: "Delay", data: {...delayEffect.data, id: 1}} as any],
                     },
                 ] as any,
-                current_channel: 0,
+                current_channel: "0",
             });
 
-            useAmpStore.getState().updateHcDistortionParams(1, {threshold: 0.99});
-            useAmpStore.getState().updateDelayParams(1, {delay_time: 999});
+            useAmpStore.getState().updateHcDistortionParams("1", {threshold: 0.99});
+            useAmpStore.getState().updateDelayParams("1", {delay_time: 999});
 
             const channel0 = useAmpStore.getState().channels[0].effect_chain as any[];
             const channel1 = useAmpStore.getState().channels[1].effect_chain as any[];
@@ -633,7 +633,7 @@ describe("AmpConfigStore", () => {
         });
 
         it("moveEffect does nothing when active channel does not exist", async () => {
-            useAmpStore.setState({current_channel: 999});
+            useAmpStore.setState({current_channel: "999"});
             const before = structuredClone(useAmpStore.getState().channels);
 
             await useAmpStore.getState().moveEffect(0, 1);
@@ -643,7 +643,7 @@ describe("AmpConfigStore", () => {
 
         it("startEditingChainOrder logs warning if current channel is missing", () => {
             // Arrange
-            useAmpStore.setState({current_channel: 999});
+            useAmpStore.setState({current_channel: "999"});
             const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
             // Act
@@ -656,7 +656,7 @@ describe("AmpConfigStore", () => {
 
         it("applyChangesToChainOrder returns early when current channel is missing", async () => {
             // Arrange
-            useAmpStore.setState({current_channel: 999});
+            useAmpStore.setState({current_channel: "999"});
             const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
             // Act
@@ -704,8 +704,8 @@ describe("AmpConfigStore", () => {
             vi.mocked(domain.addEffect).mockRejectedValueOnce(err);
             const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-            await useAmpStore.getState().removeChannel(9);
-            await useAmpStore.getState().removeEffect(10);
+            await useAmpStore.getState().removeChannel("9");
+            await useAmpStore.getState().removeEffect("10");
             await useAmpStore.getState().addEffect(delayEffect as any);
 
             expect(errorSpy).toHaveBeenCalledWith("Failed to remove channel:", err);
@@ -729,7 +729,7 @@ describe("AmpConfigStore", () => {
                         ] as any,
                     },
                 ],
-                current_channel: 0,
+                current_channel: "0",
                 chain_snapshot: [delayEffect, distortionEffect] as any,
             });
 

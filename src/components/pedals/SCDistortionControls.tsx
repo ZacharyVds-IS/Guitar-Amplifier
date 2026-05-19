@@ -4,7 +4,7 @@ import {Knob} from "../selection/Knob.tsx";
 
 interface SCDistortionProps {
     data: ScDistortionDto;
-    handlers: Record<string, (...args: unknown[]) => void>;
+    handlers: Record<string, (...args: any[]) => void>;
 }
 
 export const SCDistortionControls = ({ data, handlers }: SCDistortionProps) => {

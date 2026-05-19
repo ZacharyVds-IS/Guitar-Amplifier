@@ -1,9 +1,10 @@
 import {DelayDto} from "../../domain";
 import {Knob} from "../selection/Knob.tsx";
+import {EffectHandlers} from "../EffectPedal.tsx";
 
 interface DelayProps {
     data: DelayDto;
-    handlers: Record<string, (...args: Array<string | number | boolean | unknown>) => void>;
+    handlers: EffectHandlers;
 }
 
 export const DelayControls = ({ data, handlers }: DelayProps) => {

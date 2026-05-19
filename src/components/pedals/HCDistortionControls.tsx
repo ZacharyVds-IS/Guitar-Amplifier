@@ -1,9 +1,10 @@
 import {HcDistortionDto} from "../../domain";
 import {Knob} from "../selection/Knob.tsx";
+import {EffectHandlers} from "../EffectPedal.tsx";
 
 interface HCDistortionProps {
     data: HcDistortionDto;
-    handlers: Record<string, (...args: Array<string | number | boolean | unknown>) => void>;
+    handlers: EffectHandlers;
 }
 
 export const HCDistortionControls = ({ data, handlers }: HCDistortionProps) => {

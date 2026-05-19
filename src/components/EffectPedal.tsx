@@ -25,14 +25,16 @@ interface EffectPedalProps {
     onToggle?: (effectId: string, isActive: boolean) => void;
 }
 
+export interface EffectHandlers {
+    onThresholdChange: (effectId: string, threshold: number, previousThreshold: number) => void;
+    onLevelChange: (effectId: string, level: number, previousLevel: number) => void;
+    onDelayTimeChange: (effectId: string, delayTime: number, previousDelayTime: number) => void;
+    onSmoothingChange: (effectId: string, smoothing: number, previousSmoothing: number) => void;
+}
+
 function knobsForEffect(
     effect: EffectDto,
-    handlers: {
-        onThresholdChange: (effectId: string, threshold: number, previousThreshold: number) => void;
-        onLevelChange: (effectId: string, level: number, previousLevel: number) => void;
-        onDelayTimeChange: (effectId: string, delayTime: number, previousDelayTime: number) => void;
-        onSmoothingChange: (effectId: string, smoothing: number, previousSmoothing: number) => void;
-    }
+    handlers: EffectHandlers
 ): React.ReactNode {
     switch (effect.kind) {
         case "HCDistortion":

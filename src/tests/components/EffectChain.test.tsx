@@ -80,7 +80,7 @@ vi.mock("../../components/dialogs/ConfirmationDialog.tsx", () => ({
         open ? <button onClick={() => { onConfirm(); onClose(); }}>confirm-remove</button> : null,
 }));
 
-function createMockEffect(id: number, name: string): EffectDto {
+function createMockEffect(id: string, name: string): EffectDto {
     return {
         kind: "Delay",
         data: {id, name, is_active: true, delay_time: 240, level: 0.5, color: "#3498db"},
@@ -88,7 +88,7 @@ function createMockEffect(id: number, name: string): EffectDto {
 }
 
 describe("EffectChain", () => {
-    const effects = [createMockEffect(1, "Delay One"), createMockEffect(2, "Delay Two")];
+    const effects = [createMockEffect("1", "Delay One"), createMockEffect("2", "Delay Two")];
 
     beforeEach(() => {
         vi.clearAllMocks();

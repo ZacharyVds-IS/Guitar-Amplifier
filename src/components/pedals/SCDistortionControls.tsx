@@ -1,10 +1,11 @@
 import {ScDistortionDto} from "../../domain";
 import {Stack} from "@mui/material";
 import {Knob} from "../selection/Knob.tsx";
+import {EffectHandlers} from "../EffectPedal.tsx";
 
 interface SCDistortionProps {
     data: ScDistortionDto;
-    handlers: Record<string, (...args: Array<string | number | boolean | unknown>) => void>;
+    handlers: EffectHandlers;
 }
 
 export const SCDistortionControls = ({ data, handlers }: SCDistortionProps) => {

@@ -316,7 +316,7 @@ describe("EffectChain", () => {
             await user.click(screen.getAllByRole("button", {name: "confirm-remove"})[0]);
 
             // Assert
-            expect(storeState.removeEffect).toHaveBeenCalledWith(1);
+            expect(storeState.removeEffect).toHaveBeenCalledWith("1");
             expect(onSelectionChange).toHaveBeenCalledWith("amp");
         });
 

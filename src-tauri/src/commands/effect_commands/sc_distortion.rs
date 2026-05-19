@@ -51,7 +51,11 @@ pub fn set_sc_distortion_threshold(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "threshold", safe_threshold)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "threshold",
+        safe_threshold,
+    )?;
     persist_amp_config(&service, &persistence_service);
     Ok(())
 }
@@ -108,7 +112,11 @@ pub fn set_sc_distortion_level(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "level", gain)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "level",
+        gain,
+    )?;
 
     persist_amp_config(&service, &persistence_service);
     Ok(())
@@ -161,7 +169,11 @@ pub fn set_sc_distortion_smoothing(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "smoothing", safe_smoothing)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "smoothing",
+        safe_smoothing,
+    )?;
     persist_amp_config(&service, &persistence_service);
     Ok(())
 }

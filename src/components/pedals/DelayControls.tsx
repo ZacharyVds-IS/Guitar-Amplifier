@@ -3,7 +3,7 @@ import {Knob} from "../selection/Knob.tsx";
 
 interface DelayProps {
     data: DelayDto;
-    handlers: any;
+    handlers: Record<string, (...args: unknown[]) => void>;
 }
 
 export const DelayControls = ({ data, handlers }: DelayProps) => {

@@ -152,6 +152,7 @@ impl AudioService {
     /// `o_producer`. It exits cleanly when `shutdown` is set to `true`.
     ///
     /// Returns the thread `JoinHandle`.
+    #[allow(clippy::too_many_arguments)]
     fn spawn_dsp_worker(
         arcs: ChannelArcs,
         master_volume_arc: Arc<AtomicF32>,
@@ -480,7 +481,7 @@ impl AudioService {
     ///
     /// [`set_current_channel_id`]: AudioService::set_current_channel_id
     pub fn remove_channel(&mut self, channel_id: Uuid) {
-        let default_channel_id = self.channels.get(0).unwrap().id();
+        let default_channel_id = self.channels.first().unwrap().id();
         if channel_id != default_channel_id {
             self.channels.retain(|c| c.id() != channel_id);
             self.set_current_channel_id(default_channel_id);

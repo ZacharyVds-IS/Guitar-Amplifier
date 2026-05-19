@@ -44,7 +44,8 @@ pub(crate) fn remove_effect(
         .iter_mut()
         .find(|c| c.id() == channel_id)
         .unwrap();
-    current_channel.remove_effect_from_chain(Uuid::parse_str(&effect_id).expect("failed to parse id"));
+    current_channel
+        .remove_effect_from_chain(Uuid::parse_str(&effect_id).expect("failed to parse id"));
     persist_amp_config(&service, &persistence_service);
 }
 
@@ -99,7 +100,8 @@ pub fn toggle_effect(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    let new_state = channel.toggle_effect(Uuid::parse_str(&effect_id).expect("failed to parse id"))?;
+    let new_state =
+        channel.toggle_effect(Uuid::parse_str(&effect_id).expect("failed to parse id"))?;
     info!(
         channel_id = service.current_channel_id().to_string(),
         effect_id,

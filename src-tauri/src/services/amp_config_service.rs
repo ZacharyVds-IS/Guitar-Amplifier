@@ -271,7 +271,10 @@ mod tests {
         let saved = state.wait_for_saved_count(1, Duration::from_secs(1));
         assert_eq!(saved.len(), 1);
 
-        assert_eq!(saved[0].current_channel, audio_service.current_channel_id().to_string());
+        assert_eq!(
+            saved[0].current_channel,
+            audio_service.current_channel_id().to_string()
+        );
         assert!(!saved[0].is_active);
     }
 
@@ -337,11 +340,17 @@ mod tests {
 
         assert_eq!(saved.len(), 2);
         assert_eq!(
-            saved.first().expect("first snapshot exists").current_channel,
+            saved
+                .first()
+                .expect("first snapshot exists")
+                .current_channel,
             id_1
         );
         assert_eq!(
-            saved.last().expect("at least one snapshot saved").current_channel,
+            saved
+                .last()
+                .expect("at least one snapshot saved")
+                .current_channel,
             id_3
         );
 

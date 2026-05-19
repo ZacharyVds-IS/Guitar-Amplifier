@@ -323,7 +323,7 @@ impl Channel {
             }
         }
     }
-    
+
     /// Returns the set of cabinet IR file names referenced by this channel.
     ///
     /// This reads mirrored effect metadata from `effect_handles` and therefore

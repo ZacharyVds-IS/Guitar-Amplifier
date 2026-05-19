@@ -26,7 +26,11 @@ pub fn set_delay_level(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "level", level)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "level",
+        level,
+    )?;
     persist_amp_config(&service, &persistence_service);
     Ok(())
 }
@@ -46,7 +50,11 @@ pub fn set_delay_delay_time(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "delay_time", delay_time)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "delay_time",
+        delay_time,
+    )?;
     persist_amp_config(&service, &persistence_service);
     Ok(())
 }

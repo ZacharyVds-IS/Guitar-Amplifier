@@ -310,8 +310,14 @@ mod tests {
 
         #[test]
         fn level_boost_doubles_output_at_max() {
-            let mut fx =
-                HCDistortion::new(Uuid::new_v4(), "HC".to_string(), true, 1.0, 1.0, "#e67e22".to_string());
+            let mut fx = HCDistortion::new(
+                Uuid::new_v4(),
+                "HC".to_string(),
+                true,
+                1.0,
+                1.0,
+                "#e67e22".to_string(),
+            );
             // Converge gain processor to ×2.0
             for _ in 0..20_000 {
                 fx.process(0.0);

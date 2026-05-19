@@ -52,7 +52,11 @@ pub fn set_hc_distortion_threshold(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "threshold", safe_threshold)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "threshold",
+        safe_threshold,
+    )?;
     info!(
         channel_id = service.current_channel_id().to_string(),
         effect_id,
@@ -115,7 +119,11 @@ pub fn set_hc_distortion_level(
         .iter()
         .find(|c| c.id() == *service.current_channel_id())
         .ok_or("No active channel")?;
-    channel.set_effect_param(Uuid::parse_str(&effect_id).expect("failed to parse id"), "level", gain)?;
+    channel.set_effect_param(
+        Uuid::parse_str(&effect_id).expect("failed to parse id"),
+        "level",
+        gain,
+    )?;
     info!(
         channel_id = service.current_channel_id().to_string(),
         effect_id,
